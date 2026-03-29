@@ -1307,12 +1307,23 @@
             if (!container) return;
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
             const current = appState.pagination[type];
-            if (totalItems === 0) { container.innerHTML = `<div class="text-gray-500 w-full text-center">ไม่พบรายการ</div>`; return; }
+            if (totalItems === 0) { container.innerHTML = `<div class="text-gray-500 w-full text-center py-2">ไม่พบรายการ</div>`; return; }
+            
+            let selectOptions = '';
+            for(let i = 1; i <= totalPages; i++) {
+                selectOptions += `<option value="${i}" ${i === current ? 'selected' : ''}>หน้า ${i}</option>`;
+            }
+
             container.innerHTML = `
-                <div class="text-gray-500">แสดงหน้า ${current} จาก ${totalPages} (รวม ${totalItems} รายการ)</div>
+                <div class="text-gray-500 flex items-center gap-3">
+                    <select onchange="changePage('${type}', parseInt(this.value))" class="border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-secondary bg-white text-dark cursor-pointer text-sm font-medium shadow-sm hover:bg-gray-50 transition">
+                        ${selectOptions}
+                    </select>
+                    <span>จาก ${totalPages} (รวม ${totalItems} รายการ)</span>
+                </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="changePage('${type}', ${current > 1 ? current - 1 : 1})" class="px-3 py-1 rounded bg-white border ${current === 1 ? 'text-gray-300 border-gray-200' : 'text-dark hover:bg-gray-100'}" ${current === 1 ? 'disabled' : ''}>ก่อนหน้า</button>
-                    <button onclick="changePage('${type}', ${current < totalPages ? current + 1 : totalPages})" class="px-3 py-1 rounded bg-white border ${current === totalPages ? 'text-gray-300 border-gray-200' : 'text-dark hover:bg-gray-100'}" ${current === totalPages ? 'disabled' : ''}>ถัดไป</button>
+                    <button onclick="changePage('${type}', ${current > 1 ? current - 1 : 1})" class="px-3 py-1.5 rounded-lg bg-white border ${current === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-dark border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition shadow-sm'}" ${current === 1 ? 'disabled' : ''}><i class="fas fa-chevron-left text-xs mr-1"></i> ก่อนหน้า</button>
+                    <button onclick="changePage('${type}', ${current < totalPages ? current + 1 : totalPages})" class="px-3 py-1.5 rounded-lg bg-white border ${current === totalPages ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-dark border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition shadow-sm'}" ${current === totalPages ? 'disabled' : ''}>ถัดไป <i class="fas fa-chevron-right text-xs ml-1"></i></button>
                 </div>
             `;
         }
@@ -1957,12 +1968,35 @@
 
         function viewAssess(index) {
             const a = appData.assessments[index]; if(!a) return;
+            
+            let sn1 = parseInt(a.SnInatt) || 0;
+            let sn2 = parseInt(a.SnHyper) || 0;
+            let sn3 = parseInt(a.SnOdd) || 0;
+            let hasSnapData = (a.SnInatt !== undefined && a.SnInatt !== '');
+            
+            let snapScoreText = a.SnapScore || '-';
+            let snapDetails = '';
+            
+            if (hasSnapData) {
+                let riskAreas = [];
+                if (sn1 >= 16) riskAreas.push('ขาดสมาธิ'); 
+                if (sn2 >= 13) riskAreas.push('ซน/อยู่ไม่นิ่ง'); 
+                if (sn3 >= 15) riskAreas.push('ดื้อ/ต่อต้าน');
+                
+                if (riskAreas.length === 0) { 
+                    snapScoreText = '<span class="text-green-600 font-bold">ปกติ</span>'; 
+                } else { 
+                    snapScoreText = `<span class="text-red-500 font-bold">เสี่ยง (${riskAreas.join(', ')})</span>`; 
+                }
+                snapDetails = `<br><span class="text-xs text-gray-500">(คะแนนดิบ: ขาดสมาธิ <b>${a.SnInatt}</b>, ซน <b>${a.SnHyper}</b>, ดื้อ <b>${a.SnOdd}</b>)</span>`;
+            }
+
             Swal.fire({
                 title: 'ข้อมูลการประเมิน',
                 html: `<div class="text-left text-sm space-y-2 mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <p><b>วันที่:</b> ${a.Date}</p><p><b>ผู้รับบริการ:</b> ${a.Name} (HN: ${a.HN})</p><hr class="my-3 border-gray-200">
                         <p class="font-bold text-secondary mb-1">พัฒนาการ 4 ด้าน</p><p>GM: ${a.GM || '-'}, FM: ${a.FM || '-'}, ภาษา: ${a.Lang || '-'}, สังคม: ${a.Soc || '-'}</p>
-                        <hr class="my-3 border-gray-200"><p><b>SNAP-IV:</b> ${a.SnapScore}</p><p class="mt-2"><b>ความเห็น:</b> ${a.Comment || '-'}</p>
+                        <hr class="my-3 border-gray-200"><p><b>SNAP-IV:</b> ${snapScoreText} ${snapDetails}</p><p class="mt-3"><b>ความเห็น:</b> ${a.Comment || '-'}</p>
                        </div>`,
                 confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
             });
@@ -2022,6 +2056,34 @@
             const a = appData.assessments[index]; if(!a) return;
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'บ้านฮักดี คลินิก';
             const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            
+            // คำนวณผลลัพธ์ SNAP-IV ใหม่สำหรับแสดงผลในหน้าพิมพ์โดยเฉพาะ เพื่อป้องกัน HTML ซ้อนทับกัน
+            let sn1 = parseInt(a.SnInatt !== undefined ? a.SnInatt : (a.Snap?.inatt)) || 0;
+            let sn2 = parseInt(a.SnHyper !== undefined ? a.SnHyper : (a.Snap?.hyper)) || 0;
+            let sn3 = parseInt(a.SnOdd !== undefined ? a.SnOdd : (a.Snap?.odd)) || 0;
+            let hasSnapData = (a.SnInatt !== undefined && a.SnInatt !== '') || (a.Snap?.inatt !== undefined && a.Snap?.inatt !== '');
+            
+            let snapScoreText = '-';
+            if (hasSnapData) {
+                if (sn1 === 0 && sn2 === 0 && sn3 === 0 && a.SnInatt === '') { 
+                    snapScoreText = '<span style="color: #9ca3af;">-</span>'; 
+                } else {
+                    let riskAreas = [];
+                    if (sn1 >= 16) riskAreas.push('ขาดสมาธิ'); 
+                    if (sn2 >= 13) riskAreas.push('ซน/อยู่ไม่นิ่ง'); 
+                    if (sn3 >= 15) riskAreas.push('ดื้อ/ต่อต้าน');
+                    
+                    if (riskAreas.length === 0) { 
+                        snapScoreText = '<span style="color: #10b981; font-weight: bold;">ปกติ</span>'; 
+                    } else { 
+                        snapScoreText = `<span style="color: #ef4444; font-weight: bold;">เสี่ยง (${riskAreas.join(', ')})</span>`; 
+                    }
+                }
+            } else if (a.SnapScore) {
+                // เผื่อมี HTML ตกค้าง ให้ดึงเฉพาะข้อความ
+                snapScoreText = a.SnapScore.replace(/<[^>]*>?/gm, '');
+            }
+
             const html = `
                 <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #F7B267; padding-bottom: 15px;">
                     ${logoUrl ? `<img src="${logoUrl}" style="max-height: 60px; margin-bottom: 10px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">` : ''}
@@ -2042,7 +2104,7 @@
                 <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">2. SNAP-IV</h4>
                 <div style="font-size: 14px; margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fcf8f2;">
                     <p style="margin: 0 0 5px 0;">คะแนนขาดสมาธิ: <b>${a.SnInatt || '-'}</b></p><p style="margin: 0 0 5px 0;">คะแนนซน/อยู่ไม่นิ่ง: <b>${a.SnHyper || '-'}</b></p>
-                    <p style="margin: 0 0 10px 0;">คะแนนดื้อ/ต่อต้าน: <b>${a.SnOdd || '-'}</b></p><p style="margin: 0;">ผลลัพธ์: ${a.SnapScore}</p>
+                    <p style="margin: 0 0 10px 0;">คะแนนดื้อ/ต่อต้าน: <b>${a.SnOdd || '-'}</b></p><p style="margin: 0;">ผลลัพธ์: ${snapScoreText}</p>
                 </div>
                 <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">3. สรุปความเห็นเพิ่มเติม</h4>
                 <div style="font-size: 14px; min-height: 60px; padding: 10px; border: 1px solid #eee; border-radius: 8px; background-color: #f9fafb;">${a.Comment || '-'}</div>
