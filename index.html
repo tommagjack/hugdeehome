@@ -1521,38 +1521,90 @@
             const tb = document.getElementById('tbodyCourseBal'); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchCourseBal')?.value || '').toLowerCase();
             let balances = {};
-            appData.patients.forEach(p => { balances[p.HN] = { bought: 0, used: 0 }; });
+            
+            // 1. เฉพาะผู้รับบริการที่ Active เท่านั้น
+            appData.patients.forEach(p => { 
+                if (p.Status === 'Active') {
+                    balances[p.HN] = { bought: 0, used: 0, lastActivity: 0 }; 
+                }
+            });
+
+            // Helper แปลงวันที่เป็น Timestamp เพื่อใช้เรียงลำดับ
+            const parseD = (ds) => {
+                if(!ds) return 0;
+                if(ds.includes('-')) return new Date(ds).getTime() || 0;
+                if(ds.includes('/')) {
+                    let p = ds.split(' ')[0].split('/');
+                    if(p.length === 3) {
+                        let y = parseInt(p[2]); if(y > 2500) y -= 543;
+                        return new Date(y, parseInt(p[1])-1, parseInt(p[0])).getTime();
+                    }
+                }
+                return new Date(ds).getTime() || 0;
+            };
+            
+            // 2. คำนวณคอร์สที่ซื้อ (ไม่นับประเมินพัฒนาการ)
             appData.receipts.forEach(r => {
-                if (r.CartItems) {
+                if (r.CartItems && balances[r.HN]) {
                     try {
                         let cart = JSON.parse(r.CartItems);
                         cart.forEach(item => {
-                            if (item.name && item.name.includes('คอร์ส')) {
-                                let match = item.name.match(/(\d+)\s*ครั้ง/); let sessions = match ? parseInt(match[1]) : 1; let totalSessions = sessions * item.qty;
-                                if (!balances[r.HN]) balances[r.HN] = { bought: 0, used: 0 };
+                            const itemName = item.name || '';
+                            // นับเฉพาะรายการที่มีคำว่า "คอร์ส" หรือเป็นการเพิ่ม Manual และต้องไม่มีคำว่า "ประเมิน"
+                            if ((itemName.includes('คอร์ส') || item.id === 'MANUAL_ADD') && !itemName.includes('ประเมิน')) {
+                                let match = itemName.match(/(\d+)\s*ครั้ง/); 
+                                let sessions = match ? parseInt(match[1]) : 1; 
+                                let totalSessions = sessions * item.qty;
+                                
                                 balances[r.HN].bought += totalSessions;
+                                
+                                let rDate = parseD(r.Date);
+                                if (rDate > balances[r.HN].lastActivity) balances[r.HN].lastActivity = rDate;
                             }
                         });
                     } catch(e) { }
                 }
             });
+            
+            // 3. คำนวณคอร์สที่ใช้ (ไม่นับประเมินพัฒนาการ)
             appData.appointments.forEach(a => {
-                if (a.Status === 'รับบริการแล้ว' && a.Type === 'ฝึกกระตุ้นพัฒนาการ') {
-                    if (!balances[a.HN]) balances[a.HN] = { bought: 0, used: 0 };
-                    balances[a.HN].used += 1;
+                if (a.Status === 'รับบริการแล้ว' && balances[a.HN]) {
+                    if (a.Type !== 'ประเมินพัฒนาการครั้งแรก' && !a.Type.includes('ประเมิน')) {
+                        balances[a.HN].used += 1;
+                        let aDate = parseD(a.RawDate || a.Date);
+                        if (aDate > balances[a.HN].lastActivity) balances[a.HN].lastActivity = aDate;
+                    }
                 }
             });
+            
             let courseData = [];
             for (let hn in balances) {
                 const p = appData.patients.find(x => x.HN === hn);
-                const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : 'ไม่ระบุชื่อ';
-                const nick = p && p.Nickname ? `(${p.Nickname})` : '';
-                const searchString = `${hn} ${fullName} ${nick}`.toLowerCase();
-                if (searchTerm === '' || searchString.includes(searchTerm)) {
-                    courseData.push({ HN: hn, FullName: fullName, Nick: nick, Bought: balances[hn].bought, Used: balances[hn].used, Remaining: balances[hn].bought - balances[hn].used });
+                if (p) {
+                    const fullName = [p.Name, p.LastName].filter(Boolean).join(' ') || 'ไม่ระบุชื่อ';
+                    const nick = p.Nickname ? `(${p.Nickname})` : '';
+                    const searchString = `${hn} ${fullName} ${nick}`.toLowerCase();
+                    
+                    if (searchTerm === '' || searchString.includes(searchTerm)) {
+                        courseData.push({ 
+                            HN: hn, 
+                            FullName: fullName, 
+                            Nick: nick, 
+                            Bought: balances[hn].bought, 
+                            Used: balances[hn].used, 
+                            Remaining: balances[hn].bought - balances[hn].used,
+                            LastActivity: balances[hn].lastActivity || parseD(p.DOB) || 0
+                        });
+                    }
                 }
             }
-            courseData.sort((a, b) => { if (b.Remaining !== a.Remaining) return b.Remaining - a.Remaining; return b.Bought - a.Bought; }); 
+            
+            // เรียงลำดับจากกิจกรรมล่าสุดไปเก่าสุด (อิงจากวันที่ออกใบเสร็จหรือวันที่รับบริการล่าสุด) หากไม่มีให้เรียงตาม HN ใหม่สุด
+            courseData.sort((a, b) => { 
+                if (b.LastActivity !== a.LastActivity) return b.LastActivity - a.LastActivity; 
+                return b.HN.localeCompare(a.HN); 
+            }); 
+            
             const total = courseData.length; const start = (appState.pagination.courseBal - 1) * ITEMS_PER_PAGE;
             const paginatedData = courseData.slice(start, start + ITEMS_PER_PAGE);
             if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบประวัติคอร์สผู้รับบริการ</td></tr>`; } 
