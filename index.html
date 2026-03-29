@@ -50,7 +50,6 @@
     <!-- Login Overlay -->
     <div id="loginOverlay" class="fixed inset-0 bg-[#FEF8F1] z-[60] flex items-center justify-center">
         <div class="bg-white rounded-[2rem] shadow-lg w-full max-w-md overflow-hidden mx-4">
-            <!-- Top Orange Banner -->
             <div class="bg-secondary p-8 text-center text-white flex flex-col items-center">
                 <div class="w-16 h-16 border-2 border-white/40 rounded-2xl flex items-center justify-center mb-4 bg-white/20 overflow-hidden">
                     <img id="loginLogo" src="" alt="Logo" class="w-full h-full object-cover hidden" onerror="this.style.display='none'; document.getElementById('loginLockIcon').style.display='block';">
@@ -59,7 +58,6 @@
                 <h1 id="loginClinicName" class="text-2xl font-bold mb-1">Hug Dee Home Clinic</h1>
                 <p class="text-white/80 text-sm font-medium">ระบบบริหารจัดการคลินิกพัฒนาการเด็ก</p>
             </div>
-            <!-- Login Form -->
             <div class="p-8">
                 <div class="mb-5">
                     <label class="block text-sm font-bold text-dark mb-2">ชื่อผู้ใช้งาน</label>
@@ -82,7 +80,6 @@
 
     <!-- Sidebar -->
     <aside id="sidebar" class="w-64 bg-white border-r border-gray-100 flex-shrink-0 hidden md:flex flex-col transition-all duration-300 absolute md:relative z-50 h-full shadow-sm">
-        <!-- Header -->
         <div class="p-6 flex items-center gap-3">
             <div class="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-sm shrink-0">B</div>
             <div>
@@ -92,7 +89,6 @@
             <button class="md:hidden text-gray-400 hover:text-dark ml-auto" onclick="document.getElementById('sidebar').classList.add('hidden')"><i class="fas fa-times text-xl"></i></button>
         </div>
 
-        <!-- Navigation Menu -->
         <nav class="flex-1 overflow-y-auto py-2 hide-scroll text-sm">
             <a href="#" onclick="routeTo('dashboard')" id="nav-dashboard" class="nav-menu"><i class="fas fa-th-large"></i> หน้าหลัก</a>
             <a href="#" onclick="routeTo('register')" id="nav-register" class="nav-menu"><i class="fas fa-user-plus"></i> ทะเบียนผู้รับบริการ</a>
@@ -104,7 +100,6 @@
             <a href="#" onclick="routeTo('settings')" id="nav-settings" class="nav-menu"><i class="fas fa-cog"></i> ตั้งค่าระบบ</a>
         </nav>
 
-        <!-- Footer Profile & Logout -->
         <div class="p-6 border-t border-gray-50 mt-auto">
             <div class="flex items-center gap-3 mb-6">
                 <div class="w-10 h-10 bg-dark rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" id="sidebarAvatar">A</div>
@@ -873,7 +868,7 @@
     <!-- Modal: Service Picker (Cart) -->
     <div id="modalPickService" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl flex flex-col max-h-[80vh]">
-            <div class="p-4 bg-dark text-light flex justify-between items-center rounded-t-2xl"><h3 class="font-medium">เลือกบริการลงบิล</h3><button onclick="closeModal('modalPickService')" class="hover:text-red-400"><i class="fas fa-times"></i></button></div>
+            <div class="p-4 bg-dark text-light flex justify-between items-center rounded-t-2xl"><h3 class="font-medium">เลือกบริการลงบิล</h3><button onclick="closeModal('modalPickService')" class="hover:text-red-400"><i class="fas fa-times text-xl"></i></button></div>
             <div class="p-4 overflow-y-auto flex-1 text-sm">
                 <div class="space-y-2" id="pickServiceList"></div>
             </div>
@@ -1032,9 +1027,6 @@
 
     <script>
         // ================= STATE & GLOBALS =================
-        // 🔴🔴🔴 สำคัญมาก: จุดเชื่อมต่อถาวรสำหรับทุกอุปกรณ์ (มือถือ/แท็บเล็ต/คอมพิวเตอร์) 🔴🔴🔴
-        // หากคุณเปิดไฟล์นี้จากนอก Google (เช่น ดับเบิลคลิกไฟล์ .html) 
-        // คุณ "ต้อง" นำ Web App URL มาวางในเครื่องหมายคำพูดด้านล่างนี้ ระบบถึงจะจำได้ทุกเครื่อง
         const GLOBAL_GAS_API_URL = "https://script.google.com/macros/s/AKfycbz_4cFU20-DF4ehqA0J34XMFqTlr5uyV_gWrZORP2m1aCgHYkJ2WnDnR2iZYZlc_S2ulQ/exec"; 
 
         const ITEMS_PER_PAGE = 10;
@@ -1047,9 +1039,10 @@
         };
         const appData = { patients: [], cart: [], appointments: [], receipts: [], therapistsRaw: [], therapists: {}, holidays: [], holidayStrings: [], assessments: [], services: [], banks: [] };
 
+        const escapeJS = (str) => (str || '').toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
         // ================= GAS COMMUNICATION (API & FETCH) =================
         const runGas = async (funcName, ...args) => {
-            // 1. Native execution if hosted inside GAS
             if (typeof google !== 'undefined' && google.script && google.script.run) {
                 return new Promise((resolve, reject) => {
                     google.script.run
@@ -1059,7 +1052,6 @@
                 });
             } 
             
-            // 2. Fetch execution if hosted externally
             let gasUrl = GLOBAL_GAS_API_URL;
             if (!gasUrl || !gasUrl.startsWith('http')) {
                 gasUrl = localStorage.getItem('GAS_WEB_APP_URL'); 
@@ -1068,7 +1060,6 @@
                 gasUrl = document.getElementById('confGasId') ? document.getElementById('confGasId').value : '';
             }
 
-            // Fallback Popup if URL is completely missing (New Device/User)
             if (!gasUrl || !gasUrl.startsWith('http')) {
                 const { value: url } = await Swal.fire({
                     title: 'เชื่อมต่อฐานข้อมูลครั้งแรก',
@@ -1085,16 +1076,30 @@
                     localStorage.setItem('GAS_WEB_APP_URL', gasUrl);
                     if (document.getElementById('confGasId')) document.getElementById('confGasId').value = gasUrl;
                 } else {
-                    console.warn(`[Local Mock] ทำงานในโหมดจำลอง (ไม่พบล็อกการตั้งค่า URL)`);
                     return new Promise((resolve) => {
                         setTimeout(() => {
                             if (funcName === 'loginUser') {
                                 resolve({ success: true, role: 'admin', name: 'Local Admin (จำลอง)' });
                             } else if (funcName === 'getInitialData') {
-                                resolve({ patients: [], appointments: [], assessments: [], receipts: [], services: [], config: [{}], holidays: [], banks: [], therapists: [] });
-                            } else {
+                                resolve({ 
+                                    patients: appData.patients, appointments: appData.appointments, assessments: appData.assessments, receipts: appData.receipts, 
+                                    services: appData.services, config: [{}], holidays: appData.holidaysRaw || [], banks: appData.banks || [], therapists: appData.therapistsRaw || [] 
+                                });
+                            } else if (funcName === 'saveRecord') {
+                                const s = args[0]; const d = args[1]; const idField = args[3]; let target = null;
+                                if(s==='Patients') target = appData.patients; if(s==='Appointments') target = appData.appointments;
+                                if(s==='Assessments') target = appData.assessments; if(s==='Receipts') target = appData.receipts;
+                                if(s==='Services') target = appData.services;
+                                if(target) { const existIdx = target.findIndex(x => x[idField] === d[idField]); if(existIdx >= 0) target[existIdx] = d; else target.push(d); }
                                 resolve({ success: true, message: 'Mock Success' });
-                            }
+                            } else if (funcName === 'deleteRecord') {
+                                const s = args[0]; const idVal = args[1]; const idField = args[2]; let target = null;
+                                if(s==='Patients') target = appData.patients; if(s==='Appointments') target = appData.appointments;
+                                if(s==='Assessments') target = appData.assessments; if(s==='Receipts') target = appData.receipts;
+                                if(s==='Services') target = appData.services;
+                                if(target) { const existIdx = target.findIndex(x => x[idField] === idVal); if(existIdx >= 0) target.splice(existIdx, 1); }
+                                resolve({ success: true, message: 'Mock Success' });
+                            } else { resolve({ success: true, message: 'Mock Success' }); }
                         }, 500);
                     });
                 }
@@ -1102,17 +1107,9 @@
 
             if (gasUrl && gasUrl.startsWith('http')) {
                 try {
-                    const response = await fetch(gasUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-                        body: JSON.stringify({ action: funcName, args: args })
-                    });
+                    const response = await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: funcName, args: args }) });
                     const result = await response.json();
-                    if (result.status === 'success') {
-                        return result.data;
-                    } else {
-                        throw new Error(result.message);
-                    }
+                    if (result.status === 'success') { return result.data; } else { throw new Error(result.message); }
                 } catch (e) {
                     console.error("API Request Failed:", e);
                     throw new Error("การเชื่อมต่อ API ขัดข้อง โปรดตรวจสอบ GAS URL: " + e.message);
@@ -1124,7 +1121,6 @@
         const showLoading = (msg = 'กำลังประมวลผล...') => { document.getElementById('loaderText').innerText = msg; document.getElementById('globalLoader').style.display = 'flex'; };
         const hideLoading = () => document.getElementById('globalLoader').style.display = 'none';
         const showToast = (title, icon = 'success') => Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer: 1500 });
-        
         const openModal = (id) => { const modal = document.getElementById(id); if (modal) modal.style.display = 'flex'; };
         const closeModal = (id) => { const modal = document.getElementById(id); if (modal) modal.style.display = 'none'; };
 
@@ -1132,56 +1128,34 @@
             showLoading('กำลังบันทึกข้อมูล...');
             try {
                 const res = await runGas('saveRecord', sheetName, dataObj, headers, idField);
-                if (res && res.success) {
-                    showToast('บันทึกข้อมูลสำเร็จ');
-                    await loadInitialDataFromGAS();
-                    return true;
-                } else {
-                    Swal.fire('ข้อผิดพลาด', res ? res.message : 'Unknown error', 'error');
-                    return false;
-                }
-            } catch(e) {
-                hideLoading();
-                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
-                return false;
-            }
+                if (res && res.success) { showToast('บันทึกข้อมูลสำเร็จ'); await loadInitialDataFromGAS(); return true; } 
+                else { Swal.fire('ข้อผิดพลาด', res ? res.message : 'Unknown error', 'error'); return false; }
+            } catch(e) { hideLoading(); Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error'); return false; }
         }
 
         async function deleteFromDB(sheetName, idValue, idField) {
             showLoading('กำลังลบข้อมูล...');
             try {
                 const res = await runGas('deleteRecord', sheetName, idValue, idField);
-                if (res && res.success) {
-                    showToast('ลบข้อมูลสำเร็จ');
-                    await loadInitialDataFromGAS();
-                    return true;
-                } else {
-                    Swal.fire('ข้อผิดพลาด', res ? res.message : 'Unknown error', 'error');
-                    return false;
-                }
-            } catch(e) {
-                hideLoading();
-                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
-                return false;
-            }
+                if (res && res.success) { showToast('ลบข้อมูลสำเร็จ'); await loadInitialDataFromGAS(); return true; } 
+                else { Swal.fire('ข้อผิดพลาด', res ? res.message : 'Unknown error', 'error'); return false; }
+            } catch(e) { hideLoading(); Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error'); return false; }
         }
 
-        function ThaiBaht(Number) {
+        function ThaiBaht(amountVal) {
+            if (amountVal == null || amountVal === '') return "ศูนย์บาทถ้วน";
+            let numStr = amountVal.toString().replace(/,/g, '');
+            let NumberVal = parseFloat(numStr);
             let TxtNumArr = new Array("ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า", "สิบ");
             let TxtDigitArr = new Array("", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน");
             let BahtText = "";
-            if (isNaN(Number)) return "ข้อมูลจำนวนเงินไม่ถูกต้อง";
-            if ((Number - 0) * 1 == 0) return "ศูนย์บาทถ้วน";
-            let SplitNum = Number.toString().split(".");
-            let intNum = SplitNum[0];
-            let decNum = SplitNum[1] || "00";
-            if(decNum.length === 1) decNum += "0";
-
-            let intText = "";
-            let intLen = intNum.length;
+            if (isNaN(NumberVal)) return "ข้อมูลจำนวนเงินไม่ถูกต้อง";
+            if (NumberVal === 0) return "ศูนย์บาทถ้วน";
+            let SplitNum = NumberVal.toString().split(".");
+            let intNum = SplitNum[0]; let decNum = SplitNum[1] || "00"; if(decNum.length === 1) decNum += "0";
+            let intText = ""; let intLen = intNum.length;
             for(let i = 0; i < intLen; i++) {
-                let n = parseInt(intNum.charAt(i));
-                let place = intLen - i - 1;
+                let n = parseInt(intNum.charAt(i)); let place = intLen - i - 1;
                 if(n !== 0) {
                     if (place === 0 && n === 1 && intLen > 1) intText += "เอ็ด";
                     else if (place === 1 && n === 1) intText += "สิบ";
@@ -1191,14 +1165,11 @@
                 if (place % 6 === 0 && place > 0) intText += "ล้าน";
             }
             BahtText += intText + "บาท";
-            if (decNum === "00") {
-                BahtText += "ถ้วน";
-            } else {
-                let decText = "";
-                let decLen = decNum.length;
+            if (decNum === "00") { BahtText += "ถ้วน"; } 
+            else {
+                let decText = ""; let decLen = decNum.length;
                 for(let i = 0; i < decLen; i++) {
-                    let n = parseInt(decNum.charAt(i));
-                    let place = decLen - i - 1;
+                    let n = parseInt(decNum.charAt(i)); let place = decLen - i - 1;
                     if(n !== 0) {
                         if (place === 0 && n === 1 && decNum.charAt(0) !== '0') decText += "เอ็ด";
                         else if (place === 1 && n === 1) decText += "สิบ";
@@ -1215,16 +1186,12 @@
         function routeTo(pageId) {
             document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.nav-menu').forEach(el => el.classList.remove('nav-active'));
-            
             document.getElementById(`page-${pageId}`).classList.remove('hidden');
             const navEl = document.getElementById(`nav-${pageId}`);
             if(navEl) navEl.classList.add('nav-active');
-            
             appState.currentPage = pageId;
-            
             if (pageId === 'dashboard') loadDashboard();
             if (pageId === 'settings') checkSettingsRBAC();
-            
             if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('hidden');
         }
 
@@ -1232,19 +1199,9 @@
             if (!appState.currentUser) return;
             const isAdmin = appState.currentUser.role === 'admin';
             const adminTabs = ['tabBtnClinic', 'tabBtnServices', 'tabBtnBank'];
-            
-            adminTabs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.style.display = isAdmin ? 'flex' : 'none';
-            });
-
-            if (!isAdmin) {
-                const therapistBtn = document.getElementById('tabBtnTherapist');
-                if (therapistBtn) switchSetting(therapistBtn, 'setTherapist');
-            } else {
-                const clinicBtn = document.getElementById('tabBtnClinic');
-                if (clinicBtn) switchSetting(clinicBtn, 'setClinic');
-            }
+            adminTabs.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = isAdmin ? 'flex' : 'none'; });
+            if (!isAdmin) { const therapistBtn = document.getElementById('tabBtnTherapist'); if (therapistBtn) switchSetting(therapistBtn, 'setTherapist'); } 
+            else { const clinicBtn = document.getElementById('tabBtnClinic'); if (clinicBtn) switchSetting(clinicBtn, 'setClinic'); }
         }
 
         // ================= AUTH =================
@@ -1252,7 +1209,6 @@
             const u = document.getElementById('loginUser').value.trim();
             const p = document.getElementById('loginPass').value.trim();
             if(!u || !p) return showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
-            
             showLoading('กำลังตรวจสอบข้อมูล...');
             const updateSidebarProfile = (name, role) => {
                 const displayName = name || u;
@@ -1260,25 +1216,15 @@
                 document.getElementById('sidebarUserRole').innerText = role.toUpperCase();
                 document.getElementById('sidebarAvatar').innerText = displayName.charAt(0).toUpperCase();
             };
-
             try {
                 const res = await runGas('loginUser', u, p);
                 hideLoading();
-                
                 if (res && res.success) {
-                    appState.currentUser = res;
-                    updateSidebarProfile(res.name, res.role || 'user');
+                    appState.currentUser = res; updateSidebarProfile(res.name, res.role || 'user');
                     document.getElementById('loginOverlay').style.display = 'none';
-                    showToast('เข้าสู่ระบบสำเร็จ');
-                    await loadInitialDataFromGAS();
-                    routeTo('dashboard');
-                } else {
-                    Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบล้มเหลว', text: res ? res.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', confirmButtonColor: '#F7B267' });
-                }
-            } catch (e) { 
-                hideLoading();
-                Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', confirmButtonColor: '#F7B267' });
-            }
+                    showToast('เข้าสู่ระบบสำเร็จ'); await loadInitialDataFromGAS(); routeTo('dashboard');
+                } else { Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบล้มเหลว', text: res ? res.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', confirmButtonColor: '#F7B267' }); }
+            } catch (e) { hideLoading(); Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', confirmButtonColor: '#F7B267' }); }
         }
         function logout() { location.reload(); }
 
@@ -1288,15 +1234,10 @@
             try {
                 const res = await runGas('getInitialData');
                 if (res) {
-                    appData.patients = res.patients || [];
-                    appData.appointments = res.appointments || [];
-                    appData.assessments = res.assessments || [];
-                    appData.receipts = res.receipts || [];
-                    appData.services = res.services || [];
-                    appData.holidaysRaw = res.holidays || [];
-                    appData.holidays = appData.holidaysRaw.map(h => h.Date);
-                    appData.therapistsRaw = res.therapists || []; 
-                    appData.banks = res.banks || [];
+                    appData.patients = res.patients || []; appData.appointments = res.appointments || [];
+                    appData.assessments = res.assessments || []; appData.receipts = res.receipts || [];
+                    appData.services = res.services || []; appData.holidaysRaw = res.holidays || [];
+                    appData.holidays = appData.holidaysRaw.map(h => h.Date); appData.therapistsRaw = res.therapists || []; appData.banks = res.banks || [];
                     
                     if(res.config && res.config.length > 0) {
                         const conf = res.config[0];
@@ -1315,13 +1256,8 @@
                         
                         document.getElementById('loginClinicName').innerText = conf.ClinicName || 'Hug Dee Home Clinic';
                         const loginLogo = document.getElementById('loginLogo');
-                        if(conf.LogoUrl) {
-                            loginLogo.src = conf.LogoUrl;
-                            loginLogo.style.display = 'block';
-                            document.getElementById('loginLockIcon').style.display = 'none';
-                        }
+                        if(conf.LogoUrl) { loginLogo.src = conf.LogoUrl; loginLogo.style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
                     } else {
-                        // หากเป็นการเปิดครั้งแรกสุดที่ยังไม่มี Config ให้แสดงค่าเริ่มต้น
                         if(document.getElementById('confSheetClinic')) document.getElementById('confSheetClinic').value = '12PJMJIGpPFVhQtOJHwOPFDl4msfIsDnn1e8Exw1KZ8w';
                         if(document.getElementById('confSheetUser')) document.getElementById('confSheetUser').value = '1nVHnuDLR2EYlxvZi4-HzaGABLPrnqP77qC_7tJy_75s';
                         if(document.getElementById('confGasId')) document.getElementById('confGasId').value = GLOBAL_GAS_API_URL;
@@ -1329,51 +1265,29 @@
                     }
 
                     appData.therapists = {};
-                    appData.therapistsRaw.forEach(t => {
-                        try { appData.therapists[t.Name] = JSON.parse(t.Schedule || '{}'); } 
-                        catch(e) { appData.therapists[t.Name] = {}; }
-                    });
+                    appData.therapistsRaw.forEach(t => { try { appData.therapists[t.Name] = JSON.parse(t.Schedule || '{}'); } catch(e) { appData.therapists[t.Name] = {}; } });
                     
                     populateDropdowns();
-
-                    renderTable('tbodyRegister');
-                    renderApptTable('tbodyAppt');
-                    renderAssessTable('tbodyAssess');
-                    renderReceiptTable('tbodyReceipts');
-                    renderServicesTable('tbodyServices');
-                    renderCourseBalTable();
-                    renderSettingsServicesTable('tbodySettingsServices');
-                    renderBankTable();
-                    renderHolidayTable();
-                    renderTherapistTable();
-                    
+                    renderTable('tbodyRegister'); renderApptTable('tbodyAppt'); renderAssessTable('tbodyAssess');
+                    renderReceiptTable('tbodyReceipts'); renderServicesTable('tbodyServices'); renderCourseBalTable();
+                    renderSettingsServicesTable('tbodySettingsServices'); renderBankTable(); renderHolidayTable(); renderTherapistTable();
                     if (appState.currentPage === 'dashboard') loadDashboard();
                 }
-            } catch(e) {
-                console.error(e);
-                showToast('ทำงานในโหมดทดสอบการเชื่อมต่อ', 'info');
-            } finally {
-                hideLoading();
-            }
+            } catch(e) { console.error(e); showToast('ทำงานในโหมดทดสอบการเชื่อมต่อ', 'info'); } 
+            finally { hideLoading(); }
         }
 
         function populateDropdowns() {
             const apptKru = document.getElementById('apptKru');
             if (apptKru) {
-                const val = apptKru.value;
-                apptKru.innerHTML = '<option value="">-- เลือก --</option>';
-                appData.therapistsRaw?.forEach(t => {
-                    apptKru.innerHTML += `<option value="${t.Name}">${t.Name}</option>`;
-                });
+                const val = apptKru.value; apptKru.innerHTML = '<option value="">-- เลือก --</option>';
+                appData.therapistsRaw?.forEach(t => { apptKru.innerHTML += `<option value="${t.Name}">${t.Name}</option>`; });
                 apptKru.value = val;
             }
-            
             const rcBank = document.getElementById('rcBankSelect');
             if (rcBank) {
                 rcBank.innerHTML = '';
-                appData.banks?.forEach(b => {
-                    rcBank.innerHTML += `<option value="${b.BankID}">${b.BankName} (${b.AccountNo})</option>`;
-                });
+                appData.banks?.forEach(b => { rcBank.innerHTML += `<option value="${b.BankID}">${b.BankName} (${b.AccountNo})</option>`; });
             }
         }
 
@@ -1393,11 +1307,7 @@
             if (!container) return;
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
             const current = appState.pagination[type];
-            
-            if (totalItems === 0) {
-                container.innerHTML = `<div class="text-gray-500 w-full text-center">ไม่พบรายการ</div>`;
-                return;
-            }
+            if (totalItems === 0) { container.innerHTML = `<div class="text-gray-500 w-full text-center">ไม่พบรายการ</div>`; return; }
             container.innerHTML = `
                 <div class="text-gray-500">แสดงหน้า ${current} จาก ${totalPages} (รวม ${totalItems} รายการ)</div>
                 <div class="flex items-center gap-2">
@@ -1408,40 +1318,25 @@
         }
 
         function renderTable(tbodyId) {
-            const tb = document.getElementById(tbodyId);
-            if(!tb) return;
-            tb.innerHTML = '';
-            
+            const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchPat')?.value || '').toLowerCase();
             let filteredData = appData.patients.filter(p => 
-                (p.HN && p.HN.toLowerCase().includes(searchTerm)) ||
-                (p.Name && p.Name.toLowerCase().includes(searchTerm)) ||
-                (p.LastName && p.LastName.toLowerCase().includes(searchTerm)) ||
-                (p.Phone && p.Phone.includes(searchTerm)) ||
+                (p.HN && p.HN.toLowerCase().includes(searchTerm)) || (p.Name && p.Name.toLowerCase().includes(searchTerm)) ||
+                (p.LastName && p.LastName.toLowerCase().includes(searchTerm)) || (p.Phone && p.Phone.includes(searchTerm)) ||
                 (p.Nickname && p.Nickname.toLowerCase().includes(searchTerm))
             );
-
             const sortedData = filteredData.sort((a, b) => b.HN.localeCompare(a.HN));
-            const total = sortedData.length;
-            const start = (appState.pagination.register - 1) * ITEMS_PER_PAGE;
+            const total = sortedData.length; const start = (appState.pagination.register - 1) * ITEMS_PER_PAGE;
             const paginatedData = sortedData.slice(start, start + ITEMS_PER_PAGE);
 
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบข้อมูลที่ค้นหา</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบข้อมูลที่ค้นหา</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
-                    const isAct = r.Status === 'Active';
-                    const statusBadge = isAct 
-                        ? '<span class="bg-green-100 text-green-600 px-3 py-1 rounded-full text-xs font-bold">Active</span>'
-                        : '<span class="bg-red-100 text-red-500 px-3 py-1 rounded-full text-xs font-bold">Inactive</span>';
-
+                    const statusBadge = r.Status === 'Active' ? '<span class="bg-green-100 text-green-600 px-3 py-1 rounded-full text-xs font-bold">Active</span>' : '<span class="bg-red-100 text-red-500 px-3 py-1 rounded-full text-xs font-bold">Inactive</span>';
                     tb.innerHTML += `
                         <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
                             <td class="p-5 font-bold text-orange-500">${r.HN}</td>
-                            <td class="p-5">
-                                <p class="font-bold text-dark">${r.Nickname || '-'}</p>
-                                <p class="text-xs text-gray-400 font-medium">(${r.Name || ''} ${r.LastName || ''})</p>
-                            </td>
+                            <td class="p-5"><p class="font-bold text-dark">${r.Nickname || '-'}</p><p class="text-xs text-gray-400 font-medium">(${r.Name || ''} ${r.LastName || ''})</p></td>
                             <td class="p-5 text-gray-500">${r.Age || '-'}</td>
                             <td class="p-5 text-gray-500">${r.Phone || '-'}</td>
                             <td class="p-5">${statusBadge}</td>
@@ -1458,61 +1353,29 @@
         }
 
         function renderApptTable(tbodyId) {
-            const tb = document.getElementById(tbodyId);
-            if(!tb) return;
-            tb.innerHTML = '';
-            
+            const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchAppt')?.value || '').toLowerCase();
             const dateFilter = document.getElementById('filterApptDate')?.value || '';
-
-            let filteredData = appData.appointments.filter(a => 
-                (a.HN && a.HN.toLowerCase().includes(searchTerm)) ||
-                (a.Nick && a.Nick.toLowerCase().includes(searchTerm)) ||
-                (a.Name && a.Name?.toLowerCase().includes(searchTerm))
-            );
-
-            if (dateFilter !== '') {
-                filteredData = filteredData.filter(a => a.RawDate === dateFilter);
-            }
-            
-            const sortedData = filteredData.sort((a, b) => {
-                if (b.RawDate === a.RawDate) return b.Time.localeCompare(a.Time); 
-                return b.RawDate.localeCompare(a.RawDate); 
-            });
-            
+            let filteredData = appData.appointments.filter(a => (a.HN && a.HN.toLowerCase().includes(searchTerm)) || (a.Nick && a.Nick.toLowerCase().includes(searchTerm)) || (a.Name && a.Name?.toLowerCase().includes(searchTerm)));
+            if (dateFilter !== '') { filteredData = filteredData.filter(a => a.RawDate === dateFilter); }
+            const sortedData = filteredData.sort((a, b) => { if (b.RawDate === a.RawDate) return b.Time.localeCompare(a.Time); return b.RawDate.localeCompare(a.RawDate); });
             const total = sortedData.length;
-            const countBadge = document.getElementById('apptCountBadge');
-            if (countBadge) countBadge.innerText = `${total} นัดหมาย`;
-            
+            const countBadge = document.getElementById('apptCountBadge'); if (countBadge) countBadge.innerText = `${total} นัดหมาย`;
             const start = (appState.pagination.appt - 1) * ITEMS_PER_PAGE;
             const paginatedData = sortedData.slice(start, start + ITEMS_PER_PAGE);
-
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-gray-400">ไม่พบข้อมูล</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-gray-400">ไม่พบข้อมูล</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
                     let statusBadge = '';
                     if(r.Status === 'จองแล้ว') statusBadge = '<span class="bg-orange-100 text-orange-500 border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">จองแล้ว</span>';
                     else if(r.Status === 'ยืนยันแล้ว') statusBadge = '<span class="bg-blue-100 text-blue-500 border border-blue-200 px-3 py-1 rounded-full text-xs font-bold">ยืนยันแล้ว</span>';
                     else if(r.Status === 'รับบริการแล้ว') statusBadge = '<span class="bg-green-100 text-green-500 border border-green-200 px-3 py-1 rounded-full text-xs font-bold">รับบริการแล้ว</span>';
                     else statusBadge = `<span class="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-bold">${r.Status}</span>`;
-
                     const realIndex = appData.appointments.findIndex(x => x.ApptID === r.ApptID);
-
                     tb.innerHTML += `
                         <tr class="hover:bg-gray-50 transition border-b border-gray-50">
-                            <td class="py-4 pl-5">${r.Date}</td>
-                            <td class="py-4 text-blue-500 font-bold">${r.Time}</td>
-                            <td class="py-4 text-gray-400">${r.HN}</td>
-                            <td class="py-4 font-bold text-dark">${r.Nick}</td>
-                            <td class="py-4">${r.Type}</td>
-                            <td class="py-4">${r.Kru}</td>
-                            <td class="py-4 text-center">${statusBadge}</td>
-                            <td class="py-4 text-center pr-5 text-base whitespace-nowrap">
-                                <button onclick="viewAppt(${realIndex})" class="text-blue-400 hover:text-blue-600 mx-1" title="ดูข้อมูล"><i class="far fa-eye"></i></button>
-                                <button onclick="editAppt(${realIndex})" class="text-orange-400 hover:text-orange-600 mx-1" title="แก้ไข"><i class="fas fa-pen"></i></button>
-                                <button onclick="deleteAppt(${realIndex})" class="text-red-400 hover:text-red-600 mx-1" title="ลบ"><i class="far fa-trash-alt"></i></button>
-                            </td>
+                            <td class="py-4 pl-5">${r.Date}</td><td class="py-4 text-blue-500 font-bold">${r.Time}</td><td class="py-4 text-gray-400">${r.HN}</td><td class="py-4 font-bold text-dark">${r.Nick}</td><td class="py-4">${r.Type}</td><td class="py-4">${r.Kru}</td><td class="py-4 text-center">${statusBadge}</td>
+                            <td class="py-4 text-center pr-5 text-base whitespace-nowrap"><button onclick="viewAppt(${realIndex})" class="text-blue-400 hover:text-blue-600 mx-1" title="ดูข้อมูล"><i class="far fa-eye"></i></button><button onclick="editAppt(${realIndex})" class="text-orange-400 hover:text-orange-600 mx-1" title="แก้ไข"><i class="fas fa-pen"></i></button><button onclick="deleteAppt(${realIndex})" class="text-red-400 hover:text-red-600 mx-1" title="ลบ"><i class="far fa-trash-alt"></i></button></td>
                         </tr>`;
                 });
             }
@@ -1520,29 +1383,17 @@
         }
 
         function renderAssessTable(tbodyId) {
-            const tb = document.getElementById(tbodyId);
-            if(!tb) return;
-            tb.innerHTML = '';
-            
+            const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchAssess')?.value || '').toLowerCase();
-            let filteredData = appData.assessments.filter(a => 
-                (a.HN && a.HN.toLowerCase().includes(searchTerm)) ||
-                (a.Name && a.Name.toLowerCase().includes(searchTerm))
-            );
-
+            let filteredData = appData.assessments.filter(a => (a.HN && a.HN.toLowerCase().includes(searchTerm)) || (a.Name && a.Name.toLowerCase().includes(searchTerm)));
             const sortedData = filteredData.sort((a, b) => new Date(b.Date) - new Date(a.Date));
-            const total = sortedData.length;
-            const start = (appState.pagination.assess - 1) * ITEMS_PER_PAGE;
+            const total = sortedData.length; const start = (appState.pagination.assess - 1) * ITEMS_PER_PAGE;
             const paginatedData = sortedData.slice(start, start + ITEMS_PER_PAGE);
-            
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="5" class="text-center py-16 text-gray-400">ไม่พบข้อมูลการประเมิน</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="5" class="text-center py-16 text-gray-400">ไม่พบข้อมูลการประเมิน</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
                     const realIndex = appData.assessments.findIndex(x => x.AssessID === r.AssessID);
-                    
-                    let normalAreas = [];
-                    let delayedAreas = [];
+                    let normalAreas = []; let delayedAreas = [];
                     if (r.GM === 'สมวัย') normalAreas.push('GM'); else if (r.GM === 'ไม่สมวัย') delayedAreas.push('GM');
                     if (r.FM === 'สมวัย') normalAreas.push('FM'); else if (r.FM === 'ไม่สมวัย') delayedAreas.push('FM');
                     if (r.Lang === 'สมวัย') normalAreas.push('ภาษา'); else if (r.Lang === 'ไม่สมวัย') delayedAreas.push('ภาษา');
@@ -1550,9 +1401,8 @@
 
                     let displayDevScore = r.DevScore || '-';
                     if (normalAreas.length > 0 || delayedAreas.length > 0) {
-                        if (delayedAreas.length === 0) {
-                            displayDevScore = '<span class="text-green-500 font-bold">สมวัย</span>';
-                        } else {
+                        if (delayedAreas.length === 0) { displayDevScore = '<span class="text-green-500 font-bold">สมวัย</span>'; } 
+                        else {
                             displayDevScore = `<div class="text-xs leading-tight text-left inline-block mt-1">`;
                             if (normalAreas.length > 0) displayDevScore += `<div class="text-green-600 mb-1"><span class="font-bold">สมวัย:</span> ${normalAreas.join(', ')}</div>`;
                             if (delayedAreas.length > 0) displayDevScore += `<div class="text-red-500"><span class="font-bold">ไม่สมวัย:</span> ${delayedAreas.join(', ')}</div>`;
@@ -1564,23 +1414,14 @@
                     let sn1 = parseInt(r.SnInatt !== undefined ? r.SnInatt : (r.Snap?.inatt)) || 0;
                     let sn2 = parseInt(r.SnHyper !== undefined ? r.SnHyper : (r.Snap?.hyper)) || 0;
                     let sn3 = parseInt(r.SnOdd !== undefined ? r.SnOdd : (r.Snap?.odd)) || 0;
-                    
                     let hasSnapData = (r.SnInatt !== undefined && r.SnInatt !== '') || (r.Snap?.inatt !== undefined && r.Snap?.inatt !== '');
-                    
                     if (hasSnapData) {
-                        if (sn1 === 0 && sn2 === 0 && sn3 === 0) {
-                            displaySnapScore = '<span class="text-gray-400">-</span>';
-                        } else {
+                        if (sn1 === 0 && sn2 === 0 && sn3 === 0) { displaySnapScore = '<span class="text-gray-400">-</span>'; } 
+                        else {
                             let riskAreas = [];
-                            if (sn1 >= 16) riskAreas.push('ขาดสมาธิ');
-                            if (sn2 >= 13) riskAreas.push('ซน/อยู่ไม่นิ่ง');
-                            if (sn3 >= 15) riskAreas.push('ดื้อ/ต่อต้าน');
-
-                            if (riskAreas.length === 0) {
-                                displaySnapScore = '<span class="text-green-500 font-bold">ปกติ</span>';
-                            } else {
-                                displaySnapScore = `<div class="text-xs leading-tight text-red-500 font-medium text-left inline-block mt-1">เสี่ยง:<br>${riskAreas.join('<br>')}</div>`;
-                            }
+                            if (sn1 >= 16) riskAreas.push('ขาดสมาธิ'); if (sn2 >= 13) riskAreas.push('ซน/อยู่ไม่นิ่ง'); if (sn3 >= 15) riskAreas.push('ดื้อ/ต่อต้าน');
+                            if (riskAreas.length === 0) { displaySnapScore = '<span class="text-green-500 font-bold">ปกติ</span>'; } 
+                            else { displaySnapScore = `<div class="text-xs leading-tight text-red-500 font-medium text-left inline-block mt-1">เสี่ยง:<br>${riskAreas.join('<br>')}</div>`; }
                         }
                     }
 
@@ -1603,40 +1444,21 @@
         }
 
         function renderReceiptTable(tbodyId) {
-            const tb = document.getElementById(tbodyId);
-            if(!tb) return;
-            tb.innerHTML = '';
-            
+            const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchReceipt')?.value || '').toLowerCase();
-            let filteredData = appData.receipts.filter(r => 
-                (r.No && r.No.toLowerCase().includes(searchTerm)) ||
-                (r.HN && r.HN.toLowerCase().includes(searchTerm)) ||
-                (r.Name && r.Name.toLowerCase().includes(searchTerm))
-            );
-
+            let filteredData = appData.receipts.filter(r => (r.No && r.No.toLowerCase().includes(searchTerm)) || (r.HN && r.HN.toLowerCase().includes(searchTerm)) || (r.Name && r.Name.toLowerCase().includes(searchTerm)));
             const sortedData = filteredData.sort((a, b) => b.No.localeCompare(a.No));
-            const total = sortedData.length;
-            const start = (appState.pagination.receipt - 1) * ITEMS_PER_PAGE;
+            const total = sortedData.length; const start = (appState.pagination.receipt - 1) * ITEMS_PER_PAGE;
             const paginatedData = sortedData.slice(start, start + ITEMS_PER_PAGE);
-
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบข้อมูล</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบข้อมูล</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
-                    const methodBadge = r.Method === 'โอนเงิน' 
-                        ? '<span class="bg-[#f3e8ff] text-[#a855f7] px-3 py-1 rounded-full text-xs font-bold border border-[#e9d5ff]">โอนเงิน</span>'
-                        : '<span class="bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-bold border border-green-100">เงินสด</span>';
-
+                    const methodBadge = r.Method === 'โอนเงิน' ? '<span class="bg-[#f3e8ff] text-[#a855f7] px-3 py-1 rounded-full text-xs font-bold border border-[#e9d5ff]">โอนเงิน</span>' : '<span class="bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-bold border border-green-100">เงินสด</span>';
                     tb.innerHTML += `
                         <tr class="hover:bg-gray-50 transition border-b border-gray-50">
-                            <td class="p-5 font-bold text-secondary">${r.No}</td>
-                            <td class="p-5 text-gray-500">${r.Date}</td>
-                            <td class="p-5">
-                                <p class="font-bold text-dark">${r.Name}</p>
-                                <p class="text-xs text-gray-400 font-medium">HN: ${r.HN}</p>
-                            </td>
-                            <td class="p-5 font-bold text-dark">฿${Number(r.Amount||0).toLocaleString()}</td>
-                            <td class="p-5">${methodBadge}</td>
+                            <td class="p-5 font-bold text-secondary">${r.No}</td><td class="p-5 text-gray-500">${r.Date}</td>
+                            <td class="p-5"><p class="font-bold text-dark">${r.Name}</p><p class="text-xs text-gray-400 font-medium">HN: ${r.HN}</p></td>
+                            <td class="p-5 font-bold text-dark">฿${Number(r.Amount||0).toLocaleString()}</td><td class="p-5">${methodBadge}</td>
                             <td class="p-5 text-center text-lg whitespace-nowrap">
                                 <button onclick="viewReceipt('${r.No}')" class="text-blue-400 hover:text-blue-600 mx-1.5" title="ดูข้อมูล"><i class="far fa-eye"></i></button>
                                 <button onclick="printReceipt('${r.No}')" class="text-purple-400 hover:text-purple-600 mx-1.5" title="พิมพ์ใบเสร็จ"><i class="fas fa-print"></i></button>
@@ -1650,27 +1472,18 @@
         }
 
         function renderServicesTable(tbodyId) {
-            const tb = document.getElementById(tbodyId);
-            if(!tb) return;
-            tb.innerHTML = '';
-            
-            const total = appData.services.length;
-            const start = (appState.pagination.services - 1) * ITEMS_PER_PAGE;
+            const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
+            const total = appData.services.length; const start = (appState.pagination.services - 1) * ITEMS_PER_PAGE;
             const paginatedData = appData.services.slice(start, start + ITEMS_PER_PAGE);
-
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-gray-400">ไม่มีข้อมูล</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-gray-400">ไม่มีข้อมูล</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
                     tb.innerHTML += `
                         <tr class="border-b border-gray-50 hover:bg-gray-50">
-                            <td class="p-3 text-gray-500">${r.code}</td>
-                            <td class="p-3 font-bold text-dark">${r.name}</td>
-                            <td class="p-3">${r.cat}</td>
-                            <td class="p-3 text-right font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
+                            <td class="p-3 text-gray-500">${r.code}</td><td class="p-3 font-bold text-dark">${r.name}</td><td class="p-3">${r.cat}</td><td class="p-3 text-right font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
                             <td class="p-3 text-center whitespace-nowrap">
-                                <button onclick="openServiceModal('${r.code}')" class="text-orange-400 hover:text-orange-600 mx-1"><i class="fas fa-pen"></i></button>
-                                <button onclick="deleteService('${r.code}')" class="text-red-400 hover:text-red-600 mx-1"><i class="far fa-trash-alt"></i></button>
+                                <button onclick="openServiceModal('${escapeJS(r.code)}')" class="text-orange-400 hover:text-orange-600 mx-1"><i class="fas fa-pen"></i></button>
+                                <button onclick="deleteService('${escapeJS(r.code)}')" class="text-red-400 hover:text-red-600 mx-1"><i class="far fa-trash-alt"></i></button>
                             </td>
                         </tr>`;
                 });
@@ -1679,28 +1492,17 @@
         }
 
         function renderCourseBalTable() {
-            const tb = document.getElementById('tbodyCourseBal');
-            if(!tb) return;
-            tb.innerHTML = '';
-            
+            const tb = document.getElementById('tbodyCourseBal'); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchCourseBal')?.value || '').toLowerCase();
-            
             let balances = {};
-            
-            appData.patients.forEach(p => {
-                balances[p.HN] = { bought: 0, used: 0 };
-            });
-            
+            appData.patients.forEach(p => { balances[p.HN] = { bought: 0, used: 0 }; });
             appData.receipts.forEach(r => {
                 if (r.CartItems) {
                     try {
                         let cart = JSON.parse(r.CartItems);
                         cart.forEach(item => {
                             if (item.name && item.name.includes('คอร์ส')) {
-                                let match = item.name.match(/(\d+)\s*ครั้ง/);
-                                let sessions = match ? parseInt(match[1]) : 1; 
-                                let totalSessions = sessions * item.qty;
-                                
+                                let match = item.name.match(/(\d+)\s*ครั้ง/); let sessions = match ? parseInt(match[1]) : 1; let totalSessions = sessions * item.qty;
                                 if (!balances[r.HN]) balances[r.HN] = { bought: 0, used: 0 };
                                 balances[r.HN].bought += totalSessions;
                             }
@@ -1708,122 +1510,76 @@
                     } catch(e) { }
                 }
             });
-            
             appData.appointments.forEach(a => {
                 if (a.Status === 'รับบริการแล้ว' && a.Type === 'ฝึกกระตุ้นพัฒนาการ') {
                     if (!balances[a.HN]) balances[a.HN] = { bought: 0, used: 0 };
                     balances[a.HN].used += 1;
                 }
             });
-            
             let courseData = [];
             for (let hn in balances) {
                 const p = appData.patients.find(x => x.HN === hn);
                 const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : 'ไม่ระบุชื่อ';
                 const nick = p && p.Nickname ? `(${p.Nickname})` : '';
                 const searchString = `${hn} ${fullName} ${nick}`.toLowerCase();
-                
                 if (searchTerm === '' || searchString.includes(searchTerm)) {
-                    courseData.push({
-                        HN: hn,
-                        FullName: fullName,
-                        Nick: nick,
-                        Bought: balances[hn].bought,
-                        Used: balances[hn].used,
-                        Remaining: balances[hn].bought - balances[hn].used
-                    });
+                    courseData.push({ HN: hn, FullName: fullName, Nick: nick, Bought: balances[hn].bought, Used: balances[hn].used, Remaining: balances[hn].bought - balances[hn].used });
                 }
             }
-            
-            courseData.sort((a, b) => {
-                if (b.Remaining !== a.Remaining) return b.Remaining - a.Remaining;
-                return b.Bought - a.Bought;
-            }); 
-            
-            const total = courseData.length;
-            const start = (appState.pagination.courseBal - 1) * ITEMS_PER_PAGE;
+            courseData.sort((a, b) => { if (b.Remaining !== a.Remaining) return b.Remaining - a.Remaining; return b.Bought - a.Bought; }); 
+            const total = courseData.length; const start = (appState.pagination.courseBal - 1) * ITEMS_PER_PAGE;
             const paginatedData = courseData.slice(start, start + ITEMS_PER_PAGE);
-            
-            if (paginatedData.length === 0) {
-                tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบประวัติคอร์สผู้ป่วย</td></tr>`;
-            } else {
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบประวัติคอร์สผู้ป่วย</td></tr>`; } 
+            else {
                 paginatedData.forEach(r => {
                     let remainingClass = r.Remaining > 0 ? 'text-green-500 font-bold bg-green-50 px-3 py-1 rounded-full' : 'text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full';
                     tb.innerHTML += `
                         <tr class="hover:bg-gray-50 transition border-b border-gray-50">
                             <td class="p-4 font-bold text-orange-500">${r.HN}</td>
-                            <td class="p-4">
-                                <p class="font-bold text-dark">${r.FullName}</p>
-                                <p class="text-xs text-gray-400">${r.Nick}</p>
-                            </td>
+                            <td class="p-4"><p class="font-bold text-dark">${r.FullName}</p><p class="text-xs text-gray-400">${r.Nick}</p></td>
                             <td class="p-4 text-center text-gray-600 font-medium">${r.Bought}</td>
                             <td class="p-4 text-center text-blue-500 font-medium">${r.Used}</td>
                             <td class="p-4 text-center text-lg"><span class="${remainingClass}">${r.Remaining}</span></td>
-                            <td class="p-4 text-center">
-                                <button onclick="openManualCourseModal('${r.HN}', '${r.FullName}')" class="text-orange-400 hover:text-orange-600 transition w-8 h-8 bg-orange-50 hover:bg-orange-100 rounded-full" title="เพิ่มจำนวนคอร์ส"><i class="fas fa-plus"></i></button>
-                            </td>
-                        </tr>
-                    `;
+                            <td class="p-4 text-center"><button onclick="openManualCourseModal('${r.HN}', '${escapeJS(r.FullName)}')" class="text-orange-400 hover:text-orange-600 transition w-8 h-8 bg-orange-50 hover:bg-orange-100 rounded-full" title="เพิ่มจำนวนคอร์ส"><i class="fas fa-plus"></i></button></td>
+                        </tr>`;
                 });
             }
-            
             renderPaginationUI(total, 'courseBal', 'pag-course-bal');
         }
 
-        // ================= DASHBOARD LOGIC =================
         function loadDashboard() {
             document.getElementById('dashTotalPat').innerText = appData.patients.length;
             document.getElementById('dashActivePat').innerText = appData.patients.filter(p => p.Status === 'Active').length;
-            
             const today = new Date().toISOString().split('T')[0];
             const todayAppts = appData.appointments.filter(a => a.RawDate === today);
             document.getElementById('dashApptToday').innerText = todayAppts.length;
-            
             const monthSales = appData.receipts.reduce((sum, r) => sum + Number(r.Amount||0), 0);
             document.getElementById('dashSalesMonth').innerText = `฿${monthSales.toLocaleString()}`;
-
-            const males = appData.patients.filter(p => p.Gender === 'ชาย').length;
-            const females = appData.patients.filter(p => p.Gender === 'หญิง').length;
-            const totalGen = males + females;
-            const mPer = totalGen > 0 ? Math.round((males / totalGen) * 100) : 0;
-            const fPer = totalGen > 0 ? Math.round((females / totalGen) * 100) : 0;
-            
+            const males = appData.patients.filter(p => p.Gender === 'ชาย').length; const females = appData.patients.filter(p => p.Gender === 'หญิง').length;
+            const totalGen = males + females; const mPer = totalGen > 0 ? Math.round((males / totalGen) * 100) : 0; const fPer = totalGen > 0 ? Math.round((females / totalGen) * 100) : 0;
             if(document.getElementById('dashMalePercent')) document.getElementById('dashMalePercent').innerText = `${mPer}%`;
             if(document.getElementById('dashMaleBar')) document.getElementById('dashMaleBar').style.width = `${mPer}%`;
             if(document.getElementById('dashMaleCount')) document.getElementById('dashMaleCount').innerText = males;
             if(document.getElementById('dashFemalePercent')) document.getElementById('dashFemalePercent').innerText = `${fPer}%`;
             if(document.getElementById('dashFemaleBar')) document.getElementById('dashFemaleBar').style.width = `${fPer}%`;
             if(document.getElementById('dashFemaleCount')) document.getElementById('dashFemaleCount').innerText = females;
-
             renderDashboardAppt(todayAppts);
         }
 
         function renderDashboardAppt(todayAppts) {
-            const tb = document.getElementById('dashApptBody');
-            tb.innerHTML = '';
-            if (todayAppts.length === 0) {
-                tb.innerHTML = `<tr><td colspan="4" class="text-center py-20 text-gray-400 text-sm">ไม่มีนัดหมายในวันนี้</td></tr>`;
-                return;
-            }
-            
+            const tb = document.getElementById('dashApptBody'); tb.innerHTML = '';
+            if (todayAppts.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="text-center py-20 text-gray-400 text-sm">ไม่มีนัดหมายในวันนี้</td></tr>`; return; }
             todayAppts.sort((a, b) => a.Time.localeCompare(b.Time)).forEach(r => {
                 const realIndex = appData.appointments.findIndex(x => x.ApptID === r.ApptID);
-                
-                const selClass = r.Status === 'รับบริการแล้ว' ? 'bg-green-50 text-green-600 border-green-200' : 
-                                 r.Status === 'จองแล้ว' ? 'bg-orange-50 text-orange-500 border-orange-200' : 
-                                 r.Status === 'ยืนยันแล้ว' ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-gray-50 text-gray-500 border-gray-200';
-                                 
+                const selClass = r.Status === 'รับบริการแล้ว' ? 'bg-green-50 text-green-600 border-green-200' : r.Status === 'จองแล้ว' ? 'bg-orange-50 text-orange-500 border-orange-200' : r.Status === 'ยืนยันแล้ว' ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-gray-50 text-gray-500 border-gray-200';
                 tb.innerHTML += `
                     <tr class="hover:bg-gray-50 transition border-b border-gray-50">
-                        <td class="py-3 text-blue-500 font-bold">${r.Time}</td>
-                        <td class="py-3 font-bold text-dark">${r.Nick} <span class="text-xs text-gray-400 font-normal ml-1">(HN:${r.HN})</span></td>
+                        <td class="py-3 text-blue-500 font-bold">${r.Time}</td><td class="py-3 font-bold text-dark">${r.Nick} <span class="text-xs text-gray-400 font-normal ml-1">(HN:${r.HN})</span></td>
                         <td class="py-3 text-gray-500">${r.Type}</td>
                         <td class="py-3">
                             <select onchange="updateDashboardApptStatus(${realIndex}, this.value)" class="border rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer ${selClass}">
-                                <option value="จองแล้ว" ${r.Status === 'จองแล้ว' ? 'selected' : ''}>จองแล้ว</option>
-                                <option value="ยืนยันแล้ว" ${r.Status === 'ยืนยันแล้ว' ? 'selected' : ''}>ยืนยันแล้ว</option>
-                                <option value="รับบริการแล้ว" ${r.Status === 'รับบริการแล้ว' ? 'selected' : ''}>รับบริการแล้ว</option>
-                                <option value="ยกเลิก" ${r.Status === 'ยกเลิก' ? 'selected' : ''}>ยกเลิก</option>
+                                <option value="จองแล้ว" ${r.Status === 'จองแล้ว' ? 'selected' : ''}>จองแล้ว</option><option value="ยืนยันแล้ว" ${r.Status === 'ยืนยันแล้ว' ? 'selected' : ''}>ยืนยันแล้ว</option>
+                                <option value="รับบริการแล้ว" ${r.Status === 'รับบริการแล้ว' ? 'selected' : ''}>รับบริการแล้ว</option><option value="ยกเลิก" ${r.Status === 'ยกเลิก' ? 'selected' : ''}>ยกเลิก</option>
                             </select>
                         </td>
                     </tr>`;
@@ -1831,116 +1587,843 @@
         }
 
         async function updateDashboardApptStatus(index, newStatus) {
-            const r = appData.appointments[index];
-            if(!r) return;
-            
-            const obj = { ...r, Status: newStatus };
-            const headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status'];
-            
-            r.Status = newStatus;
-            showToast('กำลังอัปเดตสถานะ...');
-            
-            try {
-                await runGas('saveRecord', 'Appointments', obj, headers, 'ApptID');
-                showToast('อัปเดตสถานะนัดหมายสำเร็จ');
-                renderApptTable('tbodyAppt'); 
-                loadDashboard();
-            } catch(e) {
-                showToast('อัปเดตสถานะไม่สำเร็จ', 'error');
-            }
+            const r = appData.appointments[index]; if(!r) return;
+            const obj = { ...r, Status: newStatus }; const headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status'];
+            r.Status = newStatus; showToast('กำลังอัปเดตสถานะ...');
+            try { await runGas('saveRecord', 'Appointments', obj, headers, 'ApptID'); showToast('อัปเดตสถานะนัดหมายสำเร็จ'); renderApptTable('tbodyAppt'); loadDashboard(); } 
+            catch(e) { showToast('อัปเดตสถานะไม่สำเร็จ', 'error'); }
         }
 
         // ================= IMPORT / EXPORT CSV =================
         function exportCSV(type) {
-            let data = [];
-            let headers = [];
-            let filename = '';
-            
-            if(type === 'register') {
-                headers = ['HN', 'Status', 'Name', 'LastName', 'Nickname', 'Gender', 'DOB', 'Age', 'Phone', 'ParentName', 'Symptom', 'Source'];
-                data = appData.patients;
-                filename = 'patients.csv';
-            } else if (type === 'appointment') {
-                headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status'];
-                data = appData.appointments;
-                filename = 'appointments.csv';
-            } else if (type === 'assessment') {
-                headers = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes'];
-                data = appData.assessments;
-                filename = 'assessments.csv';
-            } else if (type === 'receipt') {
-                headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems'];
-                data = appData.receipts;
-                filename = 'receipts.csv';
-            } else if (type === 'services') {
-                headers = ['code', 'name', 'cat', 'price'];
-                data = appData.services;
-                filename = 'services.csv';
-            }
+            let data = []; let headers = []; let filename = '';
+            if(type === 'register') { headers = ['HN', 'Status', 'Name', 'LastName', 'Nickname', 'Gender', 'DOB', 'Age', 'Phone', 'ParentName', 'Symptom', 'Source']; data = appData.patients; filename = 'patients.csv'; } 
+            else if (type === 'appointment') { headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; data = appData.appointments; filename = 'appointments.csv'; } 
+            else if (type === 'assessment') { headers = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; data = appData.assessments; filename = 'assessments.csv'; } 
+            else if (type === 'receipt') { headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; data = appData.receipts; filename = 'receipts.csv'; } 
+            else if (type === 'services') { headers = ['code', 'name', 'cat', 'price']; data = appData.services; filename = 'services.csv'; }
             
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
-            
             if (data.length > 0) {
                 data.forEach(row => {
-                    let values = headers.map(h => {
-                        let val = row[h] || '';
-                        val = val.toString().replace(/<[^>]*>?/gm, '');
-                        return `"${val.replace(/"/g, '""')}"`;
-                    });
+                    let values = headers.map(h => { let val = row[h] || ''; val = val.toString().replace(/<[^>]*>?/gm, ''); return `"${val.replace(/"/g, '""')}"`; });
                     csvContent += values.join(',') + '\n';
                 });
-            } else {
-                showToast('ส่งออก Template แม่แบบสำเร็จ', 'info');
-            }
+            } else { showToast('ส่งออก Template แม่แบบสำเร็จ', 'info'); }
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            link.href = url; link.setAttribute('download', filename);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
             if (data.length > 0) showToast('ส่งออก CSV สำเร็จ');
         }
 
         function importCSV(type) {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.csv';
+            const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv';
             input.onchange = e => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
+                const file = e.target.files[0]; if (!file) return;
                 showLoading('กำลังนำเข้าข้อมูล...');
-                setTimeout(() => {
-                    hideLoading();
-                    Swal.fire({
-                        title: 'นำเข้าข้อมูลสำเร็จ',
-                        text: `ระบบนำเข้าไฟล์ ${file.name} เรียบร้อยแล้ว (จำลองการทำงาน)`,
-                        icon: 'success',
-                        confirmButtonColor: '#F7B267'
-                    });
-                    changePage(type, 1);
-                }, 1000);
+                setTimeout(() => { hideLoading(); Swal.fire({ title: 'นำเข้าข้อมูลสำเร็จ', text: `ระบบนำเข้าไฟล์ ${file.name} เรียบร้อยแล้ว (จำลองการทำงาน)`, icon: 'success', confirmButtonColor: '#F7B267' }); changePage(type, 1); }, 1000);
             };
             input.click();
         }
 
-        // ================= SETTINGS / OTHER ACTION LOGIC =================
+        // ================= PATIENT ACTION LOGIC =================
+        function generateNewHN() {
+            const currentYear = new Date().getFullYear(); const currentMonth = new Date().getMonth() + 1;
+            const thaiYearStr = (currentYear + 543).toString(); const yy = thaiYearStr.substring(2, 4);
+            const mm = currentMonth.toString().padStart(2, '0'); const prefix = yy + mm;
+            let maxRunningNo = 0;
+            appData.patients.forEach(p => {
+                if (p.HN && p.HN.startsWith(prefix) && p.HN.length === 8) {
+                    const runningPart = parseInt(p.HN.substring(4, 8), 10);
+                    if (!isNaN(runningPart) && runningPart > maxRunningNo) { maxRunningNo = runningPart; }
+                }
+            });
+            const nextRunningNo = maxRunningNo + 1;
+            return prefix + nextRunningNo.toString().padStart(4, '0');
+        }
+
+        function openNewPatientModal() {
+            document.getElementById('fmHN').value = generateNewHN(); document.getElementById('fmStatus').value = 'Active';
+            document.getElementById('fmName').value = ''; document.getElementById('fmLastName').value = '';
+            document.getElementById('fmNickname').value = ''; document.getElementById('fmDOB').value = '';
+            document.getElementById('fmAge').value = ''; document.getElementById('fmPhone').value = '';
+            document.getElementById('fmParentName').value = ''; document.getElementById('fmSymptom').value = '';
+            document.querySelector('input[name="gender"][value="ชาย"]').checked = true;
+            document.querySelectorAll('input[name="source"]').forEach(cb => cb.checked = false);
+            openModal('modalPat');
+        }
+
+        function calcAge(dobString) {
+            if(!dobString) { if(document.getElementById('fmAge')) document.getElementById('fmAge').value = ''; return; }
+            const dob = new Date(dobString); const today = new Date();
+            let y = today.getFullYear() - dob.getFullYear(); let m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) { y--; m += 12; }
+            if (today.getDate() < dob.getDate()) { m--; if (m < 0) { m = 11; } }
+            const ageStr = `${y} ปี ${m} เดือน`;
+            if(document.getElementById('fmAge')) document.getElementById('fmAge').value = ageStr;
+            const asAgeInput = document.getElementById('asAge'); if(asAgeInput) asAgeInput.value = ageStr;
+            const asSensory6 = document.getElementById('asSensory6');
+            if(asSensory6) {
+                asSensory6.disabled = y < 6;
+                if(y < 6) { asSensory6.classList.add('bg-gray-100', 'cursor-not-allowed'); } else { asSensory6.classList.remove('bg-gray-100', 'cursor-not-allowed'); }
+            }
+        }
+
+        function viewPatient(hn) {
+            const p = appData.patients.find(x => x.HN === hn); if(!p) return;
+            Swal.fire({
+                title: 'ข้อมูลผู้ป่วย',
+                html: `<div class="text-left text-sm space-y-2 mt-4">
+                        <p><b>HN:</b> ${p.HN}</p><p><b>ชื่อเล่น:</b> ${p.Nickname || '-'}</p><p><b>ชื่อ-สกุล:</b> ${p.Name || ''} ${p.LastName || ''}</p>
+                        <p><b>เพศ:</b> ${p.Gender || '-'}</p><p><b>อายุ:</b> ${p.Age || '-'}</p><p><b>เบอร์โทร:</b> ${p.Phone || '-'}</p>
+                        <p><b>ชื่อผู้ปกครอง:</b> ${p.ParentName || '-'}</p><p><b>รู้จักจาก:</b> ${p.Source || '-'}</p>
+                        <p><b>อาการ/พฤติกรรมที่กังวล:</b> ${p.Symptom || '-'}</p><p><b>สถานะ:</b> <span class="text-green-600 font-semibold">${p.Status}</span></p>
+                       </div>`,
+                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+            });
+        }
+
+        function editPatient(hn) {
+            const p = appData.patients.find(x => x.HN === hn); if(!p) return;
+            if(document.getElementById('fmHN')) document.getElementById('fmHN').value = p.HN || '';
+            if(document.getElementById('fmName')) document.getElementById('fmName').value = p.Name || '';
+            if(document.getElementById('fmLastName')) document.getElementById('fmLastName').value = p.LastName || '';
+            if(document.getElementById('fmNickname')) document.getElementById('fmNickname').value = p.Nickname || '';
+            if(document.getElementById('fmDOB')) document.getElementById('fmDOB').value = p.DOB || '';
+            if(document.getElementById('fmAge')) document.getElementById('fmAge').value = p.Age || '';
+            if(document.getElementById('fmPhone')) document.getElementById('fmPhone').value = p.Phone || '';
+            if(document.getElementById('fmParentName')) document.getElementById('fmParentName').value = p.ParentName || '';
+            if(document.getElementById('fmSymptom')) document.getElementById('fmSymptom').value = p.Symptom || '';
+            if(document.getElementById('fmStatus')) document.getElementById('fmStatus').value = p.Status || 'Active';
+            
+            const gender = p.Gender || 'ชาย';
+            const genderRadios = document.getElementsByName('gender');
+            for (let i = 0; i < genderRadios.length; i++) { if (genderRadios[i].value === gender) { genderRadios[i].checked = true; } }
+            
+            const sourceArr = (p.Source || '').split(',').map(s => s.trim());
+            document.querySelectorAll('input[name="source"]').forEach(cb => { cb.checked = sourceArr.includes(cb.value); });
+            openModal('modalPat');
+        }
+
+        function deletePatient(hn) {
+            Swal.fire({
+                title: 'ยืนยันการลบข้อมูล?', text: `คุณต้องการลบข้อมูลผู้ป่วย HN: ${hn} ใช่หรือไม่? ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้`,
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonColor: '#9ca3af',
+                confirmButtonText: '<i class="fas fa-trash-alt"></i> ใช่, ลบเลย', cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Patients', hn, 'HN'); } });
+        }
+
+        async function savePatient() {
+            const hn = document.getElementById('fmHN').value; const name = document.getElementById('fmName').value;
+            if(!name) return showToast('กรุณากรอกชื่อ', 'warning');
+            const sources = Array.from(document.querySelectorAll('input[name="source"]:checked')).map(cb => cb.value).join(', ');
+            const obj = {
+                HN: hn, Status: document.getElementById('fmStatus').value, Name: name, LastName: document.getElementById('fmLastName').value,
+                Nickname: document.getElementById('fmNickname').value, Gender: document.querySelector('input[name="gender"]:checked').value,
+                DOB: document.getElementById('fmDOB').value, Age: document.getElementById('fmAge').value, Phone: document.getElementById('fmPhone').value,
+                ParentName: document.getElementById('fmParentName').value, Symptom: document.getElementById('fmSymptom').value, Source: sources
+            };
+            const headers = ['HN', 'Status', 'Name', 'LastName', 'Nickname', 'Gender', 'DOB', 'Age', 'Phone', 'ParentName', 'Symptom', 'Source'];
+            if (await saveToDB('Patients', obj, headers, 'HN')) { closeModal('modalPat'); }
+        }
+
+        function printPatient(hn) {
+            const p = appData.patients.find(x => x.HN === hn); if(!p) return;
+            const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'บ้านฮักดี คลินิก';
+            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const phone = document.getElementById('confPhone') ? document.getElementById('confPhone').value : '-';
+            const email = document.getElementById('confEmail') ? document.getElementById('confEmail').value : '-';
+            const address = document.getElementById('confAddress') ? document.getElementById('confAddress').value : '-';
+            
+            const html = `
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #F7B267; padding-bottom: 20px;">
+                    ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 80px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;" onerror="this.style.display='none'">` : ''}
+                    <h2 style="font-size: 24px; font-weight: bold; color: #F7B267; margin: 0 0 5px 0;">${clinicName}</h2>
+                    <p style="font-size: 14px; color: #666; margin: 0 0 5px 0; text-align: center; max-width: 80%;">${address}</p>
+                    <p style="font-size: 14px; color: #666; margin: 0 0 15px 0;"><b>โทร:</b> ${phone} &nbsp;|&nbsp; <b>อีเมล:</b> ${email}</p>
+                    <h3 style="font-size: 20px; font-weight: bold; margin: 0; color: #4A4036;">ทะเบียนประวัติผู้รับบริการ</h3>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 15px; text-align: left;">
+                    <tbody>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; width: 30%; background-color: #f9fafb; font-weight: bold; color: #4A4036;">HN:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; width: 70%; font-weight: bold; color: #4A4036;">${p.HN}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">ชื่อ-สกุล:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Name || ''} ${p.LastName || ''}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">ชื่อเล่น:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Nickname || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">เพศ:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Gender || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">วันเกิด:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.DOB || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">อายุ:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Age}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">ชื่อผู้ปกครอง:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.ParentName || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">เบอร์โทรติดต่อ:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Phone || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">อาการที่กังวล:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Symptom || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">รู้จักจาก:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Source || '-'}</td></tr>
+                        <tr><td style="padding: 12px 16px; border: 1px solid #e5e7eb; background-color: #f9fafb; font-weight: bold; color: #4A4036;">สถานะ:</td><td style="padding: 12px 16px; border: 1px solid #e5e7eb; color: #4A4036;">${p.Status}</td></tr>
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('printPaper').innerHTML = html; openModal('modalPrintPreview');
+        }
+
+        // ================= APPOINTMENT ACTION LOGIC =================
+        function openNewApptModal() {
+            appState.editingApptIndex = -1; 
+            document.getElementById('apptSearchPat').value = ''; document.getElementById('apptHN').value = '';
+            document.getElementById('apptType').selectedIndex = 0; document.getElementById('apptKru').value = '';
+            document.getElementById('apptDate').value = new Date().toISOString().split('T')[0]; 
+            document.getElementById('apptStatus').selectedIndex = 0;
+            updateAvailableTimeSlots(); openModal('modalAppt');
+        }
+
+        function updateAvailableTimeSlots() {
+            const kru = document.getElementById('apptKru').value; const dateStr = document.getElementById('apptDate').value;
+            const timeSelect = document.getElementById('apptTime'); timeSelect.innerHTML = '<option value="">-- รอเลือกครูและวันที่ --</option>';
+            if (!kru || kru === '' || !dateStr) return;
+            if (appData.holidays.includes(dateStr)) { timeSelect.innerHTML = '<option value="" class="text-red-500 font-bold">❌ เป็นวันหยุดคลินิก</option>'; return; }
+            const dateObj = new Date(dateStr); const dayOfWeek = dateObj.getDay();
+            const schedule = appData.therapists[kru];
+            if (!schedule || !schedule[dayOfWeek] || schedule[dayOfWeek].length === 0) { timeSelect.innerHTML = '<option value="" class="text-red-500 font-bold">❌ ครูไม่ได้เข้างานในวันนี้</option>'; return; }
+            const possibleSlots = schedule[dayOfWeek];
+            const bookedSlots = appData.appointments.filter((appt, idx) => appt.RawDate === dateStr && appt.Kru === kru && appt.Status !== 'ยกเลิก' && idx !== appState.editingApptIndex).map(appt => appt.Time);
+            const availableSlots = possibleSlots.filter(slot => !bookedSlots.includes(slot));
+            if (availableSlots.length === 0) { timeSelect.innerHTML = '<option value="" class="text-red-500 font-bold">❌ คิวเต็มแล้ว</option>'; } 
+            else { timeSelect.innerHTML = '<option value="">-- เลือกเวลา --</option>' + availableSlots.map(slot => `<option value="${slot}">${slot}</option>`).join(''); }
+        }
+
+        function viewAppt(index) {
+            const r = appData.appointments[index]; if(!r) return;
+            Swal.fire({
+                title: 'ข้อมูลการนัดหมาย',
+                html: `<div class="text-left text-sm space-y-2 mt-4">
+                        <p><b>วันที่:</b> ${r.Date}</p><p><b>เวลา:</b> ${r.Time}</p><p><b>ผู้รับบริการ:</b> ${r.Nick} (HN: ${r.HN})</p>
+                        <p><b>ประเภท:</b> ${r.Type}</p><p><b>นักกิจกรรม:</b> ${r.Kru}</p><p><b>สถานะ:</b> <span class="font-bold text-secondary">${r.Status}</span></p>
+                       </div>`,
+                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+            });
+        }
+
+        function editAppt(index) {
+            const r = appData.appointments[index]; if(!r) return;
+            appState.editingApptIndex = index; 
+            const p = appData.patients.find(x => x.HN === r.HN);
+            const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : (r.Name || '');
+            document.getElementById('apptSearchPat').value = `${r.HN} - ${r.Nick || '-'} (${fullName})`;
+            document.getElementById('apptHN').value = r.HN;
+            if(document.getElementById('apptType')) document.getElementById('apptType').value = r.Type;
+            if(document.getElementById('apptKru')) document.getElementById('apptKru').value = r.Kru;
+            if(document.getElementById('apptDate')) document.getElementById('apptDate').value = r.RawDate;
+            if(document.getElementById('apptStatus')) document.getElementById('apptStatus').value = r.Status;
+            updateAvailableTimeSlots();
+            setTimeout(() => {
+                const timeSelect = document.getElementById('apptTime');
+                let exists = Array.from(timeSelect.options).some(opt => opt.value === r.Time);
+                if (!exists && r.Time) { timeSelect.add(new Option(r.Time, r.Time)); }
+                timeSelect.value = r.Time;
+            }, 50);
+            openModal('modalAppt');
+        }
+
+        function deleteAppt(index) {
+            const r = appData.appointments[index]; if(!r) return;
+            Swal.fire({
+                title: 'ยืนยันการยกเลิก/ลบนัดหมาย?', text: `คุณต้องการลบนัดหมายของ "${r.Nick}" เวลา ${r.Time} ใช่หรือไม่?`,
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonColor: '#9ca3af',
+                confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i> ใช่, ลบเลย', cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Appointments', r.ApptID, 'ApptID'); } });
+        }
+
+        async function saveAppt() {
+            const hn = document.getElementById('apptHN').value; const time = document.getElementById('apptTime').value;
+            if(!hn) return showToast('กรุณากรอกผู้รับบริการ', 'warning'); if(!time) return showToast('กรุณาเลือกเวลาที่ว่าง', 'warning');
+            const p = appData.patients.find(x => x.HN === hn); let apptId = '';
+            if (appState.editingApptIndex >= 0) { apptId = appData.appointments[appState.editingApptIndex].ApptID; }
+            const dateStr = document.getElementById('apptDate').value; const d = new Date(dateStr);
+            const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+            const formattedDate = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+            const obj = { ApptID: apptId, RawDate: dateStr, Date: formattedDate, Time: time, HN: hn, Nick: p ? p.Nickname : '', Name: p ? [p.Name, p.LastName].filter(Boolean).join(' ') : '', Type: document.getElementById('apptType').value, Kru: document.getElementById('apptKru').value, Status: document.getElementById('apptStatus').value };
+            const headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status'];
+            if (await saveToDB('Appointments', obj, headers, 'ApptID')) { closeModal('modalAppt'); renderCourseBalTable(); }
+        }
+
+        // ================= ASSESSMENT LOGIC =================
+        function openNewAssessModal() {
+            appState.editingAssessIndex = -1;
+            document.getElementById('assessSearchPat').value = ''; document.getElementById('assessHN').value = '';
+            document.getElementById('assessDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('asName').value = ''; document.getElementById('asAge').value = '';
+            if(document.getElementById('assessRef')) document.getElementById('assessRef').value = '';
+            if(document.getElementById('assessHist')) document.getElementById('assessHist').value = '';
+            if(document.getElementById('assessPrev')) document.getElementById('assessPrev').value = '';
+            if(document.getElementById('asFormType1')) document.getElementById('asFormType1').checked = true;
+            if(document.getElementById('asFormType2')) document.getElementById('asFormType2').checked = false;
+            if(document.getElementById('asFormType3')) document.getElementById('asFormType3').checked = false;
+            if(document.getElementById('devGM')) document.getElementById('devGM').selectedIndex = 0;
+            if(document.getElementById('devFM')) document.getElementById('devFM').selectedIndex = 0;
+            if(document.getElementById('devLang')) document.getElementById('devLang').selectedIndex = 0;
+            if(document.getElementById('devSoc')) document.getElementById('devSoc').selectedIndex = 0;
+            if(document.getElementById('senVis')) document.getElementById('senVis').value = '';
+            if(document.getElementById('senHear')) document.getElementById('senHear').value = '';
+            if(document.getElementById('senMove')) document.getElementById('senMove').value = '';
+            if(document.getElementById('senBal')) document.getElementById('senBal').value = '';
+            if(document.getElementById('senTaste')) document.getElementById('senTaste').value = '';
+            if(document.getElementById('senResp')) document.getElementById('senResp').value = '';
+            if(document.getElementById('asSensory6')) document.getElementById('asSensory6').value = '';
+            if(document.getElementById('sn1')) document.getElementById('sn1').value = '';
+            if(document.getElementById('sn2')) document.getElementById('sn2').value = '';
+            if(document.getElementById('sn3')) document.getElementById('sn3').value = '';
+            calcSnap();
+            if(document.getElementById('assessComment')) document.getElementById('assessComment').value = '';
+            openModal('modalAssess');
+        }
+
+        function viewAssess(index) {
+            const a = appData.assessments[index]; if(!a) return;
+            Swal.fire({
+                title: 'ข้อมูลการประเมิน',
+                html: `<div class="text-left text-sm space-y-2 mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <p><b>วันที่:</b> ${a.Date}</p><p><b>ผู้รับบริการ:</b> ${a.Name} (HN: ${a.HN})</p><hr class="my-3 border-gray-200">
+                        <p class="font-bold text-secondary mb-1">พัฒนาการ 4 ด้าน</p><p>GM: ${a.GM || '-'}, FM: ${a.FM || '-'}, ภาษา: ${a.Lang || '-'}, สังคม: ${a.Soc || '-'}</p>
+                        <hr class="my-3 border-gray-200"><p><b>SNAP-IV:</b> ${a.SnapScore}</p><p class="mt-2"><b>ความเห็น:</b> ${a.Comment || '-'}</p>
+                       </div>`,
+                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+            });
+        }
+
+        function editAssess(index) {
+            const a = appData.assessments[index]; if(!a) return;
+            appState.editingAssessIndex = index;
+            const p = appData.patients.find(x => x.HN === a.HN);
+            const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : (a.Name || '');
+            document.getElementById('assessSearchPat').value = `${a.HN} - ${p ? p.Nickname : '-'} (${fullName})`;
+            document.getElementById('assessHN').value = a.HN; document.getElementById('assessDate').value = a.Date;
+            if(p) {
+                if(document.getElementById('asName')) document.getElementById('asName').value = fullName || '-';
+                if(document.getElementById('asAge')) document.getElementById('asAge').value = p.Age || '-';
+            }
+            if(document.getElementById('assessRef')) document.getElementById('assessRef').value = a.RefCode || '';
+            if(document.getElementById('assessHist')) document.getElementById('assessHist').value = a.History || '';
+            if(document.getElementById('assessPrev')) document.getElementById('assessPrev').value = a.PrevResult || '';
+            
+            const formTypes = a.FormTypes ? a.FormTypes.split(',') : ['ประเมินพัฒนาการ'];
+            if(document.getElementById('asFormType1')) document.getElementById('asFormType1').checked = formTypes.includes('ประเมินพัฒนาการ');
+            if(document.getElementById('asFormType2')) document.getElementById('asFormType2').checked = formTypes.includes('Sensory test');
+            if(document.getElementById('asFormType3')) document.getElementById('asFormType3').checked = formTypes.includes('SNAP-IV');
+
+            if(document.getElementById('devGM')) document.getElementById('devGM').value = a.GM || 'สมวัย';
+            if(document.getElementById('devFM')) document.getElementById('devFM').value = a.FM || 'สมวัย';
+            if(document.getElementById('devLang')) document.getElementById('devLang').value = a.Lang || 'สมวัย';
+            if(document.getElementById('devSoc')) document.getElementById('devSoc').value = a.Soc || 'สมวัย';
+
+            if(document.getElementById('senVis')) document.getElementById('senVis').value = a.SenVis || '';
+            if(document.getElementById('senHear')) document.getElementById('senHear').value = a.SenHear || '';
+            if(document.getElementById('senMove')) document.getElementById('senMove').value = a.SenMove || '';
+            if(document.getElementById('senBal')) document.getElementById('senBal').value = a.SenBal || '';
+            if(document.getElementById('senTaste')) document.getElementById('senTaste').value = a.SenTaste || '';
+            if(document.getElementById('senResp')) document.getElementById('senResp').value = a.SenResp || '';
+            if(document.getElementById('asSensory6')) document.getElementById('asSensory6').value = a.SenTotal6 || '';
+
+            if(document.getElementById('sn1')) document.getElementById('sn1').value = a.SnInatt || '';
+            if(document.getElementById('sn2')) document.getElementById('sn2').value = a.SnHyper || '';
+            if(document.getElementById('sn3')) document.getElementById('sn3').value = a.SnOdd || '';
+            calcSnap();
+            if(document.getElementById('assessComment')) document.getElementById('assessComment').value = a.Comment || '';
+            openModal('modalAssess');
+        }
+
+        function deleteAssess(index) {
+            const a = appData.assessments[index]; if(!a) return;
+            Swal.fire({
+                title: 'ยืนยันการลบข้อมูล?', text: `คุณต้องการลบข้อมูลประเมินของ HN: ${a.HN} ใช่หรือไม่?`,
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonColor: '#9ca3af',
+                confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i> ใช่, ลบเลย', cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Assessments', a.AssessID, 'AssessID'); } });
+        }
+
+        function printAssess(index) {
+            const a = appData.assessments[index]; if(!a) return;
+            const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'บ้านฮักดี คลินิก';
+            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const html = `
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #F7B267; padding-bottom: 15px;">
+                    ${logoUrl ? `<img src="${logoUrl}" style="max-height: 60px; margin-bottom: 10px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">` : ''}
+                    <h2 style="font-size: 22px; font-weight: bold; color: #F7B267; margin: 0 0 5px 0;">${clinicName}</h2>
+                    <h3 style="font-size: 18px; font-weight: bold; margin: 0; color: #4A4036;">รายงานผลประเมินพัฒนาการเด็ก</h3>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; text-align: left;">
+                    <tr><td style="padding: 8px; border: 1px solid #eee; width: 20%; background-color: #f9fafb;"><b>HN:</b></td><td style="padding: 8px; border: 1px solid #eee; width: 30%;">${a.HN}</td><td style="padding: 8px; border: 1px solid #eee; width: 20%; background-color: #f9fafb;"><b>วันที่ประเมิน:</b></td><td style="padding: 8px; border: 1px solid #eee; width: 30%;">${a.Date}</td></tr>
+                    <tr><td style="padding: 8px; border: 1px solid #eee; background-color: #f9fafb;"><b>ชื่อ-สกุล:</b></td><td colspan="3" style="padding: 8px; border: 1px solid #eee;">${a.Name}</td></tr>
+                </table>
+                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">1. พัฒนาการ 4 ด้าน</h4>
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+                    <tr><td style="padding: 8px; border: 1px solid #eee; width: 50%;">กล้ามเนื้อมัดใหญ่ (GM)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.GM === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.GM || '-'}</td></tr>
+                    <tr><td style="padding: 8px; border: 1px solid #eee;">กล้ามเนื้อมัดเล็ก (FM)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.FM === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.FM || '-'}</td></tr>
+                    <tr><td style="padding: 8px; border: 1px solid #eee;">ภาษา (Language)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.Lang === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.Lang || '-'}</td></tr>
+                    <tr><td style="padding: 8px; border: 1px solid #eee;">สังคม (Social)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.Soc === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.Soc || '-'}</td></tr>
+                </table>
+                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">2. SNAP-IV</h4>
+                <div style="font-size: 14px; margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fcf8f2;">
+                    <p style="margin: 0 0 5px 0;">คะแนนขาดสมาธิ: <b>${a.SnInatt || '-'}</b></p><p style="margin: 0 0 5px 0;">คะแนนซน/อยู่ไม่นิ่ง: <b>${a.SnHyper || '-'}</b></p>
+                    <p style="margin: 0 0 10px 0;">คะแนนดื้อ/ต่อต้าน: <b>${a.SnOdd || '-'}</b></p><p style="margin: 0;">ผลลัพธ์: ${a.SnapScore}</p>
+                </div>
+                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">3. สรุปความเห็นเพิ่มเติม</h4>
+                <div style="font-size: 14px; min-height: 60px; padding: 10px; border: 1px solid #eee; border-radius: 8px; background-color: #f9fafb;">${a.Comment || '-'}</div>
+            `;
+            document.getElementById('printPaper').innerHTML = html; openModal('modalPrintPreview');
+        }
+
+        function calcSnap() {
+            const check = (id, limit) => {
+                const val = parseInt(document.getElementById(id).value) || 0;
+                const resEl = document.getElementById(id.replace('sn', 'snR'));
+                if(document.getElementById(id).value === "") { 
+                    resEl.innerText = "ปกติ"; resEl.className = "bg-green-50 text-green-600 px-4 py-2 rounded-lg text-xs font-bold text-center transition-all"; return; 
+                }
+                if(val >= limit) { 
+                    resEl.innerText = "มีความเสี่ยง"; resEl.className = "bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-bold text-center transition-all"; 
+                } else { 
+                    resEl.innerText = "ปกติ"; resEl.className = "bg-green-50 text-green-600 px-4 py-2 rounded-lg text-xs font-bold text-center transition-all"; 
+                }
+            };
+            check('sn1', 16); check('sn2', 13); check('sn3', 15);
+        }
+
+        async function saveAssessment() {
+            const hn = document.getElementById('assessHN').value;
+            if(!hn) return showToast('กรุณาเลือกผู้รับบริการ', 'warning');
+            
+            const p = appData.patients.find(x => x.HN === hn);
+            const assessDate = document.getElementById('assessDate') ? document.getElementById('assessDate').value : new Date().toISOString().split('T')[0];
+            
+            const sn1 = parseInt(document.getElementById('sn1').value) || 0;
+            const sn2 = parseInt(document.getElementById('sn2').value) || 0;
+            const sn3 = parseInt(document.getElementById('sn3').value) || 0;
+            
+            let riskAreas = [];
+            if (sn1 >= 16) riskAreas.push('ขาดสมาธิ');
+            if (sn2 >= 13) riskAreas.push('ซน/อยู่ไม่นิ่ง');
+            if (sn3 >= 15) riskAreas.push('ดื้อ/ต่อต้าน');
+
+            let snapStatus = '<span class="text-green-500 font-bold">ปกติ</span>';
+            if (sn1 === 0 && sn2 === 0 && sn3 === 0 && document.getElementById('sn1').value === '') {
+                snapStatus = '<span class="text-gray-400">-</span>';
+            } else if (riskAreas.length > 0) {
+                snapStatus = `<div class="text-xs leading-tight text-red-500 font-medium text-left inline-block mt-1">เสี่ยง:<br>${riskAreas.join('<br>')}</div>`;
+            }
+
+            const gmVal = document.getElementById('devGM') ? document.getElementById('devGM').value : 'สมวัย';
+            const fmVal = document.getElementById('devFM') ? document.getElementById('devFM').value : 'สมวัย';
+            const langVal = document.getElementById('devLang') ? document.getElementById('devLang').value : 'สมวัย';
+            const socVal = document.getElementById('devSoc') ? document.getElementById('devSoc').value : 'สมวัย';
+            
+            let normalAreas = []; let delayedAreas = [];
+            if (gmVal === 'สมวัย') normalAreas.push('GM'); else if (gmVal === 'ไม่สมวัย') delayedAreas.push('GM');
+            if (fmVal === 'สมวัย') normalAreas.push('FM'); else if (fmVal === 'ไม่สมวัย') delayedAreas.push('FM');
+            if (langVal === 'สมวัย') normalAreas.push('ภาษา'); else if (langVal === 'ไม่สมวัย') delayedAreas.push('ภาษา');
+            if (socVal === 'สมวัย') normalAreas.push('สังคม'); else if (socVal === 'ไม่สมวัย') delayedAreas.push('สังคม');
+
+            let devScoreText = '-';
+            if (delayedAreas.length === 0 && normalAreas.length > 0) {
+                devScoreText = '<span class="text-green-500 font-bold">สมวัย</span>';
+            } else if (delayedAreas.length > 0) {
+                devScoreText = `<div class="text-xs leading-tight text-left inline-block mt-1">`;
+                if (normalAreas.length > 0) devScoreText += `<div class="text-green-600 mb-1"><span class="font-bold">สมวัย:</span> ${normalAreas.join(', ')}</div>`;
+                devScoreText += `<div class="text-red-500"><span class="font-bold">ไม่สมวัย:</span> ${delayedAreas.join(', ')}</div></div>`;
+            }
+
+            let assessId = '';
+            if (appState.editingAssessIndex >= 0) { assessId = appData.assessments[appState.editingAssessIndex].AssessID; }
+
+            let formTypes = [];
+            if (document.getElementById('asFormType1') && document.getElementById('asFormType1').checked) formTypes.push('ประเมินพัฒนาการ');
+            if (document.getElementById('asFormType2') && document.getElementById('asFormType2').checked) formTypes.push('Sensory test');
+            if (document.getElementById('asFormType3') && document.getElementById('asFormType3').checked) formTypes.push('SNAP-IV');
+
+            const newAssessment = {
+                AssessID: assessId, Date: assessDate, HN: hn, Name: p ? [p.Name, p.LastName].filter(Boolean).join(' ') : 'ไม่ระบุ',
+                DevScore: devScoreText, SnapScore: snapStatus, GM: gmVal, FM: fmVal, Lang: langVal, Soc: socVal,
+                SenVis: document.getElementById('senVis') ? document.getElementById('senVis').value : '',
+                SenHear: document.getElementById('senHear') ? document.getElementById('senHear').value : '',
+                SenMove: document.getElementById('senMove') ? document.getElementById('senMove').value : '',
+                SenBal: document.getElementById('senBal') ? document.getElementById('senBal').value : '',
+                SenTaste: document.getElementById('senTaste') ? document.getElementById('senTaste').value : '',
+                SenResp: document.getElementById('senResp') ? document.getElementById('senResp').value : '',
+                SenTotal6: document.getElementById('asSensory6') ? document.getElementById('asSensory6').value : '',
+                SnInatt: sn1 || '', SnHyper: sn2 || '', SnOdd: sn3 || '',
+                Comment: document.getElementById('assessComment') ? document.getElementById('assessComment').value : '',
+                RefCode: document.getElementById('assessRef') ? document.getElementById('assessRef').value : '',
+                History: document.getElementById('assessHist') ? document.getElementById('assessHist').value : '',
+                PrevResult: document.getElementById('assessPrev') ? document.getElementById('assessPrev').value : '',
+                FormTypes: formTypes.join(',')
+            };
+
+            const headers = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes'];
+            if (await saveToDB('Assessments', newAssessment, headers, 'AssessID')) { closeModal('modalAssess'); }
+        }
+
+        // ================= RECEIPT & CART LOGIC =================
+        function searchPatientList(val, prefix) {
+            const resBox = document.getElementById(`${prefix}SearchResult`);
+            const lowerVal = val ? val.toLowerCase().trim() : '';
+            let matched = appData.patients || [];
+            
+            if (prefix === 'appt') { matched = matched.filter(p => p.Status === 'Active'); }
+
+            if (lowerVal !== '') {
+                matched = matched.filter(p => 
+                    (p.HN && p.HN.toLowerCase().includes(lowerVal)) || 
+                    (p.Name && p.Name.toLowerCase().includes(lowerVal)) || 
+                    (p.LastName && p.LastName.toLowerCase().includes(lowerVal)) || 
+                    (p.Nickname && p.Nickname.toLowerCase().includes(lowerVal))
+                );
+            }
+            matched = matched.slice(0, 15);
+            
+            if(matched.length > 0) {
+                resBox.innerHTML = matched.map(m => {
+                    const fullName = [m.Name, m.LastName].filter(Boolean).join(' ');
+                    return `<div class="cursor-pointer hover:bg-orange-50 p-3 text-dark transition border-b border-gray-50 last:border-0" onclick="selectPatientDropdown('${m.HN}', '${escapeJS(m.Name)}', '${escapeJS(m.LastName)}', '${escapeJS(m.Nickname)}', '${prefix}')">
+                        <div class="font-bold text-secondary">${m.HN}</div><div class="text-sm">${m.Nickname || '-'} <span class="text-gray-500">(${fullName})</span></div>
+                    </div>`;
+                }).join('');
+                resBox.style.display = 'block';
+            } else {
+                resBox.innerHTML = `<div class="p-3 text-gray-400 text-sm text-center">ไม่พบข้อมูล</div>`; resBox.style.display = 'block';
+            }
+        }
+
+        function selectPatientDropdown(hn, name, lastName, nick, prefix) {
+            document.getElementById(`${prefix}HN`).value = hn;
+            const fullName = [name, lastName].filter(Boolean).join(' ');
+            const displayStr = `${hn} - ${nick || '-'} (${fullName})`;
+            document.getElementById(`${prefix}SearchPat`).value = displayStr;
+            document.getElementById(`${prefix}SearchResult`).style.display = 'none';
+            
+            if (prefix === 'rc') { document.getElementById('rcName').value = fullName; } 
+            else if (prefix === 'assess') {
+                const p = appData.patients.find(x => x.HN === hn);
+                if (p) {
+                    if(document.getElementById('asName')) document.getElementById('asName').value = fullName || '-';
+                    if(document.getElementById('asAge')) document.getElementById('asAge').value = p.Age || '-';
+                }
+            } else if (prefix === 'appt') { updateAvailableTimeSlots(); }
+        }
+
+        function setPayType(type) {
+            document.getElementById('rcPayType').value = type;
+            const btnCash = document.getElementById('btnPayCash'); const btnTrans = document.getElementById('btnPayTransfer'); const transBox = document.getElementById('rcTransferBox');
+            if (type === 'cash') {
+                btnCash.className = 'flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-secondary text-white shadow-sm border border-secondary transition';
+                btnTrans.className = 'flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-white text-dark border border-gray-200 hover:bg-gray-50 transition';
+                transBox.classList.add('hidden');
+            } else {
+                btnTrans.className = 'flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-secondary text-white shadow-sm border border-secondary transition';
+                btnCash.className = 'flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-white text-dark border border-gray-200 hover:bg-gray-50 transition';
+                transBox.classList.remove('hidden');
+            }
+        }
+
+        function openServicePicker() {
+            const list = document.getElementById('pickServiceList'); list.innerHTML = '';
+            appData.services.forEach(s => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center p-3 border rounded-xl hover:bg-primary/10 cursor-pointer mb-2" onclick="addToCart('${escapeJS(s.code)}', '${escapeJS(s.name)}', ${s.price})">
+                        <div><p class="font-medium">${s.name}</p><p class="text-xs text-gray-500">${s.code}</p></div>
+                        <div class="font-semibold text-secondary">฿${Number(s.price||0).toLocaleString()}</div>
+                    </div>`;
+            });
+            openModal('modalPickService');
+        }
+
+        function addToCart(id, name, price) {
+            const exist = appData.cart.find(i => i.id === id);
+            if(exist) exist.qty++; else appData.cart.push({id, name, price, qty: 1});
+            closeModal('modalPickService'); renderCart();
+        }
+
+        function renderCart() {
+            const tb = document.getElementById('cartBody');
+            if(appData.cart.length === 0) { tb.innerHTML = '<tr><td colspan="5" class="text-center py-20 text-gray-300 font-medium">ยังไม่มีรายการในตะกร้า</td></tr>'; calcCart(); return; }
+            tb.innerHTML = '';
+            appData.cart.forEach((item, index) => {
+                tb.innerHTML += `
+                    <tr class="border-b border-gray-50">
+                        <td class="py-4 text-dark font-medium">${item.name}</td>
+                        <td class="py-4 text-center"><input type="number" value="${item.qty}" min="1" class="w-16 border border-gray-200 rounded-lg text-center py-1 outline-none focus:border-secondary" onchange="updateQty(${index}, this.value)"></td>
+                        <td class="py-4 text-right text-gray-500">฿${Number(item.price||0).toLocaleString()}</td>
+                        <td class="py-4 text-right text-dark font-bold">฿${(item.price * item.qty).toLocaleString()}</td>
+                        <td class="py-4 text-right pl-4"><button onclick="removeCart(${index})" class="text-red-400 hover:text-red-600 bg-red-50 w-8 h-8 rounded-full flex items-center justify-center transition"><i class="fas fa-trash-alt"></i></button></td>
+                    </tr>`;
+            });
+            calcCart();
+        }
+
+        function updateQty(idx, val) { appData.cart[idx].qty = parseInt(val) || 1; renderCart(); }
+        function removeCart(idx) { appData.cart.splice(idx, 1); renderCart(); }
+
+        function calcCart() {
+            let sub = appData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            let disc = parseFloat(document.getElementById('cartDisc').value) || 0;
+            document.getElementById('cartSub').innerText = `฿${sub.toLocaleString()}`;
+            document.getElementById('cartTotal').innerText = `฿${(sub - disc).toLocaleString()}`;
+        }
+
+        async function saveReceipt() {
+            if(!document.getElementById('rcHN').value) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกลูกค้า', 'warning');
+            if(appData.cart.length === 0) return Swal.fire('แจ้งเตือน', 'ตะกร้าสินค้าว่างเปล่า', 'warning');
+            
+            showLoading('กำลังบันทึกข้อมูล...');
+            let isEditing = document.getElementById('rcNoEdit') ? document.getElementById('rcNoEdit').value : '';
+            let newReceiptNo = isEditing;
+            
+            if (!newReceiptNo) {
+                const d = new Date(); const yearMonth = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
+                const prefix = 'HDR' + yearMonth + '-';
+                let maxRun = 0;
+                appData.receipts.forEach(r => {
+                    if (r.No && r.No.startsWith(prefix)) {
+                        const runPart = parseInt(r.No.substring(prefix.length), 10);
+                        if (!isNaN(runPart) && runPart > maxRun) { maxRun = runPart; }
+                    }
+                });
+                const nextRun = maxRun + 1; newReceiptNo = prefix + String(nextRun).padStart(4, '0');
+            }
+
+            const totalAmount = appData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0) - (parseFloat(document.getElementById('cartDisc').value) || 0);
+            const d = new Date(); const formattedDate = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear() + 543}`;
+            const cartStr = JSON.stringify(appData.cart);
+
+            const newReceipt = {
+                No: newReceiptNo, Date: isEditing ? appData.receipts.find(r=>r.No===isEditing)?.Date : formattedDate,
+                Name: document.getElementById('rcName').value, HN: document.getElementById('rcHN').value,
+                Amount: totalAmount, Method: document.getElementById('rcPayType').value === 'cash' ? 'เงินสด' : 'โอนเงิน',
+                SlipUrl: '', CartItems: cartStr
+            };
+            
+            const headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems'];
+            if (await saveToDB('Receipts', newReceipt, headers, 'No')) {
+                appData.cart = []; renderCart(); 
+                document.getElementById('rcSearchPat').value = ''; document.getElementById('rcHN').value = ''; document.getElementById('rcName').value = '';
+                if(document.getElementById('rcNoEdit')) document.getElementById('rcNoEdit').value = '';
+                renderCourseBalTable(); 
+                Swal.fire({
+                    title: 'บันทึกใบเสร็จสำเร็จ!', text: `ต้องการพิมพ์ใบเสร็จเลขที่ ${newReceiptNo} เลยหรือไม่?`, icon: 'success',
+                    showCancelButton: true, confirmButtonColor: '#F7B267', cancelButtonColor: '#9ca3af',
+                    confirmButtonText: '<i class="fas fa-print mr-2"></i> เปิดตัวอย่างก่อนพิมพ์', cancelButtonText: 'ปิดหน้าต่าง'
+                }).then((result) => { if (result.isConfirmed) { printReceipt(newReceiptNo); } });
+            }
+        }
+
+        function viewReceipt(no) {
+            const r = appData.receipts.find(x => x.No === no); if(!r) return;
+            let slipLinkHtml = '';
+            if (r.Method === 'โอนเงิน') { const url = r.SlipUrl || '#'; slipLinkHtml = `<a href="${url}" target="_blank" class="ml-3 text-sm text-blue-500 hover:text-blue-700 underline"><i class="fas fa-file-image mr-1"></i>ดูสลิป</a>`; }
+            Swal.fire({
+                title: 'ข้อมูลใบเสร็จรับเงิน',
+                html: `<div class="text-left text-base space-y-3 mt-4">
+                        <p><b>เลขที่บิล:</b> ${r.No}</p><p><b>วันที่:</b> ${r.Date}</p><p><b>ชื่อลูกค้า:</b> ${r.Name}</p><p><b>HN:</b> ${r.HN}</p><p><b>ยอดรวม:</b> ฿${r.Amount.toLocaleString()}</p>
+                        <p class="flex items-center"><b>ช่องทางการชำระ:</b> <span class="ml-2 ${r.Method === 'โอนเงิน' ? 'text-[#a855f7]' : 'text-green-600'} font-bold">${r.Method}</span> ${slipLinkHtml}</p>
+                       </div>`,
+                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+            });
+        }
+
+        function printReceipt(no) {
+            const r = appData.receipts.find(x => x.No === no); if(!r) return;
+            const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็กบ้านฮักดี';
+            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const phone = document.getElementById('confPhone') ? document.getElementById('confPhone').value : '-';
+            const address = document.getElementById('confAddress') ? document.getElementById('confAddress').value : '-';
+            const stampUrl = document.getElementById('confStampUrl') ? document.getElementById('confStampUrl').value : '';
+            const footerText = document.getElementById('confReceiptFooter') ? document.getElementById('confReceiptFooter').value : '"ขอบคุณที่ใช้บริการและไว้วางใจครับ/ค่ะ"';
+
+            const p = appData.patients.find(x => x.HN === r.HN) || {};
+            const parentName = p.ParentName || p.Name; const patientPhone = p.Phone || '-';
+            const collectorName = appState.currentUser ? appState.currentUser.name : 'เจ้าหน้าที่';
+            
+            let displayClinicName = `<h2 style="margin: 0; color: #4A4036; font-size: 22px; font-weight: 600;">${clinicName}</h2>`;
+            if (clinicName.includes("บ้านฮักดี")) {
+               displayClinicName = `<h2 style="margin: 0; color: #4A4036; font-size: 22px; font-weight: 600;">คลินิกพัฒนาการเด็ก</h2><h2 style="margin: 0 0 5px 0; color: #e68a00; font-size: 24px; font-weight: 600;">บ้านฮักดี</h2>`;
+            }
+
+            let paymentDetailHtml = '';
+            if (r.Method === 'โอนเงิน') {
+                paymentDetailHtml = `<p style="margin: 0 0 10px 0; color: #555;">${r.Method}</p><p style="margin: 0 0 2px 0; color: #888; font-style: italic;">Note:</p><p style="margin: 0 0 20px 0; color: #888; font-style: italic;">[โอนเมื่อ: ${r.Date}]</p>`;
+            } else { paymentDetailHtml = `<p style="margin: 0 0 46px 0; color: #555;">${r.Method}</p>`; }
+
+            let cartItemsHtml = '';
+            try {
+                const cart = JSON.parse(r.CartItems);
+                cart.forEach((item, idx) => {
+                    cartItemsHtml += `
+                        <tr style="border-bottom: 1px solid #e0e0e0;">
+                            <td style="padding: 15px 10px; text-align: center;">${idx + 1}</td>
+                            <td style="padding: 15px 10px;">
+                                <span style="font-weight: 600; color: #333;">${item.name}</span><br>
+                                <span style="font-size: 12px; color: #888;">${item.id !== 'MANUAL_ADD' && item.id !== 'MOCK_EDIT' ? item.id : ''}</span>
+                            </td>
+                            <td style="padding: 15px 10px; text-align: center;">${item.qty}</td>
+                            <td style="padding: 15px 10px; text-align: right;">${item.price.toLocaleString()}</td>
+                            <td style="padding: 15px 10px; text-align: center; color: #ef4444;">-</td>
+                            <td style="padding: 15px 10px; text-align: right;">${(item.price * item.qty).toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) {}
+
+            const html = `
+                <div style="font-family: 'Kanit', sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #fff; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #C4A484; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 15px; align-items: center;">${logoUrl ? `<img src="${logoUrl}" style="width: 90px; height: 90px; object-fit: contain;" onerror="this.style.display='none'">` : ''}<div>${displayClinicName}<p style="margin: 0; font-size: 13px; color: #666;">${address}</p><p style="margin: 0; font-size: 13px; color: #666;">โทร: ${phone}</p></div></div>
+                        <div style="text-align: right; padding-top: 5px;"><h1 style="margin: 0; color: #C4A484; font-size: 28px; font-weight: 500;">ใบเสร็จรับเงิน</h1><p style="margin: 0 0 10px 0; font-size: 12px; color: #888; letter-spacing: 2px; text-transform: uppercase;">RECEIPT</p><table style="border: none; margin-left: auto; font-size: 14px;"><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">เลขที่:</td><td style="text-align: left;">${r.No}</td></tr><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">วันที่:</td><td style="text-align: left;">${r.Date}</td></tr></table></div>
+                    </div>
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; display: flex; justify-content: space-between; background-color: #fafafa; font-size: 14px;">
+                        <table style="border: none; margin: 0; padding: 0; width: 55%;"><tr><td style="padding: 3px 10px 3px 0; color: #4A4036; width: 110px;">ได้รับเงินจาก:</td><td style="font-weight: 500;">${parentName}</td></tr><tr><td style="padding: 3px 10px 3px 0; color: #4A4036;">ผู้รับบริการ:</td><td style="font-weight: 500;">${r.Name}</td></tr></table>
+                        <table style="border: none; margin: 0; padding: 0; width: 40%;"><tr><td style="padding: 3px 10px 3px 0; color: #4A4036; width: 70px; font-weight: 600;">HN:</td><td style="font-weight: 500;">${r.HN}</td></tr><tr><td style="padding: 3px 10px 3px 0; color: #4A4036; font-weight: 600;">เบอร์โทร:</td><td style="font-weight: 500;">${patientPhone}</td></tr></table>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+                        <thead><tr style="border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; color: #666;"><th style="padding: 12px 10px; text-align: center; width: 10%; font-weight: normal;">ลำดับ</th><th style="padding: 12px 10px; text-align: left; width: 40%; font-weight: normal;">รายการ</th><th style="padding: 12px 10px; text-align: center; width: 10%; font-weight: normal;">จำนวน</th><th style="padding: 12px 10px; text-align: right; width: 15%; font-weight: normal;">ราคา</th><th style="padding: 12px 10px; text-align: center; width: 10%; font-weight: normal;">ส่วนลด</th><th style="padding: 12px 10px; text-align: right; width: 15%; font-weight: normal;">จำนวนเงิน</th></tr></thead>
+                        <tbody>
+                            ${cartItemsHtml}
+                        </tbody>
+                        <tfoot><tr style="border-bottom: 1px solid #e0e0e0;"><td colspan="4" style="padding: 15px 10px; text-align: left; font-weight: 600; color: #4A4036;">(${ThaiBaht(r.Amount)})</td><td style="padding: 15px 10px; text-align: right; font-weight: 600; color: #4A4036;">รวมเงิน</td><td style="padding: 15px 10px; text-align: right; font-weight: 700; font-size: 16px; color: #4A4036;">${r.Amount.toLocaleString()}</td></tr></tfoot>
+                    </table>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 40px;">
+                        <div style="width: 50%;"><p style="margin: 0 0 5px 0; font-weight: 600; color: #333;">การชำระเงิน:</p>${paymentDetailHtml}<p style="margin: 0; color: #888; font-size: 12px;">${footerText}</p></div>
+                        <div style="width: 250px; text-align: center; position: relative;">${stampUrl ? `<img src="${stampUrl}" style="position: absolute; top: -50px; left: 50%; transform: translateX(-50%); width: 140px; opacity: 0.85; z-index: 1; mix-blend-mode: multiply; pointer-events: none;" onerror="this.style.display='none'">` : ''}
+                            <div style="position: relative; z-index: 2;"><p style="margin: 0 0 5px 0; font-weight: 700; color: #333; font-size: 16px;">${collectorName}</p><div style="border-bottom: 1px solid #666; margin: 0 auto 5px auto; width: 100%;"></div><p style="margin: 0 0 5px 0; font-weight: 600; color: #333;">ผู้รับเงิน / Collector</p><p style="margin: 0; color: #555;">วันที่: ${r.Date}</p></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('printPaper').innerHTML = html; openModal('modalPrintPreview');
+        }
+
+        function downloadPrintImage() {
+            const elem = document.getElementById('printPaper');
+            html2canvas(elem, { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = 'receipt.png'; link.href = canvas.toDataURL('image/png'); link.click(); });
+        }
+
+        function executePrint(format) {
+            const content = document.getElementById('printPaper').innerHTML; const printWindow = window.open('', '_blank'); const width = format === 'A5' ? '148mm' : '210mm';
+            printWindow.document.write(`<html><head><title>พิมพ์เอกสาร - Hug Dee Home</title><style>@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap'); body { font-family: 'Kanit', sans-serif; margin: 0; padding: 20px; background: #fff; color: #333; } .print-container { width: ${width}; margin: 0 auto; } table { border-collapse: collapse; } @media print { @page { size: ${format}; margin: 10mm; } body { padding: 0; } }</style></head><body><div class="print-container">${content}</div><script>window.onload = function() { setTimeout(() => { window.print(); window.close(); }, 500); };<\/script></body></html>`);
+            printWindow.document.close(); closeModal('modalPrintPreview');
+        }
+
+        function editReceipt(no) {
+            const r = appData.receipts.find(x => x.No === no); if(!r) return;
+            Swal.fire({
+                title: 'แก้ไขใบเสร็จ', text: `คุณต้องการดึงข้อมูลใบเสร็จ ${no} กลับไปยังหน้า "ออกใบเสร็จ" เพื่อแก้ไขใช่หรือไม่? (ข้อมูลในตะกร้าปัจจุบันจะถูกแทนที่)`,
+                icon: 'question', showCancelButton: true, confirmButtonColor: '#F7B267', cancelButtonColor: '#9ca3af', confirmButtonText: '<i class="fas fa-pen mr-2"></i> ใช่, แก้ไขเลย', cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading('กำลังดึงข้อมูล...');
+                    setTimeout(() => {
+                        hideLoading();
+                        const p = appData.patients.find(x => x.HN === r.HN); const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : (r.Name || '');
+                        document.getElementById('rcSearchPat').value = `${r.HN} - ${p ? p.Nickname : '-'} (${fullName})`; document.getElementById('rcHN').value = r.HN; document.getElementById('rcName').value = fullName;
+                        try { appData.cart = JSON.parse(r.CartItems); } catch(e) { appData.cart = [{ id: 'MOCK_EDIT', name: `รายการเดิมจากใบเสร็จ ${no}`, price: r.Amount, qty: 1 }]; }
+                        renderCart();
+                        const methodType = r.Method === 'โอนเงิน' ? 'transfer' : 'cash'; setPayType(methodType);
+                        if(!document.getElementById('rcNoEdit')) { const hiddenInput = document.createElement('input'); hiddenInput.type = 'hidden'; hiddenInput.id = 'rcNoEdit'; document.getElementById('page-receipt').appendChild(hiddenInput); }
+                        document.getElementById('rcNoEdit').value = no; routeTo('receipt'); showToast('โหลดข้อมูลพร้อมแก้ไขแล้ว', 'success');
+                    }, 500);
+                }
+            });
+        }
+
+        function deleteReceipt(no) {
+            Swal.fire({
+                title: 'ยืนยันการยกเลิก/ลบใบเสร็จ?', text: `คุณต้องการลบใบเสร็จเลขที่: ${no} ใช่หรือไม่? ยอดเงินที่บันทึกไปแล้วจะถูกดึงออก`,
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonColor: '#9ca3af', confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i> ใช่, ลบเลย', cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Receipts', no, 'No'); } });
+        }
+
+        // ================= MANUAL COURSE LOGIC =================
+        function openManualCourseModal(hn, name) {
+            document.getElementById('mcHN').value = hn; document.getElementById('mcName').value = name;
+            document.getElementById('mcDate').value = new Date().toISOString().split('T')[0]; document.getElementById('mcQty').value = '';
+            openModal('modalManualCourse');
+        }
+
+        async function saveManualCourse() {
+            const hn = document.getElementById('mcHN').value; const name = document.getElementById('mcName').value;
+            const dateStr = document.getElementById('mcDate').value; const qty = parseInt(document.getElementById('mcQty').value);
+            if (!dateStr || !qty || qty <= 0) { return showToast('กรุณาระบุวันที่และจำนวนครั้งให้ถูกต้อง', 'warning'); }
+            showLoading('กำลังบันทึกข้อมูล...');
+            const newReceiptNo = 'MC' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(Math.floor(Math.random() * 1000)).padStart(4, '0');
+            const d = new Date(dateStr); const formattedDate = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear() + 543}`;
+            const cartStr = JSON.stringify([{ id: 'MANUAL_ADD', name: `เพิ่มคอร์สด้วยระบบ (Manual) ${qty} ครั้ง`, price: 0, qty: 1 }]);
+            const newReceipt = { No: newReceiptNo, Date: formattedDate, Name: name, HN: hn, Amount: 0, Method: 'Manual', SlipUrl: '', CartItems: cartStr };
+            const headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems'];
+            if (await saveToDB('Receipts', newReceipt, headers, 'No')) { closeModal('modalManualCourse'); renderCourseBalTable(); showToast('เพิ่มคอร์สสำเร็จ'); }
+        }
+
+        // ================= SETTINGS LOGIC =================
+        function saveClinicInfo() {
+            showLoading('กำลังบันทึกข้อมูล...');
+            const gasUrl = document.getElementById('confGasId').value;
+            if (gasUrl && gasUrl.startsWith('http')) { localStorage.setItem('GAS_WEB_APP_URL', gasUrl); }
+
+            const conf = {
+                ConfigID: '1', ClinicName: document.getElementById('confClinicName').value, Phone: document.getElementById('confPhone').value,
+                Email: document.getElementById('confEmail').value, LineID: document.getElementById('confLineId').value, Address: document.getElementById('confAddress').value,
+                LogoUrl: document.getElementById('confLogoUrl').value, StampUrl: document.getElementById('confStampUrl').value,
+                ReceiptFooter: document.getElementById('confReceiptFooter').value, SheetClinicID: document.getElementById('confSheetClinic').value,
+                SheetUserID: document.getElementById('confSheetUser').value, GasURL: gasUrl, SlipFolderID: document.getElementById('confSlipFolder').value
+            };
+            const headers = ['ConfigID', 'ClinicName', 'Phone', 'Email', 'LineID', 'Address', 'LogoUrl', 'StampUrl', 'ReceiptFooter', 'SheetClinicID', 'SheetUserID', 'GasURL', 'SlipFolderID'];
+            
+            runGas('saveRecord', 'Config', conf, headers, 'ConfigID').then(res => {
+                hideLoading(); showToast('บันทึกข้อมูลคลินิกสำเร็จ');
+                document.getElementById('loginClinicName').innerText = conf.ClinicName;
+                if(conf.LogoUrl) { document.getElementById('loginLogo').src = conf.LogoUrl; document.getElementById('loginLogo').style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
+            }).catch((e) => { hideLoading(); Swal.fire('ข้อผิดพลาด', e.message || 'บันทึกข้อมูลไม่สำเร็จ', 'error'); });
+        }
+
+        function openServiceModal(code = '') {
+            if (code) {
+                const s = appData.services.find(x => x.code === code);
+                if (s) {
+                    document.getElementById('srvIsEdit').value = code; document.getElementById('srvCode').value = s.code;
+                    document.getElementById('srvCode').readOnly = true; document.getElementById('srvCode').classList.add('bg-gray-100');
+                    document.getElementById('srvName').value = s.name; document.getElementById('srvCat').value = s.cat; document.getElementById('srvPrice').value = s.price;
+                }
+            } else {
+                document.getElementById('srvIsEdit').value = 'false'; document.getElementById('srvCode').value = '';
+                document.getElementById('srvCode').readOnly = false; document.getElementById('srvCode').classList.remove('bg-gray-100');
+                document.getElementById('srvName').value = ''; document.getElementById('srvCat').selectedIndex = 0; document.getElementById('srvPrice').value = '';
+            }
+            openModal('modalService');
+        }
+
+        async function saveService() {
+            const code = document.getElementById('srvCode').value; const name = document.getElementById('srvName').value;
+            const cat = document.getElementById('srvCat').value; const price = document.getElementById('srvPrice').value;
+            if(!code || !name || !price) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
+            const obj = { code, name, cat, price: Number(price) };
+            if (await saveToDB('Services', obj, ['code', 'name', 'cat', 'price'], 'code')) { closeModal('modalService'); }
+        }
+
+        async function deleteService(code) {
+            Swal.fire({
+                title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonText: 'ยกเลิก', confirmButtonText: 'ลบเลย'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Services', code, 'code'); } });
+        }
+
         function renderSettingsServicesTable(tbodyId) {
             const tb = document.getElementById(tbodyId);
             if(!tb) return;
             tb.innerHTML = '';
             appData.services.forEach(r => {
                 tb.innerHTML += `
-                    <tr>
-                        <td class="py-4 font-bold text-dark">${r.name}</td>
-                        <td class="py-4 text-gray-500">${r.cat}</td>
-                        <td class="py-4 text-center font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
-                        <td class="py-4 text-center text-lg whitespace-nowrap">
-                            <button onclick="openServiceModal('${r.code}')" class="text-orange-400 hover:text-orange-600 mx-2"><i class="fas fa-pen"></i></button>
-                            <button onclick="deleteService('${r.code}')" class="text-red-400 hover:text-red-600 mx-2"><i class="far fa-trash-alt"></i></button>
+                    <tr class="border-b border-gray-50 hover:bg-gray-50">
+                        <td class="py-4 px-2 font-bold text-dark">${r.code}</td>
+                        <td class="py-4 px-2 text-gray-500">${r.name}</td>
+                        <td class="py-4 px-2 text-gray-500">${r.cat}</td>
+                        <td class="py-4 px-2 text-center font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
+                        <td class="py-4 px-2 text-center text-lg whitespace-nowrap">
+                            <button onclick="openServiceModal('${escapeJS(r.code)}')" class="text-orange-400 hover:text-orange-600 mx-2"><i class="fas fa-pen"></i></button>
+                            <button onclick="deleteService('${escapeJS(r.code)}')" class="text-red-400 hover:text-red-600 mx-2"><i class="far fa-trash-alt"></i></button>
                         </td>
                     </tr>`;
             });
@@ -2010,13 +2493,115 @@
                         <div><h4 class="font-extrabold text-dark">${r.Date}</h4><p class="text-xs text-gray-500 mt-1">${r.Name}</p></div>
                         <div class="flex pt-1">
                             <button onclick="openHolidayModal('${r.HolidayID}')" class="text-orange-400 hover:text-orange-600 mx-2"><i class="fas fa-pen"></i></button>
-                            <button onclick="deleteHoliday('${r.HolidayID}')" class="text-red-400 hover:text-red-500"><i class="far fa-trash-alt"></i></button>
+                            <button onclick="deleteHoliday('${r.HolidayID}')" class="text-red-400 hover:text-red-500 mx-2"><i class="far fa-trash-alt"></i></button>
                         </div>
                     </div>`;
             });
         }
 
-        // ================= TABS =================
+        // --- Therapist UI Logic ---
+        const DAYS_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const TIME_SLOTS = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+
+        function buildTherapistScheduleUI(existingScheduleStr) {
+            let sched = {}; try { if (existingScheduleStr) sched = JSON.parse(existingScheduleStr); } catch(e) {}
+            const container = document.getElementById('thrScheduleUI'); container.innerHTML = '';
+            DAYS_TH.forEach((dayName, dayIdx) => {
+                const dayData = sched[dayIdx] || []; const isDayActive = dayData.length > 0; let timePills = '';
+                TIME_SLOTS.forEach(time => {
+                    const isSelected = dayData.includes(time);
+                    timePills += `<label class="cursor-pointer inline-block m-1"><input type="checkbox" class="peer hidden time-cb" data-day="${dayIdx}" value="${time}" ${isSelected ? 'checked' : ''} onchange="updateThrScheduleJSON()"><div class="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg text-gray-500 peer-checked:bg-secondary/10 peer-checked:text-secondary peer-checked:border-secondary transition-all select-none hover:bg-gray-50">${time}</div></label>`;
+                });
+                container.innerHTML += `<div class="border ${isDayActive ? 'border-secondary/40 bg-secondary/5' : 'border-gray-100 bg-white'} rounded-xl p-4 transition-colors" id="day-box-${dayIdx}"><div class="flex items-center justify-between"><label class="font-bold text-sm text-dark flex items-center cursor-pointer select-none"><input type="checkbox" class="mr-3 day-cb accent-secondary w-5 h-5 rounded" data-day="${dayIdx}" ${isDayActive ? 'checked' : ''} onchange="toggleDayTimes(this, ${dayIdx})">${dayName}</label></div><div id="times-day-${dayIdx}" class="flex flex-wrap mt-3 pt-3 border-t border-gray-100 ${isDayActive ? '' : 'hidden'}">${timePills}</div></div>`;
+            });
+            updateThrScheduleJSON();
+        }
+
+        function toggleDayTimes(checkbox, dayIdx) {
+            const timeContainer = document.getElementById(`times-day-${dayIdx}`); const dayBox = document.getElementById(`day-box-${dayIdx}`);
+            if (checkbox.checked) { timeContainer.classList.remove('hidden'); dayBox.classList.add('border-secondary/40', 'bg-secondary/5'); dayBox.classList.remove('border-gray-100', 'bg-white'); } 
+            else { timeContainer.classList.add('hidden'); dayBox.classList.remove('border-secondary/40', 'bg-secondary/5'); dayBox.classList.add('border-gray-100', 'bg-white'); const timeCbs = timeContainer.querySelectorAll('.time-cb'); timeCbs.forEach(cb => cb.checked = false); }
+            updateThrScheduleJSON();
+        }
+
+        function updateThrScheduleJSON() {
+            let sched = {};
+            DAYS_TH.forEach((_, dayIdx) => {
+                const dayCb = document.querySelector(`.day-cb[data-day="${dayIdx}"]`);
+                if (dayCb && dayCb.checked) {
+                    const timeCbs = document.querySelectorAll(`.time-cb[data-day="${dayIdx}"]:checked`);
+                    if (timeCbs.length > 0) { sched[dayIdx] = Array.from(timeCbs).map(cb => cb.value); }
+                }
+            });
+            document.getElementById('thrScheduleStr').value = JSON.stringify(sched);
+        }
+
+        function openTherapistModal(id = '') {
+            let initialSched = '{}';
+            if (id) {
+                const t = appData.therapistsRaw.find(x => x.TherapistID === id);
+                if (t) { document.getElementById('thrId').value = t.TherapistID; document.getElementById('thrName').value = t.Name; initialSched = t.Schedule || '{}'; }
+            } else { document.getElementById('thrId').value = ''; document.getElementById('thrName').value = ''; initialSched = '{}'; }
+            buildTherapistScheduleUI(initialSched); openModal('modalTherapist');
+        }
+
+        async function saveTherapist() {
+            const id = document.getElementById('thrId').value; const name = document.getElementById('thrName').value; const schedule = document.getElementById('thrScheduleStr').value;
+            if(!name) return showToast('กรุณากรอกชื่อครู', 'warning');
+            if(schedule === '{}') { const anyDayChecked = document.querySelector('.day-cb:checked'); if(anyDayChecked) { return Swal.fire('แจ้งเตือน', 'กรุณาเลือกเวลาทำงานอย่างน้อย 1 ช่วงเวลาในวันที่เลือก', 'warning'); } }
+            const obj = { TherapistID: id, Name: name, Schedule: schedule };
+            if (await saveToDB('Therapists', obj, ['TherapistID', 'Name', 'Schedule'], 'TherapistID')) { closeModal('modalTherapist'); }
+        }
+
+        async function deleteTherapist(id) {
+             Swal.fire({
+                title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonText: 'ยกเลิก', confirmButtonText: 'ลบเลย'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Therapists', id, 'TherapistID'); } });
+        }
+
+        function openBankModal(id = '') {
+            if (id) {
+                const b = appData.banks.find(x => x.BankID === id);
+                if (b) { document.getElementById('bankId').value = b.BankID; document.getElementById('bankName').value = b.BankName; document.getElementById('bankAccNo').value = b.AccountNo; document.getElementById('bankAccName').value = b.AccountName; }
+            } else { document.getElementById('bankId').value = ''; document.getElementById('bankName').value = ''; document.getElementById('bankAccNo').value = ''; document.getElementById('bankAccName').value = ''; }
+            openModal('modalBank');
+        }
+
+        async function saveBank() {
+            const id = document.getElementById('bankId').value; const bankName = document.getElementById('bankName').value; const accNo = document.getElementById('bankAccNo').value; const accName = document.getElementById('bankAccName').value;
+            if(!bankName || !accNo) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
+            const obj = { BankID: id, BankName: bankName, AccountNo: accNo, AccountName: accName };
+            if (await saveToDB('Banks', obj, ['BankID', 'BankName', 'AccountNo', 'AccountName'], 'BankID')) { closeModal('modalBank'); }
+        }
+
+        async function deleteBank(id) {
+            Swal.fire({
+                title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonText: 'ยกเลิก', confirmButtonText: 'ลบเลย'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Banks', id, 'BankID'); } });
+        }
+
+        function openHolidayModal(id = '') {
+            if (id) {
+                const h = appData.holidaysRaw.find(x => x.HolidayID === id);
+                if (h) { document.getElementById('holId').value = h.HolidayID; document.getElementById('holDate').value = h.Date; document.getElementById('holName').value = h.Name; }
+            } else { document.getElementById('holId').value = ''; document.getElementById('holDate').value = ''; document.getElementById('holName').value = ''; }
+            openModal('modalHoliday');
+        }
+
+        async function saveHoliday() {
+            const id = document.getElementById('holId').value; const dateStr = document.getElementById('holDate').value; const name = document.getElementById('holName').value;
+            if(!dateStr || !name) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
+            const obj = { HolidayID: id, Date: dateStr, Name: name };
+            if (await saveToDB('Holidays', obj, ['HolidayID', 'Date', 'Name'], 'HolidayID')) { closeModal('modalHoliday'); }
+        }
+
+        async function deleteHoliday(id) {
+             Swal.fire({
+                title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonText: 'ยกเลิก', confirmButtonText: 'ลบเลย'
+            }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Holidays', id, 'HolidayID'); } });
+        }
+
+        // ================= TABS & EVENTS =================
         function switchTab(containerId, tabId, btn) {
             document.getElementById(containerId).querySelectorAll(':scope > div').forEach(el => el.classList.add('hidden'));
             document.getElementById(tabId).classList.remove('hidden');
@@ -2027,48 +2612,26 @@
         function switchSetting(btn, panelId) {
             document.querySelectorAll('.setting-panel').forEach(el => el.classList.add('hidden'));
             document.getElementById(panelId).classList.remove('hidden');
-            
-            document.querySelectorAll('.settings-tab').forEach(el => {
-                el.className = 'settings-tab flex items-center gap-4 px-6 py-4 rounded-2xl font-medium bg-white text-dark hover:bg-primary/20 transition-all shadow-sm w-full text-left';
-            });
-            
+            document.querySelectorAll('.settings-tab').forEach(el => { el.className = 'settings-tab flex items-center gap-4 px-6 py-4 rounded-2xl font-medium bg-white text-dark hover:bg-primary/20 transition-all shadow-sm w-full text-left'; });
             btn.className = 'settings-tab active flex items-center gap-4 px-6 py-4 rounded-2xl font-medium bg-secondary text-white shadow-md transition-all w-full text-left';
         }
 
         document.addEventListener('click', function(e) {
-            if(!e.target.closest('#apptSearchPat') && !e.target.closest('#apptSearchResult')) {
-                const el = document.getElementById('apptSearchResult');
-                if(el) el.style.display = 'none';
-            }
-            if(!e.target.closest('#assessSearchPat') && !e.target.closest('#assessSearchResult')) {
-                const el = document.getElementById('assessSearchResult');
-                if(el) el.style.display = 'none';
-            }
-            if(!e.target.closest('#rcSearchPat') && !e.target.closest('#rcSearchResult')) {
-                const el = document.getElementById('rcSearchResult');
-                if(el) el.style.display = 'none';
-            }
+            if(!e.target.closest('#apptSearchPat') && !e.target.closest('#apptSearchResult')) { const el = document.getElementById('apptSearchResult'); if(el) el.style.display = 'none'; }
+            if(!e.target.closest('#assessSearchPat') && !e.target.closest('#assessSearchResult')) { const el = document.getElementById('assessSearchResult'); if(el) el.style.display = 'none'; }
+            if(!e.target.closest('#rcSearchPat') && !e.target.closest('#rcSearchResult')) { const el = document.getElementById('rcSearchResult'); if(el) el.style.display = 'none'; }
         });
 
         document.addEventListener("DOMContentLoaded", () => {
             const savedGasUrl = localStorage.getItem('GAS_WEB_APP_URL') || GLOBAL_GAS_API_URL;
-            if(savedGasUrl && document.getElementById('confGasId')) {
-                document.getElementById('confGasId').value = savedGasUrl;
-            }
-
+            if(savedGasUrl && document.getElementById('confGasId')) { document.getElementById('confGasId').value = savedGasUrl; }
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็กบ้านฮักดี';
             const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
-            
             document.getElementById('loginClinicName').innerText = clinicName;
             const loginLogo = document.getElementById('loginLogo');
-            if (logoUrl && loginLogo) {
-                loginLogo.src = logoUrl;
-                loginLogo.style.display = 'block';
-                document.getElementById('loginLockIcon').style.display = 'none';
-            }
+            if (logoUrl && loginLogo) { loginLogo.src = logoUrl; loginLogo.style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
         });
 
-        // Init
         routeTo('dashboard');
     </script>
 </body>
