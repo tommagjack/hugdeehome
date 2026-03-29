@@ -305,7 +305,7 @@
 
                 <div class="bg-white rounded-full shadow-sm p-2 mb-6 flex items-center px-5 border border-gray-50">
                     <i class="fas fa-search text-gray-400 mr-3 text-lg"></i>
-                    <input type="text" id="searchAssess" placeholder="ค้นหาจาก HN, ชื่อผู้ป่วย..." class="w-full bg-transparent border-none outline-none text-dark py-2.5 font-medium" oninput="changePage('assess', 1)">
+                    <input type="text" id="searchAssess" placeholder="ค้นหาจาก HN, ชื่อผู้รับบริการ..." class="w-full bg-transparent border-none outline-none text-dark py-2.5 font-medium" oninput="changePage('assess', 1)">
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-50">
@@ -333,7 +333,7 @@
                 <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-50">
                     <div class="flex border-b border-gray-100 bg-gray-50">
                         <button class="px-6 py-4 tab-active font-bold" onclick="switchTab('srvTabs', 'tabSrvList', this); changePage('services', 1);">รายการบริการ</button>
-                        <button class="px-6 py-4 text-gray-500 font-medium hover:text-dark transition" onclick="switchTab('srvTabs', 'tabCourseBal', this); renderCourseBalTable();">ประวัติคอร์สผู้ป่วย</button>
+                        <button class="px-6 py-4 text-gray-500 font-medium hover:text-dark transition" onclick="switchTab('srvTabs', 'tabCourseBal', this); renderCourseBalTable();">ประวัติคอร์สผู้รับบริการ</button>
                     </div>
                     <div id="srvTabs" class="p-6">
                         <div id="tabSrvList">
@@ -757,9 +757,9 @@
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4 border-b border-gray-200 pb-6">
                     <!-- Row 1 -->
                     <div class="md:col-span-1">
-                        <label class="block mb-1 text-xs font-bold text-gray-500">เลือกผู้ป่วย (HN)</label>
+                        <label class="block mb-1 text-xs font-bold text-gray-500">เลือกผู้รับบริการ (HN)</label>
                         <div class="relative">
-                            <input type="text" id="assessSearchPat" placeholder="-- เลือกผู้ป่วย --" class="w-full border border-gray-200 bg-white rounded-lg px-3 py-2 outline-none focus:border-secondary text-sm" oninput="searchPatientList(this.value, 'assess')" onfocus="searchPatientList(this.value, 'assess')">
+                            <input type="text" id="assessSearchPat" placeholder="-- เลือกผู้รับบริการ --" class="w-full border border-gray-200 bg-white rounded-lg px-3 py-2 outline-none focus:border-secondary text-sm" oninput="searchPatientList(this.value, 'assess')" onfocus="searchPatientList(this.value, 'assess')">
                             <i class="fas fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none text-xs"></i>
                             <div id="assessSearchResult" class="hidden absolute w-full bg-white border border-gray-100 rounded-lg mt-1 shadow-lg z-50 max-h-48 overflow-y-auto left-0 top-full text-sm"></div>
                         </div>
@@ -1386,7 +1386,21 @@
             const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const searchTerm = (document.getElementById('searchAssess')?.value || '').toLowerCase();
             let filteredData = appData.assessments.filter(a => (a.HN && a.HN.toLowerCase().includes(searchTerm)) || (a.Name && a.Name.toLowerCase().includes(searchTerm)));
-            const sortedData = filteredData.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+            
+            const parseD = (ds) => {
+                if(!ds) return 0;
+                if(ds.includes('-')) return new Date(ds).getTime() || 0;
+                if(ds.includes('/')) {
+                    let p = ds.split(' ')[0].split('/');
+                    if(p.length === 3) {
+                        let y = parseInt(p[2]); if(y > 2500) y -= 543;
+                        return new Date(y, parseInt(p[1])-1, parseInt(p[0])).getTime();
+                    }
+                }
+                return new Date(ds).getTime() || 0;
+            };
+            const sortedData = filteredData.sort((a, b) => parseD(b.Date) - parseD(a.Date));
+            
             const total = sortedData.length; const start = (appState.pagination.assess - 1) * ITEMS_PER_PAGE;
             const paginatedData = sortedData.slice(start, start + ITEMS_PER_PAGE);
             if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="5" class="text-center py-16 text-gray-400">ไม่พบข้อมูลการประเมิน</td></tr>`; } 
@@ -1529,7 +1543,7 @@
             courseData.sort((a, b) => { if (b.Remaining !== a.Remaining) return b.Remaining - a.Remaining; return b.Bought - a.Bought; }); 
             const total = courseData.length; const start = (appState.pagination.courseBal - 1) * ITEMS_PER_PAGE;
             const paginatedData = courseData.slice(start, start + ITEMS_PER_PAGE);
-            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบประวัติคอร์สผู้ป่วย</td></tr>`; } 
+            if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบประวัติคอร์สผู้รับบริการ</td></tr>`; } 
             else {
                 paginatedData.forEach(r => {
                     let remainingClass = r.Remaining > 0 ? 'text-green-500 font-bold bg-green-50 px-3 py-1 rounded-full' : 'text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full';
@@ -1619,12 +1633,77 @@
             if (data.length > 0) showToast('ส่งออก CSV สำเร็จ');
         }
 
+        function CSVToArray(strData, strDelimiter) {
+            strDelimiter = (strDelimiter || ",");
+            var objPattern = new RegExp(( "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" + "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" + "([^\"\\" + strDelimiter + "\\r\\n]*))"), "gi");
+            var arrData = [[]];
+            var arrMatches = null;
+            while (arrMatches = objPattern.exec( strData )){
+                var strMatchedDelimiter = arrMatches[ 1 ];
+                if (strMatchedDelimiter.length && strMatchedDelimiter !== strDelimiter) { arrData.push( [] ); }
+                var strMatchedValue;
+                if (arrMatches[ 2 ]) { strMatchedValue = arrMatches[ 2 ].replace( new RegExp( "\"\"", "g" ), "\"" ); } 
+                else { strMatchedValue = arrMatches[ 3 ]; }
+                arrData[ arrData.length - 1 ].push( strMatchedValue );
+            }
+            return arrData;
+        }
+
         function importCSV(type) {
-            const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv';
+            const input = document.createElement('input'); 
+            input.type = 'file'; 
+            input.accept = '.csv';
             input.onchange = e => {
-                const file = e.target.files[0]; if (!file) return;
-                showLoading('กำลังนำเข้าข้อมูล...');
-                setTimeout(() => { hideLoading(); Swal.fire({ title: 'นำเข้าข้อมูลสำเร็จ', text: `ระบบนำเข้าไฟล์ ${file.name} เรียบร้อยแล้ว (จำลองการทำงาน)`, icon: 'success', confirmButtonColor: '#F7B267' }); changePage(type, 1); }, 1000);
+                const file = e.target.files[0]; 
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const text = e.target.result;
+                    const rows = CSVToArray(text, ",");
+                    if(rows.length < 2) return Swal.fire('ข้อผิดพลาด', 'ไฟล์ CSV ไม่มีข้อมูล', 'error');
+                    
+                    const headers = rows[0].map(h => (h || '').trim());
+                    let sheetName = '', idField = '', expectedHeaders = [];
+                    if(type === 'register') { sheetName = 'Patients'; idField = 'HN'; expectedHeaders = ['HN', 'Status', 'Name', 'LastName', 'Nickname', 'Gender', 'DOB', 'Age', 'Phone', 'ParentName', 'Symptom', 'Source']; }
+                    else if(type === 'appointment') { sheetName = 'Appointments'; idField = 'ApptID'; expectedHeaders = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; }
+                    else if(type === 'assessment') { sheetName = 'Assessments'; idField = 'AssessID'; expectedHeaders = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; }
+                    else if(type === 'receipt') { sheetName = 'Receipts'; idField = 'No'; expectedHeaders = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; }
+                    else if(type === 'services') { sheetName = 'Services'; idField = 'code'; expectedHeaders = ['code', 'name', 'cat', 'price']; }
+
+                    let dataToImport = [];
+                    for(let i=1; i<rows.length; i++) {
+                        const rowData = rows[i];
+                        if(rowData.length === 1 && rowData[0] === '') continue; // ข้ามบรรทัดว่าง
+                        let obj = {};
+                        let hasData = false;
+                        headers.forEach((h, idx) => {
+                            if(expectedHeaders.includes(h)) {
+                                obj[h] = rowData[idx] !== undefined ? rowData[idx] : '';
+                                if(obj[h]) hasData = true;
+                            }
+                        });
+                        if(hasData) dataToImport.push(obj);
+                    }
+
+                    if(dataToImport.length === 0) return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลที่ตรงกับหัวตาราง กรุณาตรวจสอบไฟล์ CSV', 'error');
+
+                    showLoading(`กำลังนำเข้าข้อมูล ${dataToImport.length} รายการ...`);
+                    try {
+                        const res = await runGas('importBulkData', sheetName, dataToImport, expectedHeaders, idField);
+                        hideLoading();
+                        if (res && res.success) {
+                            Swal.fire('นำเข้าข้อมูลสำเร็จ', `นำเข้าและอัปเดตข้อมูล ${dataToImport.length} รายการ เรียบร้อยแล้ว`, 'success');
+                            await loadInitialDataFromGAS();
+                            changePage(type, 1);
+                        } else {
+                            Swal.fire('ข้อผิดพลาด', res ? res.message : 'นำเข้าข้อมูลไม่สำเร็จ', 'error');
+                        }
+                    } catch(error) {
+                        hideLoading();
+                        Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการเชื่อมต่อ: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file, 'UTF-8');
             };
             input.click();
         }
@@ -1675,7 +1754,7 @@
         function viewPatient(hn) {
             const p = appData.patients.find(x => x.HN === hn); if(!p) return;
             Swal.fire({
-                title: 'ข้อมูลผู้ป่วย',
+                title: 'ข้อมูลผู้รับบริการ',
                 html: `<div class="text-left text-sm space-y-2 mt-4">
                         <p><b>HN:</b> ${p.HN}</p><p><b>ชื่อเล่น:</b> ${p.Nickname || '-'}</p><p><b>ชื่อ-สกุล:</b> ${p.Name || ''} ${p.LastName || ''}</p>
                         <p><b>เพศ:</b> ${p.Gender || '-'}</p><p><b>อายุ:</b> ${p.Age || '-'}</p><p><b>เบอร์โทร:</b> ${p.Phone || '-'}</p>
@@ -1710,7 +1789,7 @@
 
         function deletePatient(hn) {
             Swal.fire({
-                title: 'ยืนยันการลบข้อมูล?', text: `คุณต้องการลบข้อมูลผู้ป่วย HN: ${hn} ใช่หรือไม่? ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้`,
+                title: 'ยืนยันการลบข้อมูล?', text: `คุณต้องการลบข้อมูลผู้รับบริการ HN: ${hn} ใช่หรือไม่? ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้`,
                 icon: 'warning', showCancelButton: true, confirmButtonColor: '#e3342f', cancelButtonColor: '#9ca3af',
                 confirmButtonText: '<i class="fas fa-trash-alt"></i> ใช่, ลบเลย', cancelButtonText: 'ยกเลิก'
             }).then(async (result) => { if (result.isConfirmed) { await deleteFromDB('Patients', hn, 'HN'); } });
