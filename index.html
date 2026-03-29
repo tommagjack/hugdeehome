@@ -912,6 +912,7 @@
                 <input type="hidden" id="srvIsEdit" value="false">
                 <div><label class="block mb-2">รหัสอ้างอิง</label><input type="text" id="srvCode" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" placeholder="เช่น S01"></div>
                 <div><label class="block mb-2">ชื่อบริการ</label><input type="text" id="srvName" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary"></div>
+                <div><label class="block mb-2">รายละเอียด (แสดงในใบเสร็จ)</label><input type="text" id="srvDesc" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" placeholder="คำอธิบายเพิ่มเติมใต้ชื่อบริการ"></div>
                 <div><label class="block mb-2">หมวดหมู่</label>
                     <select id="srvCat" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary">
                         <option>บริการ</option>
@@ -1626,7 +1627,7 @@
             else if (type === 'appointment') { headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; data = appData.appointments; filename = 'appointments.csv'; } 
             else if (type === 'assessment') { headers = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; data = appData.assessments; filename = 'assessments.csv'; } 
             else if (type === 'receipt') { headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; data = appData.receipts; filename = 'receipts.csv'; } 
-            else if (type === 'services') { headers = ['code', 'name', 'cat', 'price']; data = appData.services; filename = 'services.csv'; }
+            else if (type === 'services') { headers = ['code', 'name', 'desc', 'cat', 'price']; data = appData.services; filename = 'services.csv'; }
             
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
             if (data.length > 0) {
@@ -1679,7 +1680,7 @@
                     else if(type === 'appointment') { sheetName = 'Appointments'; idField = 'ApptID'; expectedHeaders = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; }
                     else if(type === 'assessment') { sheetName = 'Assessments'; idField = 'AssessID'; expectedHeaders = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; }
                     else if(type === 'receipt') { sheetName = 'Receipts'; idField = 'No'; expectedHeaders = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; }
-                    else if(type === 'services') { sheetName = 'Services'; idField = 'code'; expectedHeaders = ['code', 'name', 'cat', 'price']; }
+                    else if(type === 'services') { sheetName = 'Services'; idField = 'code'; expectedHeaders = ['code', 'name', 'desc', 'cat', 'price']; }
 
                     let dataToImport = [];
                     for(let i=1; i<rows.length; i++) {
@@ -2267,7 +2268,7 @@
             const list = document.getElementById('pickServiceList'); list.innerHTML = '';
             appData.services.forEach(s => {
                 list.innerHTML += `
-                    <div class="flex justify-between items-center p-3 border rounded-xl hover:bg-primary/10 cursor-pointer mb-2" onclick="addToCart('${escapeJS(s.code)}', '${escapeJS(s.name)}', ${s.price})">
+                    <div class="flex justify-between items-center p-3 border rounded-xl hover:bg-primary/10 cursor-pointer mb-2" onclick="addToCart('${escapeJS(s.code)}', '${escapeJS(s.name)}', '${escapeJS(s.desc)}', ${s.price})">
                         <div><p class="font-medium">${s.name}</p><p class="text-xs text-gray-500">${s.code}</p></div>
                         <div class="font-semibold text-secondary">฿${Number(s.price||0).toLocaleString()}</div>
                     </div>`;
@@ -2275,9 +2276,9 @@
             openModal('modalPickService');
         }
 
-        function addToCart(id, name, price) {
+        function addToCart(id, name, desc, price) {
             const exist = appData.cart.find(i => i.id === id);
-            if(exist) exist.qty++; else appData.cart.push({id, name, price, qty: 1});
+            if(exist) exist.qty++; else appData.cart.push({id, name, desc, price, qty: 1});
             closeModal('modalPickService'); renderCart();
         }
 
@@ -2400,7 +2401,7 @@
                             <td style="padding: 15px 10px; text-align: center;">${idx + 1}</td>
                             <td style="padding: 15px 10px;">
                                 <span style="font-weight: 600; color: #333;">${item.name}</span><br>
-                                <span style="font-size: 12px; color: #888;">${item.id !== 'MANUAL_ADD' && item.id !== 'MOCK_EDIT' ? item.id : ''}</span>
+                                <span style="font-size: 12px; color: #888;">${item.desc || ''}</span>
                             </td>
                             <td style="padding: 15px 10px; text-align: center;">${item.qty}</td>
                             <td style="padding: 15px 10px; text-align: right;">${item.price.toLocaleString()}</td>
@@ -2462,7 +2463,7 @@
                         hideLoading();
                         const p = appData.patients.find(x => x.HN === r.HN); const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : (r.Name || '');
                         document.getElementById('rcSearchPat').value = `${r.HN} - ${p ? p.Nickname : '-'} (${fullName})`; document.getElementById('rcHN').value = r.HN; document.getElementById('rcName').value = fullName;
-                        try { appData.cart = JSON.parse(r.CartItems); } catch(e) { appData.cart = [{ id: 'MOCK_EDIT', name: `รายการเดิมจากใบเสร็จ ${no}`, price: r.Amount, qty: 1 }]; }
+                        try { appData.cart = JSON.parse(r.CartItems); } catch(e) { appData.cart = [{ id: 'MOCK_EDIT', name: `รายการเดิมจากใบเสร็จ ${no}`, desc: '', price: r.Amount, qty: 1 }]; }
                         renderCart();
                         const methodType = r.Method === 'โอนเงิน' ? 'transfer' : 'cash'; setPayType(methodType);
                         if(!document.getElementById('rcNoEdit')) { const hiddenInput = document.createElement('input'); hiddenInput.type = 'hidden'; hiddenInput.id = 'rcNoEdit'; document.getElementById('page-receipt').appendChild(hiddenInput); }
@@ -2493,7 +2494,7 @@
             showLoading('กำลังบันทึกข้อมูล...');
             const newReceiptNo = 'MC' + new Date().getFullYear() + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(Math.floor(Math.random() * 1000)).padStart(4, '0');
             const d = new Date(dateStr); const formattedDate = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear() + 543}`;
-            const cartStr = JSON.stringify([{ id: 'MANUAL_ADD', name: `เพิ่มคอร์สด้วยระบบ (Manual) ${qty} ครั้ง`, price: 0, qty: 1 }]);
+            const cartStr = JSON.stringify([{ id: 'MANUAL_ADD', name: `เพิ่มคอร์สด้วยระบบ (Manual) ${qty} ครั้ง`, desc: '', price: 0, qty: 1 }]);
             const newReceipt = { No: newReceiptNo, Date: formattedDate, Name: name, HN: hn, Amount: 0, Method: 'Manual', SlipUrl: '', CartItems: cartStr };
             const headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems'];
             if (await saveToDB('Receipts', newReceipt, headers, 'No')) { closeModal('modalManualCourse'); renderCourseBalTable(); showToast('เพิ่มคอร์สสำเร็จ'); }
@@ -2527,22 +2528,27 @@
                 if (s) {
                     document.getElementById('srvIsEdit').value = code; document.getElementById('srvCode').value = s.code;
                     document.getElementById('srvCode').readOnly = true; document.getElementById('srvCode').classList.add('bg-gray-100');
-                    document.getElementById('srvName').value = s.name; document.getElementById('srvCat').value = s.cat; document.getElementById('srvPrice').value = s.price;
+                    document.getElementById('srvName').value = s.name; 
+                    document.getElementById('srvDesc').value = s.desc || '';
+                    document.getElementById('srvCat').value = s.cat; document.getElementById('srvPrice').value = s.price;
                 }
             } else {
                 document.getElementById('srvIsEdit').value = 'false'; document.getElementById('srvCode').value = '';
                 document.getElementById('srvCode').readOnly = false; document.getElementById('srvCode').classList.remove('bg-gray-100');
-                document.getElementById('srvName').value = ''; document.getElementById('srvCat').selectedIndex = 0; document.getElementById('srvPrice').value = '';
+                document.getElementById('srvName').value = ''; 
+                document.getElementById('srvDesc').value = '';
+                document.getElementById('srvCat').selectedIndex = 0; document.getElementById('srvPrice').value = '';
             }
             openModal('modalService');
         }
 
         async function saveService() {
             const code = document.getElementById('srvCode').value; const name = document.getElementById('srvName').value;
+            const desc = document.getElementById('srvDesc').value;
             const cat = document.getElementById('srvCat').value; const price = document.getElementById('srvPrice').value;
             if(!code || !name || !price) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
-            const obj = { code, name, cat, price: Number(price) };
-            if (await saveToDB('Services', obj, ['code', 'name', 'cat', 'price'], 'code')) { closeModal('modalService'); }
+            const obj = { code, name, desc, cat, price: Number(price) };
+            if (await saveToDB('Services', obj, ['code', 'name', 'desc', 'cat', 'price'], 'code')) { closeModal('modalService'); }
         }
 
         async function deleteService(code) {
