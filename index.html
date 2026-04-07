@@ -2477,21 +2477,71 @@
             }
         }
 
+        // ฟังก์ชันช่วยแปลงวันที่จาก Google Sheet ทุกรูปแบบให้เข้ากับ input[type="date"]
+        function formatDateForInput(ds) {
+            if (!ds) return '';
+            let s = ds.toString().trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // แบบ YYYY-MM-DD ปกติ
+            
+            if (s.includes('/')) {
+                let p = s.split(' ')[0].split('/');
+                if (p.length === 3) {
+                    let y = parseInt(p[2]);
+                    if (y > 2500) y -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+                    let m = p[1].padStart(2, '0');
+                    let d = p[0].padStart(2, '0');
+                    return `${y}-${m}-${d}`;
+                }
+            }
+            
+            let parsed = new Date(s);
+            if (!isNaN(parsed.getTime())) {
+                let y = parsed.getFullYear();
+                let m = String(parsed.getMonth() + 1).padStart(2, '0');
+                let d = String(parsed.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+            return s;
+        }
+
         function calculateServiceStatus(startStr, endStr) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             let isActive = true;
 
+            const parseDate = (ds) => {
+                if (!ds) return null;
+                let s = ds.toString().trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                    let p = s.split('-');
+                    return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]));
+                }
+                if (s.includes('/')) {
+                    let p = s.split(' ')[0].split('/');
+                    if (p.length === 3) {
+                        let y = parseInt(p[2]);
+                        if (y > 2500) y -= 543;
+                        return new Date(y, parseInt(p[1]) - 1, parseInt(p[0]));
+                    }
+                }
+                let d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            };
+
             if (startStr) {
-                const start = new Date(startStr);
-                start.setHours(0, 0, 0, 0);
-                if (today < start) isActive = false;
+                const start = parseDate(startStr);
+                if (start) {
+                    start.setHours(0, 0, 0, 0);
+                    if (today < start) isActive = false;
+                }
             }
 
             if (endStr) {
-                const end = new Date(endStr);
-                end.setHours(0, 0, 0, 0);
-                if (today > end) isActive = false;
+                const end = parseDate(endStr);
+                if (end) {
+                    end.setHours(0, 0, 0, 0);
+                    if (today > end) isActive = false;
+                }
             }
 
             return isActive ? 'Active' : 'Inactive';
@@ -2784,8 +2834,8 @@
                     document.getElementById('srvCode').readOnly = true; document.getElementById('srvCode').classList.add('bg-gray-100');
                     document.getElementById('srvName').value = s.name; 
                     document.getElementById('srvDesc').value = s.desc || '';
-                    document.getElementById('srvStartDate').value = s.startDate || '';
-                    document.getElementById('srvEndDate').value = s.endDate || '';
+                    document.getElementById('srvStartDate').value = formatDateForInput(s.startDate);
+                    document.getElementById('srvEndDate').value = formatDateForInput(s.endDate);
                     document.getElementById('srvCat').value = s.cat; document.getElementById('srvPrice').value = s.price;
                     updateSrvStatusUI();
                 }
