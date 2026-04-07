@@ -19,7 +19,7 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { primary: '#FAC98B', secondary: '#F7B267', dark: '#4A4036', light: '#FEF8F1', danger: '#e3342f' },
+                    colors: { primary: '#d3b38c', secondary: '#c19b6c', dark: '#4A4036', light: '#FEF8F1', danger: '#e3342f' },
                     fontFamily: { sans: ['Kanit', 'sans-serif'] }
                 }
             }
@@ -29,15 +29,15 @@
         body { font-family: 'Kanit', sans-serif; background-color: #FEF8F1; color: #4A4036; }
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #F7B267; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #c19b6c; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         /* New Sidebar Styles */
-        .nav-active { background-color: #F7B267; color: #ffffff !important; font-weight: 600; box-shadow: 0 4px 10px rgba(247, 178, 103, 0.3); }
+        .nav-active { background-color: #c19b6c; color: #ffffff !important; font-weight: 600; box-shadow: 0 4px 10px rgba(193, 155, 108, 0.3); }
         .nav-menu { display: flex; align-items: center; padding: 0.75rem 1rem; border-radius: 0.75rem; margin: 0.25rem 1rem; color: #4A4036; font-weight: 500; transition: all 0.2s ease; }
         .nav-menu i { width: 1.5rem; font-size: 1.1rem; margin-right: 0.5rem; text-align: center; }
-        .nav-menu:hover:not(.nav-active) { background-color: rgba(250, 201, 139, 0.15); color: #F7B267; }
-        .tab-active { border-bottom: 2px solid #F7B267; color: #F7B267; font-weight: 600; }
+        .nav-menu:hover:not(.nav-active) { background-color: rgba(211, 179, 140, 0.15); color: #c19b6c; }
+        .tab-active { border-bottom: 2px solid #c19b6c; color: #c19b6c; font-weight: 600; }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex text-sm md:text-base">
@@ -50,13 +50,12 @@
     <!-- Login Overlay -->
     <div id="loginOverlay" class="fixed inset-0 bg-[#FEF8F1] z-[60] flex items-center justify-center">
         <div class="bg-white rounded-[2rem] shadow-lg w-full max-w-md overflow-hidden mx-4">
-            <div class="bg-secondary p-8 text-center text-white flex flex-col items-center">
-                <div class="w-16 h-16 border-2 border-white/40 rounded-2xl flex items-center justify-center mb-4 bg-white/20 overflow-hidden">
-                    <img id="loginLogo" src="" alt="Logo" class="w-full h-full object-cover hidden" onerror="this.style.display='none'; document.getElementById('loginLockIcon').style.display='block';">
-                    <i id="loginLockIcon" class="fas fa-lock text-2xl"></i>
+            <div class="bg-secondary px-8 py-10 text-center text-white flex flex-col items-center">
+                <div class="w-20 h-20 border-2 border-white/40 rounded-[1.25rem] flex items-center justify-center mb-5 bg-white overflow-hidden shadow-sm">
+                    <img id="loginLogo" src="https://ui-avatars.com/api/?name=HD&background=fff&color=c19b6c&size=150&bold=true" alt="Logo" class="w-full h-full object-contain" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=HD&background=fff&color=c19b6c&size=150&bold=true';">
                 </div>
-                <h1 id="loginClinicName" class="text-2xl font-bold mb-1">Hug Dee Home Clinic</h1>
-                <p class="text-white/80 text-sm font-medium">ระบบบริหารจัดการคลินิกพัฒนาการเด็กบ้านฮักดี</p>
+                <h1 id="loginClinicName" class="text-2xl font-bold mb-1 hidden">Hug Dee Home Clinic</h1>
+                <p class="text-white font-bold text-[15px] tracking-wide">ระบบบริหารจัดการคลินิกพัฒนาการเด็ก</p>
             </div>
             <div class="p-8">
                 <div class="mb-5">
@@ -81,7 +80,10 @@
     <!-- Sidebar -->
     <aside id="sidebar" class="w-64 bg-white border-r border-gray-100 flex-shrink-0 hidden md:flex flex-col transition-all duration-300 absolute md:relative z-50 h-full shadow-sm">
         <div class="p-6 flex items-center gap-3">
-            <div class="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-sm shrink-0">H</div>
+            <div class="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-sm shrink-0 overflow-hidden">
+                <span id="sidebarInitial">HD</span>
+                <img id="sidebarLogo" src="" alt="Logo" class="w-full h-full object-cover hidden" onerror="this.style.display='none'; document.getElementById('sidebarInitial').style.display='block';">
+            </div>
             <div>
                 <h2 class="text-[17px] font-extrabold text-dark leading-tight">Hug Dee Home</h2>
                 <p class="text-[11px] font-bold text-secondary">Clinic System</p>
@@ -344,7 +346,7 @@
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
-                                    <thead><tr class="bg-light border-b border-gray-100"><th class="p-4 text-gray-500 font-medium">รหัส</th><th class="p-4 text-gray-500 font-medium">ชื่อบริการ/สินค้า</th><th class="p-4 text-gray-500 font-medium">หมวดหมู่</th><th class="p-4 text-right text-gray-500 font-medium">ราคา</th><th class="p-4 text-center text-gray-500 font-medium">จัดการ</th></tr></thead>
+                                    <thead><tr class="bg-light border-b border-gray-100"><th class="p-4 text-gray-500 font-medium">รหัส</th><th class="p-4 text-gray-500 font-medium">ชื่อบริการ/สินค้า</th><th class="p-4 text-gray-500 font-medium">หมวดหมู่</th><th class="p-4 text-right text-gray-500 font-medium">ราคา</th><th class="p-4 text-center text-gray-500 font-medium">สถานะ</th><th class="p-4 text-center text-gray-500 font-medium">จัดการ</th></tr></thead>
                                     <tbody id="tbodyServices"></tbody>
                                 </table>
                             </div>
@@ -579,7 +581,7 @@
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left whitespace-nowrap">
-                                    <thead><tr class="text-gray-400 text-sm border-b-2 border-gray-100"><th class="pb-3 font-medium">รหัสอ้างอิง</th><th class="pb-3 font-medium">ชื่อบริการ</th><th class="pb-3 font-medium">หมวดหมู่</th><th class="pb-3 font-medium text-center">ราคา</th><th class="pb-3 font-medium text-center">จัดการ</th></tr></thead>
+                                    <thead><tr class="text-gray-400 text-sm border-b-2 border-gray-100"><th class="pb-3 font-medium">รหัสอ้างอิง</th><th class="pb-3 font-medium">ชื่อบริการ</th><th class="pb-3 font-medium">หมวดหมู่</th><th class="pb-3 font-medium text-center">ราคา</th><th class="pb-3 font-medium text-center">สถานะ</th><th class="pb-3 font-medium text-center">จัดการ</th></tr></thead>
                                     <tbody id="tbodySettingsServices" class="text-dark font-medium divide-y divide-gray-100"></tbody>
                                 </table>
                             </div>
@@ -913,13 +915,26 @@
                 <div><label class="block mb-2">รหัสอ้างอิง</label><input type="text" id="srvCode" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" placeholder="เช่น S01"></div>
                 <div><label class="block mb-2">ชื่อบริการ</label><input type="text" id="srvName" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary"></div>
                 <div><label class="block mb-2">รายละเอียด (แสดงในใบเสร็จ)</label><input type="text" id="srvDesc" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" placeholder="คำอธิบายเพิ่มเติมใต้ชื่อบริการ"></div>
-                <div><label class="block mb-2">หมวดหมู่</label>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block mb-2">วันที่เริ่ม (ถ้ามี)</label><input type="date" id="srvStartDate" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" onchange="updateSrvStatusUI()"></div>
+                    <div><label class="block mb-2">วันที่สิ้นสุด (ถ้ามี)</label><input type="date" id="srvEndDate" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary" onchange="updateSrvStatusUI()"></div>
+                </div>
+                
+                <div>
+                    <label class="block mb-2">หมวดหมู่</label>
                     <select id="srvCat" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary">
                         <option>บริการ</option>
                         <option>คอร์ส</option>
                     </select>
                 </div>
-                <div><label class="block mb-2">ราคา</label><input type="number" id="srvPrice" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary"></div>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1"><label class="block mb-2">ราคา</label><input type="number" id="srvPrice" class="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-secondary"></div>
+                    <div>
+                        <label class="block mb-2">สถานะปัจจุบัน</label>
+                        <div class="py-3"><span id="srvStatusBadge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-200">Active</span></div>
+                    </div>
+                </div>
             </div>
             <div class="p-6 flex justify-end gap-4 bg-white border-t border-gray-100">
                 <button onclick="closeModal('modalService')" class="px-4 py-2.5 rounded-xl border border-gray-200 text-dark font-bold hover:bg-gray-50 transition">ยกเลิก</button>
@@ -1042,6 +1057,15 @@
 
         const escapeJS = (str) => (str || '').toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
+        const getDirectImageUrl = (url) => {
+            if (!url) return '';
+            let match = url.match(/\/d\/([a-zA-Z0-9-_]+)/) || url.match(/id=([a-zA-Z0-9-_]+)/);
+            if (match && url.includes('drive.google.com')) {
+                return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+            }
+            return url;
+        };
+
         // ================= GAS COMMUNICATION (API & FETCH) =================
         const runGas = async (funcName, ...args) => {
             if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -1068,7 +1092,7 @@
                     input: 'url',
                     inputPlaceholder: 'https://script.google.com/.../exec',
                     allowOutsideClick: false,
-                    confirmButtonColor: '#F7B267',
+                    confirmButtonColor: '#c19b6c',
                     confirmButtonText: 'เชื่อมต่อชั่วคราว'
                 });
 
@@ -1224,8 +1248,8 @@
                     appState.currentUser = res; updateSidebarProfile(res.name, res.role || 'user');
                     document.getElementById('loginOverlay').style.display = 'none';
                     showToast('เข้าสู่ระบบสำเร็จ'); await loadInitialDataFromGAS(); routeTo('dashboard');
-                } else { Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบล้มเหลว', text: res ? res.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', confirmButtonColor: '#F7B267' }); }
-            } catch (e) { hideLoading(); Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', confirmButtonColor: '#F7B267' }); }
+                } else { Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบล้มเหลว', text: res ? res.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', confirmButtonColor: '#c19b6c' }); }
+            } catch (e) { hideLoading(); Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', confirmButtonColor: '#c19b6c' }); }
         }
         function logout() { location.reload(); }
 
@@ -1256,8 +1280,19 @@
                         if(document.getElementById('confSlipFolder')) document.getElementById('confSlipFolder').value = conf.SlipFolderID || '1aG9yaw3POUEHyDtc1XHPwv96Ri3fVi0c';
                         
                         document.getElementById('loginClinicName').innerText = conf.ClinicName || 'Hug Dee Home Clinic';
-                        const loginLogo = document.getElementById('loginLogo');
-                        if(conf.LogoUrl) { loginLogo.src = conf.LogoUrl; loginLogo.style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
+                        if(conf.LogoUrl) { 
+                            const directUrl = getDirectImageUrl(conf.LogoUrl);
+                            const loginLogo = document.getElementById('loginLogo');
+                            if(loginLogo) { loginLogo.src = directUrl; localStorage.setItem('CLINIC_LOGO', directUrl); }
+                            
+                            const sidebarLogo = document.getElementById('sidebarLogo');
+                            const sidebarInitial = document.getElementById('sidebarInitial');
+                            if (sidebarLogo && sidebarInitial) {
+                                sidebarLogo.src = directUrl;
+                                sidebarLogo.style.display = 'block';
+                                sidebarInitial.style.display = 'none';
+                            }
+                        }
                     } else {
                         if(document.getElementById('confSheetClinic')) document.getElementById('confSheetClinic').value = '12PJMJIGpPFVhQtOJHwOPFDl4msfIsDnn1e8Exw1KZ8w';
                         if(document.getElementById('confSheetUser')) document.getElementById('confSheetUser').value = '1nVHnuDLR2EYlxvZi4-HzaGABLPrnqP77qC_7tJy_75s';
@@ -1508,6 +1543,27 @@
             renderPaginationUI(total, 'receipt', 'pag-receipt');
         }
 
+        // ฟังก์ชันคำนวณสถานะของบริการ (Active/Inactive) จากวันที่เริ่มและสิ้นสุด
+        function calculateServiceStatus(startStr, endStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let isActive = true;
+
+            if (startStr) {
+                const start = new Date(startStr);
+                start.setHours(0, 0, 0, 0);
+                if (today < start) isActive = false;
+            }
+
+            if (endStr) {
+                const end = new Date(endStr);
+                end.setHours(0, 0, 0, 0);
+                if (today > end) isActive = false;
+            }
+
+            return isActive ? 'Active' : 'Inactive';
+        }
+
         function renderServicesTable(tbodyId) {
             const tb = document.getElementById(tbodyId); if(!tb) return; tb.innerHTML = '';
             const total = appData.services.length; const start = (appState.pagination.services - 1) * ITEMS_PER_PAGE;
@@ -1515,9 +1571,21 @@
             if (paginatedData.length === 0) { tb.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-gray-400">ไม่มีข้อมูล</td></tr>`; } 
             else {
                 paginatedData.forEach(r => {
+                    const status = calculateServiceStatus(r.startDate, r.endDate);
+                    const statusHtml = status === 'Active' 
+                        ? '<span class="px-2 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold border border-green-200">Active</span>'
+                        : '<span class="px-2 py-1 bg-red-50 text-red-500 rounded-lg text-[10px] font-bold border border-red-200">Inactive</span>';
+                        
                     tb.innerHTML += `
                         <tr class="border-b border-gray-50 hover:bg-gray-50">
-                            <td class="p-3 text-gray-500">${r.code}</td><td class="p-3 font-bold text-dark">${r.name}</td><td class="p-3">${r.cat}</td><td class="p-3 text-right font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
+                            <td class="p-3 text-gray-500">${r.code}</td>
+                            <td class="p-3">
+                                <div class="font-bold text-dark">${r.name}</div>
+                                <div class="text-xs text-gray-400 truncate max-w-[200px]">${r.desc || '-'}</div>
+                            </td>
+                            <td class="p-3">${r.cat}</td>
+                            <td class="p-3 text-right font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
+                            <td class="p-3 text-center">${statusHtml}</td>
                             <td class="p-3 text-center whitespace-nowrap">
                                 <button onclick="openServiceModal('${escapeJS(r.code)}')" class="text-orange-400 hover:text-orange-600 mx-1"><i class="fas fa-pen"></i></button>
                                 <button onclick="deleteService('${escapeJS(r.code)}')" class="text-red-400 hover:text-red-600 mx-1"><i class="far fa-trash-alt"></i></button>
@@ -1769,7 +1837,7 @@
             else if (type === 'appointment') { headers = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; data = appData.appointments; filename = 'appointments.csv'; } 
             else if (type === 'assessment') { headers = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; data = appData.assessments; filename = 'assessments.csv'; } 
             else if (type === 'receipt') { headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; data = appData.receipts; filename = 'receipts.csv'; } 
-            else if (type === 'services') { headers = ['code', 'name', 'desc', 'cat', 'price']; data = appData.services; filename = 'services.csv'; }
+            else if (type === 'services') { headers = ['code', 'name', 'desc', 'cat', 'price', 'startDate', 'endDate']; data = appData.services; filename = 'services.csv'; }
             
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
             if (data.length > 0) {
@@ -1808,7 +1876,54 @@
             input.onchange = e => {
                 const file = e.target.files[0]; if (!file) return;
                 showLoading('กำลังนำเข้าข้อมูล...');
-                setTimeout(() => { hideLoading(); Swal.fire({ title: 'นำเข้าข้อมูลสำเร็จ', text: `ระบบนำเข้าไฟล์ ${file.name} เรียบร้อยแล้ว (จำลองการทำงาน)`, icon: 'success', confirmButtonColor: '#F7B267' }); changePage(type, 1); }, 1000);
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const text = e.target.result;
+                    const rows = CSVToArray(text, ",");
+                    if(rows.length < 2) return Swal.fire('ข้อผิดพลาด', 'ไฟล์ CSV ไม่มีข้อมูล', 'error');
+                    
+                    const headers = rows[0].map(h => (h || '').trim());
+                    let sheetName = '', idField = '', expectedHeaders = [];
+                    if(type === 'register') { sheetName = 'Patients'; idField = 'HN'; expectedHeaders = ['HN', 'Status', 'Name', 'LastName', 'Nickname', 'Gender', 'DOB', 'Age', 'Phone', 'ParentName', 'Symptom', 'Source']; }
+                    else if(type === 'appointment') { sheetName = 'Appointments'; idField = 'ApptID'; expectedHeaders = ['ApptID', 'RawDate', 'Date', 'Time', 'HN', 'Nick', 'Name', 'Type', 'Kru', 'Status']; }
+                    else if(type === 'assessment') { sheetName = 'Assessments'; idField = 'AssessID'; expectedHeaders = ['AssessID', 'Date', 'HN', 'Name', 'DevScore', 'SnapScore', 'GM', 'FM', 'Lang', 'Soc', 'SenVis', 'SenHear', 'SenMove', 'SenBal', 'SenTaste', 'SenResp', 'SenTotal6', 'SnInatt', 'SnHyper', 'SnOdd', 'Comment', 'RefCode', 'History', 'PrevResult', 'FormTypes']; }
+                    else if(type === 'receipt') { sheetName = 'Receipts'; idField = 'No'; expectedHeaders = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems']; }
+                    else if(type === 'services') { sheetName = 'Services'; idField = 'code'; expectedHeaders = ['code', 'name', 'desc', 'cat', 'price', 'startDate', 'endDate']; }
+
+                    let dataToImport = [];
+                    for(let i=1; i<rows.length; i++) {
+                        const rowData = rows[i];
+                        if(rowData.length === 1 && rowData[0] === '') continue; 
+                        let obj = {};
+                        let hasData = false;
+                        headers.forEach((h, idx) => {
+                            if(expectedHeaders.includes(h)) {
+                                obj[h] = rowData[idx] !== undefined ? rowData[idx] : '';
+                                if(obj[h]) hasData = true;
+                            }
+                        });
+                        if(hasData) dataToImport.push(obj);
+                    }
+
+                    if(dataToImport.length === 0) return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลที่ตรงกับหัวตาราง กรุณาตรวจสอบไฟล์ CSV', 'error');
+
+                    showLoading(`กำลังนำเข้าข้อมูล ${dataToImport.length} รายการ...`);
+                    try {
+                        const res = await runGas('importBulkData', sheetName, dataToImport, expectedHeaders, idField);
+                        hideLoading();
+                        if (res && res.success) {
+                            Swal.fire('นำเข้าข้อมูลสำเร็จ', `นำเข้าและอัปเดตข้อมูล ${dataToImport.length} รายการ เรียบร้อยแล้ว`, 'success');
+                            await loadInitialDataFromGAS();
+                            changePage(type, 1);
+                        } else {
+                            Swal.fire('ข้อผิดพลาด', res ? res.message : 'นำเข้าข้อมูลไม่สำเร็จ', 'error');
+                        }
+                    } catch(error) {
+                        hideLoading();
+                        Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการเชื่อมต่อ: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file, 'UTF-8');
             };
             input.click();
         }
@@ -1869,7 +1984,7 @@
                         <p><b>ชื่อผู้ปกครอง:</b> ${p.ParentName || '-'}</p><p><b>รู้จักจาก:</b> ${p.Source || '-'}</p>
                         <p><b>อาการ/พฤติกรรมที่กังวล:</b> ${p.Symptom || '-'}</p><p><b>สถานะ:</b> <span class="text-green-600 font-semibold">${p.Status}</span></p>
                        </div>`,
-                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+                confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิดหน้าต่าง'
             });
         }
 
@@ -1920,15 +2035,16 @@
         function printPatient(hn) {
             const p = appData.patients.find(x => x.HN === hn); if(!p) return;
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็ก Hug Dee Home';
-            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const rawLogoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const logoUrl = getDirectImageUrl(rawLogoUrl);
             const phone = document.getElementById('confPhone') ? document.getElementById('confPhone').value : '-';
             const email = document.getElementById('confEmail') ? document.getElementById('confEmail').value : '-';
             const address = document.getElementById('confAddress') ? document.getElementById('confAddress').value : '-';
             
             const html = `
-                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #F7B267; padding-bottom: 20px;">
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #c19b6c; padding-bottom: 20px;">
                     ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 80px; margin-bottom: 15px; border-radius: 12px; object-fit: contain;" onerror="this.style.display='none'">` : ''}
-                    <h2 style="font-size: 24px; font-weight: bold; color: #F7B267; margin: 0 0 5px 0;">${clinicName}</h2>
+                    <h2 style="font-size: 24px; font-weight: bold; color: #c19b6c; margin: 0 0 5px 0;">${clinicName}</h2>
                     <p style="font-size: 14px; color: #666; margin: 0 0 5px 0; text-align: center; max-width: 80%;">${address}</p>
                     <p style="font-size: 14px; color: #666; margin: 0 0 15px 0;"><b>โทร:</b> ${phone} &nbsp;|&nbsp; <b>อีเมล:</b> ${email}</p>
                     <h3 style="font-size: 20px; font-weight: bold; margin: 0; color: #4A4036;">ทะเบียนประวัติผู้รับบริการ</h3>
@@ -1985,7 +2101,7 @@
                         <p><b>วันที่:</b> ${r.Date}</p><p><b>เวลา:</b> ${r.Time}</p><p><b>ผู้รับบริการ:</b> ${r.Nick} (HN: ${r.HN})</p>
                         <p><b>ประเภท:</b> ${r.Type}</p><p><b>นักกิจกรรม:</b> ${r.Kru}</p><p><b>สถานะ:</b> <span class="font-bold text-secondary">${r.Status}</span></p>
                        </div>`,
-                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+                confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิดหน้าต่าง'
             });
         }
 
@@ -2095,7 +2211,7 @@
                         <p class="font-bold text-secondary mb-1">พัฒนาการ 4 ด้าน</p><p>GM: ${a.GM || '-'}, FM: ${a.FM || '-'}, ภาษา: ${a.Lang || '-'}, สังคม: ${a.Soc || '-'}</p>
                         <hr class="my-3 border-gray-200"><p><b>SNAP-IV:</b> ${snapScoreText} ${snapDetails}</p><p class="mt-3"><b>ความเห็น:</b> ${a.Comment || '-'}</p>
                        </div>`,
-                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+                confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิดหน้าต่าง'
             });
         }
 
@@ -2152,7 +2268,8 @@
         function printAssess(index) {
             const a = appData.assessments[index]; if(!a) return;
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็ก Hug Dee Home';
-            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const rawLogoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const logoUrl = getDirectImageUrl(rawLogoUrl);
             
             // คำนวณผลลัพธ์ SNAP-IV ใหม่สำหรับแสดงผลในหน้าพิมพ์โดยเฉพาะ เพื่อป้องกัน HTML ซ้อนทับกัน
             let sn1 = parseInt(a.SnInatt !== undefined ? a.SnInatt : (a.Snap?.inatt)) || 0;
@@ -2182,28 +2299,28 @@
             }
 
             const html = `
-                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #F7B267; padding-bottom: 15px;">
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #c19b6c; padding-bottom: 15px;">
                     ${logoUrl ? `<img src="${logoUrl}" style="max-height: 60px; margin-bottom: 10px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">` : ''}
-                    <h2 style="font-size: 22px; font-weight: bold; color: #F7B267; margin: 0 0 5px 0;">${clinicName}</h2>
+                    <h2 style="font-size: 22px; font-weight: bold; color: #c19b6c; margin: 0 0 5px 0;">${clinicName}</h2>
                     <h3 style="font-size: 18px; font-weight: bold; margin: 0; color: #4A4036;">รายงานผลประเมินพัฒนาการเด็ก</h3>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; text-align: left;">
                     <tr><td style="padding: 8px; border: 1px solid #eee; width: 20%; background-color: #f9fafb;"><b>HN:</b></td><td style="padding: 8px; border: 1px solid #eee; width: 30%;">${a.HN}</td><td style="padding: 8px; border: 1px solid #eee; width: 20%; background-color: #f9fafb;"><b>วันที่ประเมิน:</b></td><td style="padding: 8px; border: 1px solid #eee; width: 30%;">${a.Date}</td></tr>
                     <tr><td style="padding: 8px; border: 1px solid #eee; background-color: #f9fafb;"><b>ชื่อ-สกุล:</b></td><td colspan="3" style="padding: 8px; border: 1px solid #eee;">${a.Name}</td></tr>
                 </table>
-                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">1. พัฒนาการ 4 ด้าน</h4>
+                <h4 style="font-size: 16px; font-weight: bold; color: #c19b6c; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">1. พัฒนาการ 4 ด้าน</h4>
                 <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
                     <tr><td style="padding: 8px; border: 1px solid #eee; width: 50%;">กล้ามเนื้อมัดใหญ่ (GM)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.GM === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.GM || '-'}</td></tr>
                     <tr><td style="padding: 8px; border: 1px solid #eee;">กล้ามเนื้อมัดเล็ก (FM)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.FM === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.FM || '-'}</td></tr>
                     <tr><td style="padding: 8px; border: 1px solid #eee;">ภาษา (Language)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.Lang === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.Lang || '-'}</td></tr>
                     <tr><td style="padding: 8px; border: 1px solid #eee;">สังคม (Social)</td><td style="padding: 8px; border: 1px solid #eee; text-align: center; font-weight: bold; color: ${a.Soc === 'สมวัย' ? '#10b981' : '#ef4444'}">${a.Soc || '-'}</td></tr>
                 </table>
-                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">2. SNAP-IV</h4>
+                <h4 style="font-size: 16px; font-weight: bold; color: #c19b6c; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">2. SNAP-IV</h4>
                 <div style="font-size: 14px; margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background-color: #fcf8f2;">
                     <p style="margin: 0 0 5px 0;">คะแนนขาดสมาธิ: <b>${a.SnInatt || '-'}</b></p><p style="margin: 0 0 5px 0;">คะแนนซน/อยู่ไม่นิ่ง: <b>${a.SnHyper || '-'}</b></p>
                     <p style="margin: 0 0 10px 0;">คะแนนดื้อ/ต่อต้าน: <b>${a.SnOdd || '-'}</b></p><p style="margin: 0;">ผลลัพธ์: ${snapScoreText}</p>
                 </div>
-                <h4 style="font-size: 16px; font-weight: bold; color: #F7B267; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">3. สรุปความเห็นเพิ่มเติม</h4>
+                <h4 style="font-size: 16px; font-weight: bold; color: #c19b6c; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">3. สรุปความเห็นเพิ่มเติม</h4>
                 <div style="font-size: 14px; min-height: 60px; padding: 10px; border: 1px solid #eee; border-radius: 8px; background-color: #f9fafb;">${a.Comment || '-'}</div>
             `;
             document.getElementById('printPaper').innerHTML = html; openModal('modalPrintPreview');
@@ -2319,7 +2436,7 @@
             if(matched.length > 0) {
                 resBox.innerHTML = matched.map(m => {
                     const fullName = [m.Name, m.LastName].filter(Boolean).join(' ');
-                    return `<div class="cursor-pointer hover:bg-orange-50 p-3 text-dark transition border-b border-gray-50 last:border-0" onclick="selectPatientDropdown('${m.HN}', '${escapeJS(m.Name)}', '${escapeJS(m.LastName)}', '${escapeJS(m.Nickname)}', '${prefix}')">
+                    return `<div class="cursor-pointer hover:bg-[#d3b38c]/20 p-3 text-dark transition border-b border-gray-50 last:border-0" onclick="selectPatientDropdown('${m.HN}', '${escapeJS(m.Name)}', '${escapeJS(m.LastName)}', '${escapeJS(m.Nickname)}', '${prefix}')">
                         <div class="font-bold text-secondary">${m.HN}</div><div class="text-sm">${m.Nickname || '-'} <span class="text-gray-500">(${fullName})</span></div>
                     </div>`;
                 }).join('');
@@ -2360,15 +2477,41 @@
             }
         }
 
+        function calculateServiceStatus(startStr, endStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let isActive = true;
+
+            if (startStr) {
+                const start = new Date(startStr);
+                start.setHours(0, 0, 0, 0);
+                if (today < start) isActive = false;
+            }
+
+            if (endStr) {
+                const end = new Date(endStr);
+                end.setHours(0, 0, 0, 0);
+                if (today > end) isActive = false;
+            }
+
+            return isActive ? 'Active' : 'Inactive';
+        }
+
         function openServicePicker() {
             const list = document.getElementById('pickServiceList'); list.innerHTML = '';
             appData.services.forEach(s => {
+                // แสดงเฉพาะรายการที่มีสถานะ Active
+                if (calculateServiceStatus(s.startDate, s.endDate) !== 'Active') return;
+
                 list.innerHTML += `
                     <div class="flex justify-between items-center p-3 border rounded-xl hover:bg-primary/10 cursor-pointer mb-2" onclick="addToCart('${escapeJS(s.code)}', '${escapeJS(s.name)}', '${escapeJS(s.desc)}', ${s.price})">
                         <div><p class="font-medium">${s.name}</p><p class="text-xs text-gray-500">${s.code}</p></div>
                         <div class="font-semibold text-secondary">฿${Number(s.price||0).toLocaleString()}</div>
                     </div>`;
             });
+            if(list.innerHTML === '') {
+                list.innerHTML = '<div class="p-4 text-center text-gray-400">ไม่มีบริการที่พร้อมใช้งานในขณะนี้</div>';
+            }
             openModal('modalPickService');
         }
 
@@ -2406,7 +2549,7 @@
         }
 
         async function saveReceipt() {
-            if(!document.getElementById('rcHN').value) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกลูกค้า', 'warning');
+            if(!document.getElementById('rcHN').value) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกผู้รับบริการ', 'warning');
             if(appData.cart.length === 0) return Swal.fire('แจ้งเตือน', 'ตะกร้าสินค้าว่างเปล่า', 'warning');
             
             showLoading('กำลังบันทึกข้อมูล...');
@@ -2445,7 +2588,7 @@
                 renderCourseBalTable(); 
                 Swal.fire({
                     title: 'บันทึกใบเสร็จสำเร็จ!', text: `ต้องการพิมพ์ใบเสร็จเลขที่ ${newReceiptNo} เลยหรือไม่?`, icon: 'success',
-                    showCancelButton: true, confirmButtonColor: '#F7B267', cancelButtonColor: '#9ca3af',
+                    showCancelButton: true, confirmButtonColor: '#c19b6c', cancelButtonColor: '#9ca3af',
                     confirmButtonText: '<i class="fas fa-print mr-2"></i> เปิดตัวอย่างก่อนพิมพ์', cancelButtonText: 'ปิดหน้าต่าง'
                 }).then((result) => { if (result.isConfirmed) { printReceipt(newReceiptNo); } });
             }
@@ -2458,20 +2601,21 @@
             Swal.fire({
                 title: 'ข้อมูลใบเสร็จรับเงิน',
                 html: `<div class="text-left text-base space-y-3 mt-4">
-                        <p><b>เลขที่บิล:</b> ${r.No}</p><p><b>วันที่:</b> ${r.Date}</p><p><b>ชื่อลูกค้า:</b> ${r.Name}</p><p><b>HN:</b> ${r.HN}</p><p><b>ยอดรวม:</b> ฿${r.Amount.toLocaleString()}</p>
+                        <p><b>เลขที่บิล:</b> ${r.No}</p><p><b>วันที่:</b> ${r.Date}</p><p><b>ชื่อผู้รับบริการ:</b> ${r.Name}</p><p><b>HN:</b> ${r.HN}</p><p><b>ยอดรวม:</b> ฿${r.Amount.toLocaleString()}</p>
                         <p class="flex items-center"><b>ช่องทางการชำระ:</b> <span class="ml-2 ${r.Method === 'โอนเงิน' ? 'text-[#a855f7]' : 'text-green-600'} font-bold">${r.Method}</span> ${slipLinkHtml}</p>
                        </div>`,
-                confirmButtonColor: '#F7B267', confirmButtonText: 'ปิดหน้าต่าง'
+                confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิดหน้าต่าง'
             });
         }
 
         function printReceipt(no) {
             const r = appData.receipts.find(x => x.No === no); if(!r) return;
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็ก Hug Dee Home';
-            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const rawLogoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const logoUrl = getDirectImageUrl(rawLogoUrl);
             const phone = document.getElementById('confPhone') ? document.getElementById('confPhone').value : '-';
             const address = document.getElementById('confAddress') ? document.getElementById('confAddress').value : '-';
-            const stampUrl = document.getElementById('confStampUrl') ? document.getElementById('confStampUrl').value : '';
+            const stampUrl = getDirectImageUrl(document.getElementById('confStampUrl') ? document.getElementById('confStampUrl').value : '');
             const footerText = document.getElementById('confReceiptFooter') ? document.getElementById('confReceiptFooter').value : '"ขอบคุณที่ใช้บริการและไว้วางใจครับ/ค่ะ"';
 
             const p = appData.patients.find(x => x.HN === r.HN) || {};
@@ -2480,7 +2624,7 @@
             
             let displayClinicName = `<h2 style="margin: 0; color: #4A4036; font-size: 22px; font-weight: 600;">${clinicName}</h2>`;
             if (clinicName.includes("Hug Dee Home")) {
-               displayClinicName = `<h2 style="margin: 0; color: #4A4036; font-size: 22px; font-weight: 600;">คลินิกพัฒนาการเด็ก</h2><h2 style="margin: 0 0 5px 0; color: #e68a00; font-size: 24px; font-weight: 600;">Hug Dee Home</h2>`;
+               displayClinicName = `<h2 style="margin: 0; color: #4A4036; font-size: 22px; font-weight: 600;">คลินิกพัฒนาการเด็ก</h2><h2 style="margin: 0 0 5px 0; color: #c19b6c; font-size: 24px; font-weight: 600;">Hug Dee Home</h2>`;
             }
 
             let paymentDetailHtml = '';
@@ -2510,9 +2654,9 @@
 
             const html = `
                 <div style="font-family: 'Kanit', sans-serif; color: #333; max-width: 800px; margin: 0 auto; background: #fff; padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #C4A484; padding-bottom: 15px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #c19b6c; padding-bottom: 15px; margin-bottom: 20px;">
                         <div style="display: flex; gap: 15px; align-items: center;">${logoUrl ? `<img src="${logoUrl}" style="width: 90px; height: 90px; object-fit: contain;" onerror="this.style.display='none'">` : ''}<div>${displayClinicName}<p style="margin: 0; font-size: 13px; color: #666;">${address}</p><p style="margin: 0; font-size: 13px; color: #666;">โทร: ${phone}</p></div></div>
-                        <div style="text-align: right; padding-top: 5px;"><h1 style="margin: 0; color: #C4A484; font-size: 28px; font-weight: 500;">ใบเสร็จรับเงิน</h1><p style="margin: 0 0 10px 0; font-size: 12px; color: #888; letter-spacing: 2px; text-transform: uppercase;">RECEIPT</p><table style="border: none; margin-left: auto; font-size: 14px;"><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">เลขที่:</td><td style="text-align: left;">${r.No}</td></tr><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">วันที่:</td><td style="text-align: left;">${r.Date}</td></tr></table></div>
+                        <div style="text-align: right; padding-top: 5px;"><h1 style="margin: 0; color: #c19b6c; font-size: 28px; font-weight: 500;">ใบเสร็จรับเงิน</h1><p style="margin: 0 0 10px 0; font-size: 12px; color: #888; letter-spacing: 2px; text-transform: uppercase;">RECEIPT</p><table style="border: none; margin-left: auto; font-size: 14px;"><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">เลขที่:</td><td style="text-align: left;">${r.No}</td></tr><tr><td style="text-align: right; padding-right: 8px; font-weight: 600;">วันที่:</td><td style="text-align: left;">${r.Date}</td></tr></table></div>
                     </div>
                     <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; display: flex; justify-content: space-between; background-color: #fafafa; font-size: 14px;">
                         <table style="border: none; margin: 0; padding: 0; width: 55%;"><tr><td style="padding: 3px 10px 3px 0; color: #4A4036; width: 110px;">ได้รับเงินจาก:</td><td style="font-weight: 500;">${parentName}</td></tr><tr><td style="padding: 3px 10px 3px 0; color: #4A4036;">ผู้รับบริการ:</td><td style="font-weight: 500;">${r.Name}</td></tr></table>
@@ -2551,7 +2695,7 @@
             const r = appData.receipts.find(x => x.No === no); if(!r) return;
             Swal.fire({
                 title: 'แก้ไขใบเสร็จ', text: `คุณต้องการดึงข้อมูลใบเสร็จ ${no} กลับไปยังหน้า "ออกใบเสร็จ" เพื่อแก้ไขใช่หรือไม่? (ข้อมูลในตะกร้าปัจจุบันจะถูกแทนที่)`,
-                icon: 'question', showCancelButton: true, confirmButtonColor: '#F7B267', cancelButtonColor: '#9ca3af', confirmButtonText: '<i class="fas fa-pen mr-2"></i> ใช่, แก้ไขเลย', cancelButtonText: 'ยกเลิก'
+                icon: 'question', showCancelButton: true, confirmButtonColor: '#c19b6c', cancelButtonColor: '#9ca3af', confirmButtonText: '<i class="fas fa-pen mr-2"></i> ใช่, แก้ไขเลย', cancelButtonText: 'ยกเลิก'
             }).then((result) => {
                 if (result.isConfirmed) {
                     showLoading('กำลังดึงข้อมูล...');
@@ -2613,8 +2757,22 @@
             
             runGas('saveRecord', 'Config', conf, headers, 'ConfigID').then(res => {
                 hideLoading(); showToast('บันทึกข้อมูลคลินิกสำเร็จ');
-                document.getElementById('loginClinicName').innerText = conf.ClinicName;
-                if(conf.LogoUrl) { document.getElementById('loginLogo').src = conf.LogoUrl; document.getElementById('loginLogo').style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
+                const clinicNameEl = document.getElementById('loginClinicName');
+                if(clinicNameEl) clinicNameEl.innerText = conf.ClinicName;
+                if(conf.LogoUrl) { 
+                    const directUrl = getDirectImageUrl(conf.LogoUrl);
+                    const loginLogo = document.getElementById('loginLogo');
+                    if(loginLogo) loginLogo.src = directUrl; 
+                    localStorage.setItem('CLINIC_LOGO', directUrl); 
+                    
+                    const sidebarLogo = document.getElementById('sidebarLogo');
+                    const sidebarInitial = document.getElementById('sidebarInitial');
+                    if (sidebarLogo && sidebarInitial) {
+                        sidebarLogo.src = directUrl;
+                        sidebarLogo.style.display = 'block';
+                        sidebarInitial.style.display = 'none';
+                    }
+                }
             }).catch((e) => { hideLoading(); Swal.fire('ข้อผิดพลาด', e.message || 'บันทึกข้อมูลไม่สำเร็จ', 'error'); });
         }
 
@@ -2626,25 +2784,47 @@
                     document.getElementById('srvCode').readOnly = true; document.getElementById('srvCode').classList.add('bg-gray-100');
                     document.getElementById('srvName').value = s.name; 
                     document.getElementById('srvDesc').value = s.desc || '';
+                    document.getElementById('srvStartDate').value = s.startDate || '';
+                    document.getElementById('srvEndDate').value = s.endDate || '';
                     document.getElementById('srvCat').value = s.cat; document.getElementById('srvPrice').value = s.price;
+                    updateSrvStatusUI();
                 }
             } else {
                 document.getElementById('srvIsEdit').value = 'false'; document.getElementById('srvCode').value = '';
                 document.getElementById('srvCode').readOnly = false; document.getElementById('srvCode').classList.remove('bg-gray-100');
                 document.getElementById('srvName').value = ''; 
                 document.getElementById('srvDesc').value = '';
+                document.getElementById('srvStartDate').value = '';
+                document.getElementById('srvEndDate').value = '';
                 document.getElementById('srvCat').selectedIndex = 0; document.getElementById('srvPrice').value = '';
+                updateSrvStatusUI();
             }
             openModal('modalService');
+        }
+        
+        function updateSrvStatusUI() {
+            const startStr = document.getElementById('srvStartDate').value;
+            const endStr = document.getElementById('srvEndDate').value;
+            const status = calculateServiceStatus(startStr, endStr);
+            const badge = document.getElementById('srvStatusBadge');
+            if (status === 'Active') {
+                badge.className = 'px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-200';
+                badge.innerText = 'Active';
+            } else {
+                badge.className = 'px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-500 border border-red-200';
+                badge.innerText = 'Inactive';
+            }
         }
 
         async function saveService() {
             const code = document.getElementById('srvCode').value; const name = document.getElementById('srvName').value;
             const desc = document.getElementById('srvDesc').value;
+            const startDate = document.getElementById('srvStartDate').value;
+            const endDate = document.getElementById('srvEndDate').value;
             const cat = document.getElementById('srvCat').value; const price = document.getElementById('srvPrice').value;
             if(!code || !name || !price) return showToast('กรุณากรอกข้อมูลให้ครบ', 'warning');
-            const obj = { code, name, desc, cat, price: Number(price) };
-            if (await saveToDB('Services', obj, ['code', 'name', 'desc', 'cat', 'price'], 'code')) { closeModal('modalService'); }
+            const obj = { code, name, desc, cat, price: Number(price), startDate, endDate };
+            if (await saveToDB('Services', obj, ['code', 'name', 'desc', 'cat', 'price', 'startDate', 'endDate'], 'code')) { closeModal('modalService'); }
         }
 
         async function deleteService(code) {
@@ -2658,12 +2838,18 @@
             if(!tb) return;
             tb.innerHTML = '';
             appData.services.forEach(r => {
+                const status = calculateServiceStatus(r.startDate, r.endDate);
+                const statusHtml = status === 'Active' 
+                    ? '<span class="px-2 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold border border-green-200">Active</span>'
+                    : '<span class="px-2 py-1 bg-red-50 text-red-500 rounded-lg text-[10px] font-bold border border-red-200">Inactive</span>';
+                    
                 tb.innerHTML += `
                     <tr class="border-b border-gray-50 hover:bg-gray-50">
                         <td class="py-4 px-2 font-bold text-dark">${r.code}</td>
                         <td class="py-4 px-2 text-gray-500">${r.name}</td>
                         <td class="py-4 px-2 text-gray-500">${r.cat}</td>
                         <td class="py-4 px-2 text-center font-bold text-secondary">฿${Number(r.price||0).toLocaleString()}</td>
+                        <td class="py-4 px-2 text-center">${statusHtml}</td>
                         <td class="py-4 px-2 text-center text-lg whitespace-nowrap">
                             <button onclick="openServiceModal('${escapeJS(r.code)}')" class="text-orange-400 hover:text-orange-600 mx-2"><i class="fas fa-pen"></i></button>
                             <button onclick="deleteService('${escapeJS(r.code)}')" class="text-red-400 hover:text-red-600 mx-2"><i class="far fa-trash-alt"></i></button>
@@ -2869,10 +3055,43 @@
             const savedGasUrl = localStorage.getItem('GAS_WEB_APP_URL') || GLOBAL_GAS_API_URL;
             if(savedGasUrl && document.getElementById('confGasId')) { document.getElementById('confGasId').value = savedGasUrl; }
             const clinicName = document.getElementById('confClinicName') ? document.getElementById('confClinicName').value : 'คลินิกพัฒนาการเด็ก Hug Dee Home';
-            const logoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
-            document.getElementById('loginClinicName').innerText = clinicName;
+            const rawLogoUrl = document.getElementById('confLogoUrl') ? document.getElementById('confLogoUrl').value : '';
+            const logoUrl = getDirectImageUrl(rawLogoUrl);
+            const clinicNameEl = document.getElementById('loginClinicName');
+            if (clinicNameEl) clinicNameEl.innerText = clinicName;
+            
             const loginLogo = document.getElementById('loginLogo');
-            if (logoUrl && loginLogo) { loginLogo.src = logoUrl; loginLogo.style.display = 'block'; document.getElementById('loginLockIcon').style.display = 'none'; }
+            const savedLogo = localStorage.getItem('CLINIC_LOGO') || logoUrl;
+            if (savedLogo && loginLogo) { 
+                loginLogo.src = savedLogo; 
+            }
+            
+            const sidebarLogo = document.getElementById('sidebarLogo');
+            const sidebarInitial = document.getElementById('sidebarInitial');
+            if (savedLogo && sidebarLogo && sidebarInitial) {
+                sidebarLogo.src = savedLogo;
+                sidebarLogo.style.display = 'block';
+                sidebarInitial.style.display = 'none';
+            }
+
+            // แอบดึงข้อมูล Config มาก่อนล่วงหน้าเพื่อแสดงโลโก้ทันที
+            if (savedGasUrl && savedGasUrl.startsWith('http')) {
+                fetch(savedGasUrl, { method: 'POST', body: JSON.stringify({ action: 'getInitialData', args: [] }) })
+                .then(r => r.json()).then(res => {
+                    if(res.status === 'success' && res.data.config && res.data.config.length > 0) {
+                        const conf = res.data.config[0];
+                        if(conf.ClinicName && clinicNameEl) { clinicNameEl.innerText = conf.ClinicName; clinicNameEl.classList.remove('hidden'); }
+                        if(conf.LogoUrl) {
+                            const dUrl = getDirectImageUrl(conf.LogoUrl);
+                            if(loginLogo) loginLogo.src = dUrl;
+                            localStorage.setItem('CLINIC_LOGO', dUrl);
+                            if(sidebarLogo && sidebarInitial) {
+                                sidebarLogo.src = dUrl; sidebarLogo.style.display = 'block'; sidebarInitial.style.display = 'none';
+                            }
+                        }
+                    }
+                }).catch(e => {});
+            }
         });
 
         routeTo('dashboard');
