@@ -417,9 +417,19 @@
                     <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-50 h-fit">
                         <h3 class="font-bold text-lg mb-6 text-dark border-b border-gray-100 pb-4">สรุปยอดชำระเงิน</h3>
                         <div class="flex justify-between mb-4 text-sm font-medium text-gray-600"><span>ยอดรวม</span><span id="cartSub" class="text-dark font-bold">฿0</span></div>
-                        <div class="flex justify-between mb-6 text-sm font-medium text-gray-600 items-center">
-                            <span>ส่วนลด</span>
-                            <input type="number" id="cartDisc" value="0" class="w-24 border border-orange-200 bg-orange-50/50 rounded-lg px-3 py-1.5 text-right text-dark font-bold outline-none focus:border-secondary transition" oninput="calcCart()">
+                        <div class="mb-6 bg-orange-50/30 p-4 rounded-xl border border-orange-100">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-sm font-bold text-dark">ส่วนลด</span>
+                                <div class="flex items-center gap-2">
+                                    <select id="cartDiscType" class="border border-orange-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-secondary text-dark bg-white" onchange="calcCart()">
+                                        <option value="amount">บาท</option>
+                                        <option value="percent">%</option>
+                                    </select>
+                                    <input type="number" id="cartDisc" value="0" min="0" class="w-24 border border-orange-200 bg-white rounded-lg px-3 py-1.5 text-right text-dark font-bold outline-none focus:border-secondary transition" oninput="calcCart()">
+                                </div>
+                            </div>
+                            <input type="text" id="cartDiscNote" placeholder="ระบุเหตุผล/โน๊ตส่วนลด..." class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-secondary transition bg-white">
+                            <div class="text-right text-xs text-red-500 mt-2 hidden font-bold" id="cartDiscSummary">หักส่วนลด: ฿0</div>
                         </div>
                         <div class="flex justify-between mb-8 text-xl font-black text-dark border-t border-gray-100 pt-6">
                             <span>ยอดสุทธิ</span><span id="cartTotal" class="text-secondary text-2xl">฿0</span>
@@ -1664,7 +1674,8 @@
             appData.receipts.forEach(r => {
                 if (r.CartItems && balances[r.HN]) {
                     try {
-                        let cart = JSON.parse(r.CartItems);
+                        let cartData = JSON.parse(r.CartItems);
+                        let cart = Array.isArray(cartData) ? cartData : (cartData.items || []);
                         cart.forEach(item => {
                             const itemName = item.name || '';
                             // นับเฉพาะรายการที่มีคำว่า "คอร์ส" หรือเป็นการเพิ่ม Manual และต้องไม่มีคำว่า "ประเมิน"
@@ -1754,7 +1765,8 @@
             appData.receipts.forEach(r => {
                 if (r.CartItems && balances[r.HN]) {
                     try {
-                        let cart = JSON.parse(r.CartItems);
+                        let cartData = JSON.parse(r.CartItems);
+                        let cart = Array.isArray(cartData) ? cartData : (cartData.items || []);
                         cart.forEach(item => {
                             const itemName = item.name || '';
                             if ((itemName.includes('คอร์ส') || item.id === 'MANUAL_ADD') && !itemName.includes('ประเมิน')) {
@@ -2678,9 +2690,27 @@
 
         function calcCart() {
             let sub = appData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-            let disc = parseFloat(document.getElementById('cartDisc').value) || 0;
+            let discVal = parseFloat(document.getElementById('cartDisc').value) || 0;
+            let discType = document.getElementById('cartDiscType').value;
+            let discAmt = 0;
+            
+            if (discType === 'percent') {
+                discAmt = sub * (discVal / 100);
+            } else {
+                discAmt = discVal;
+            }
+            if (discAmt > sub) discAmt = sub;
+
             document.getElementById('cartSub').innerText = `฿${sub.toLocaleString()}`;
-            document.getElementById('cartTotal').innerText = `฿${(sub - disc).toLocaleString()}`;
+            document.getElementById('cartTotal').innerText = `฿${(sub - discAmt).toLocaleString()}`;
+            
+            const discSummary = document.getElementById('cartDiscSummary');
+            if (discAmt > 0) {
+                discSummary.innerText = `หักส่วนลด: -฿${discAmt.toLocaleString()}`;
+                discSummary.classList.remove('hidden');
+            } else {
+                discSummary.classList.add('hidden');
+            }
         }
 
         async function saveReceipt() {
@@ -2704,9 +2734,20 @@
                 const nextRun = maxRun + 1; newReceiptNo = prefix + String(nextRun).padStart(4, '0');
             }
 
-            const totalAmount = appData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0) - (parseFloat(document.getElementById('cartDisc').value) || 0);
+            let sub = appData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            let discVal = parseFloat(document.getElementById('cartDisc').value) || 0;
+            let discType = document.getElementById('cartDiscType').value;
+            let discNote = document.getElementById('cartDiscNote').value;
+            let discAmt = discType === 'percent' ? sub * (discVal / 100) : discVal;
+            if (discAmt > sub) discAmt = sub;
+            const totalAmount = sub - discAmt;
+            
             const d = new Date(); const formattedDate = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear() + 543}`;
-            const cartStr = JSON.stringify(appData.cart);
+            const cartWrapper = {
+                items: appData.cart,
+                discount: { type: discType, value: discVal, amount: discAmt, note: discNote }
+            };
+            const cartStr = JSON.stringify(cartWrapper);
 
             const newReceipt = {
                 No: newReceiptNo, Date: isEditing ? appData.receipts.find(r=>r.No===isEditing)?.Date : formattedDate,
@@ -2717,7 +2758,11 @@
             
             const headers = ['No', 'Date', 'Name', 'HN', 'Amount', 'Method', 'SlipUrl', 'CartItems'];
             if (await saveToDB('Receipts', newReceipt, headers, 'No')) {
-                appData.cart = []; renderCart(); 
+                appData.cart = []; 
+                document.getElementById('cartDisc').value = 0;
+                document.getElementById('cartDiscType').value = 'amount';
+                document.getElementById('cartDiscNote').value = '';
+                renderCart(); 
                 document.getElementById('rcSearchPat').value = ''; document.getElementById('rcHN').value = ''; document.getElementById('rcName').value = '';
                 if(document.getElementById('rcNoEdit')) document.getElementById('rcNoEdit').value = '';
                 renderCourseBalTable(); 
@@ -2768,8 +2813,16 @@
             } else { paymentDetailHtml = `<p style="margin: 0 0 46px 0; color: #555;">${r.Method}</p>`; }
 
             let cartItemsHtml = '';
+            let cart = [];
+            let discountInfo = null;
+            let subtotal = 0;
             try {
-                const cart = JSON.parse(r.CartItems);
+                const cartData = JSON.parse(r.CartItems);
+                cart = Array.isArray(cartData) ? cartData : (cartData.items || []);
+                if (!Array.isArray(cartData) && cartData.discount) discountInfo = cartData.discount;
+                
+                subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
+                
                 cart.forEach((item, idx) => {
                     cartItemsHtml += `
                         <tr style="border-bottom: 1px solid #e0e0e0;">
@@ -2802,7 +2855,27 @@
                         <tbody>
                             ${cartItemsHtml}
                         </tbody>
-                        <tfoot><tr style="border-bottom: 1px solid #e0e0e0;"><td colspan="4" style="padding: 15px 10px; text-align: left; font-weight: 600; color: #4A4036;">(${ThaiBaht(r.Amount)})</td><td style="padding: 15px 10px; text-align: right; font-weight: 600; color: #4A4036;">รวมเงิน</td><td style="padding: 15px 10px; text-align: right; font-weight: 700; font-size: 16px; color: #4A4036;">${r.Amount.toLocaleString()}</td></tr></tfoot>
+                        <tfoot>
+                            ${discountInfo && discountInfo.amount > 0 ? `
+                            <tr>
+                                <td colspan="4"></td>
+                                <td style="padding: 10px 10px; text-align: right; color: #666;">รวมเป็นเงิน</td>
+                                <td style="padding: 10px 10px; text-align: right; color: #666;">${subtotal.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" style="padding: 10px 10px; text-align: left; color: #888; font-size: 12px;">
+                                    ${discountInfo.note ? `*หมายเหตุส่วนลด: ${discountInfo.note}` : ''}
+                                </td>
+                                <td style="padding: 10px 10px; text-align: right; color: #ef4444;">ส่วนลด ${discountInfo.type === 'percent' ? `(${discountInfo.value}%)` : ''}</td>
+                                <td style="padding: 10px 10px; text-align: right; color: #ef4444;">-${discountInfo.amount.toLocaleString()}</td>
+                            </tr>
+                            ` : ''}
+                            <tr style="border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0;">
+                                <td colspan="4" style="padding: 15px 10px; text-align: left; font-weight: 600; color: #4A4036;">(${ThaiBaht(r.Amount)})</td>
+                                <td style="padding: 15px 10px; text-align: right; font-weight: 600; color: #4A4036;">ยอดสุทธิ</td>
+                                <td style="padding: 15px 10px; text-align: right; font-weight: 700; font-size: 16px; color: #4A4036;">${r.Amount.toLocaleString()}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 40px;">
                         <div style="width: 50%;"><p style="margin: 0 0 5px 0; font-weight: 600; color: #333;">การชำระเงิน:</p>${paymentDetailHtml}<p style="margin: 0; color: #888; font-size: 12px;">${footerText}</p></div>
@@ -2838,7 +2911,24 @@
                         hideLoading();
                         const p = appData.patients.find(x => x.HN === r.HN); const fullName = p ? [p.Name, p.LastName].filter(Boolean).join(' ') : (r.Name || '');
                         document.getElementById('rcSearchPat').value = `${r.HN} - ${p ? p.Nickname : '-'} (${fullName})`; document.getElementById('rcHN').value = r.HN; document.getElementById('rcName').value = fullName;
-                        try { appData.cart = JSON.parse(r.CartItems); } catch(e) { appData.cart = [{ id: 'MOCK_EDIT', name: `รายการเดิมจากใบเสร็จ ${no}`, desc: '', price: r.Amount, qty: 1 }]; }
+                        try { 
+                            const cartData = JSON.parse(r.CartItems); 
+                            appData.cart = Array.isArray(cartData) ? cartData : (cartData.items || []);
+                            if (!Array.isArray(cartData) && cartData.discount) {
+                                document.getElementById('cartDiscType').value = cartData.discount.type || 'amount';
+                                document.getElementById('cartDisc').value = cartData.discount.value || 0;
+                                document.getElementById('cartDiscNote').value = cartData.discount.note || '';
+                            } else {
+                                document.getElementById('cartDiscType').value = 'amount';
+                                document.getElementById('cartDisc').value = 0;
+                                document.getElementById('cartDiscNote').value = '';
+                            }
+                        } catch(e) { 
+                            appData.cart = [{ id: 'MOCK_EDIT', name: `รายการเดิมจากใบเสร็จ ${no}`, desc: '', price: r.Amount, qty: 1 }]; 
+                            document.getElementById('cartDiscType').value = 'amount';
+                            document.getElementById('cartDisc').value = 0;
+                            document.getElementById('cartDiscNote').value = '';
+                        }
                         renderCart();
                         const methodType = r.Method === 'โอนเงิน' ? 'transfer' : 'cash'; setPayType(methodType);
                         if(!document.getElementById('rcNoEdit')) { const hiddenInput = document.createElement('input'); hiddenInput.type = 'hidden'; hiddenInput.id = 'rcNoEdit'; document.getElementById('page-receipt').appendChild(hiddenInput); }
