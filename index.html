@@ -59,6 +59,18 @@
             .prt-tbl { @apply w-full border-collapse text-sm mb-4; }
             .prt-tbl th, .prt-tbl td { @apply p-2 border border-gray-200; }
             .prt-tbl th { @apply bg-gray-50 font-bold text-dark; }
+            
+            /* Sidebar Collapsed State */
+            .sidebar-collapsed { width: 5.5rem !important; }
+            .sidebar-collapsed .sidebar-text { display: none !important; }
+            .sidebar-collapsed .sidebar-header-container { padding: 1.5rem 0.5rem; justify-content: center; }
+            .sidebar-collapsed .sidebar-toggle-btn { transform: rotate(180deg); }
+            .sidebar-collapsed .nav-menu { padding: 0.75rem 0; margin: 0 0.5rem 0.5rem 0.5rem; justify-content: center; }
+            .sidebar-collapsed .nav-menu i { margin-right: 0 !important; font-size: 1.25rem; }
+            .sidebar-collapsed .sidebar-footer { padding: 1.5rem 0.5rem; align-items: center; }
+            .sidebar-collapsed .sidebar-footer .user-profile-box { margin-bottom: 1.5rem; justify-content: center; }
+            .sidebar-collapsed .sidebar-footer button { justify-content: center; width: 100%; }
+            .sidebar-collapsed .sidebar-footer button i { margin-right: 0 !important; font-size: 1.25rem; }
         }
     </style>
     <style>
@@ -108,37 +120,58 @@
 
     <!-- Sidebar -->
     <aside id="sidebar" class="w-64 bg-white border-r border-gray-100 flex-shrink-0 hidden md:flex flex-col transition-all duration-300 absolute md:relative z-50 h-full shadow-sm">
-        <div class="p-6 flex items-center gap-3">
+        <!-- Toggle Size Button -->
+        <button type="button" onclick="toggleSidebarSize()" class="hidden md:flex items-center justify-center w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm absolute -right-3.5 top-8 text-gray-500 hover:text-dark sidebar-toggle-btn transition-transform z-50">
+            <i class="fas fa-chevron-left text-[10px]"></i>
+        </button>
+
+        <div class="sidebar-header-container p-6 flex items-center gap-3 relative">
             <div class="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-sm shrink-0 overflow-hidden">
                 <span id="sidebarInitial">HD</span>
                 <img id="sidebarLogo" src="" alt="Logo" class="w-full h-full object-cover hidden" onerror="this.style.display='none'; document.getElementById('sidebarInitial').style.display='block';">
             </div>
-            <div>
+            <div class="sidebar-text overflow-hidden whitespace-nowrap">
                 <h2 class="text-[17px] font-extrabold text-dark leading-tight">Hug Dee Home</h2>
                 <p class="text-[11px] font-bold text-secondary">Clinic System</p>
             </div>
             <button type="button" class="md:hidden text-gray-400 hover:text-dark ml-auto" onclick="document.getElementById('sidebar').classList.add('hidden')"><i class="fas fa-times text-xl"></i></button>
         </div>
         <nav class="flex-1 overflow-y-auto py-2 hide-scroll text-sm">
-            <a href="javascript:void(0);" onclick="routeTo('dashboard')" id="nav-dashboard" class="nav-menu"><i class="fas fa-th-large"></i> หน้าหลัก</a>
-            <a href="javascript:void(0);" onclick="routeTo('register')" id="nav-register" class="nav-menu"><i class="fas fa-user-plus"></i> ทะเบียนประวัติ</a>
-            <a href="javascript:void(0);" onclick="routeTo('appointment')" id="nav-appointment" class="nav-menu"><i class="far fa-calendar-alt"></i> นัดหมาย</a>
-            <a href="javascript:void(0);" onclick="routeTo('assessment')" id="nav-assessment" class="nav-menu"><i class="fas fa-clipboard-check"></i> ประเมินพัฒนาการ</a>
-            <a href="javascript:void(0);" onclick="routeTo('services')" id="nav-services" class="nav-menu"><i class="fas fa-book-open"></i> คอร์ส/บริการ</a>
-            <a href="javascript:void(0);" onclick="routeTo('receipt')" id="nav-receipt" class="nav-menu"><i class="fas fa-file-invoice-dollar"></i> ออกใบเสร็จ</a>
-            <a href="javascript:void(0);" onclick="routeTo('receipt-history')" id="nav-receipt-history" class="nav-menu"><i class="fas fa-history"></i> ประวัติใบเสร็จ</a>
-            <a href="javascript:void(0);" onclick="routeTo('settings')" id="nav-settings" class="nav-menu"><i class="fas fa-cog"></i> ตั้งค่าระบบ</a>
+            <a href="javascript:void(0);" onclick="routeTo('dashboard')" id="nav-dashboard" class="nav-menu" title="หน้าหลัก">
+                <i class="fas fa-th-large"></i> <span class="sidebar-text">หน้าหลัก</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('register')" id="nav-register" class="nav-menu" title="ทะเบียนประวัติ">
+                <i class="fas fa-user-plus"></i> <span class="sidebar-text">ทะเบียนประวัติ</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('appointment')" id="nav-appointment" class="nav-menu" title="นัดหมาย">
+                <i class="far fa-calendar-alt"></i> <span class="sidebar-text">นัดหมาย</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('assessment')" id="nav-assessment" class="nav-menu" title="ประเมินพัฒนาการ">
+                <i class="fas fa-clipboard-check"></i> <span class="sidebar-text">ประเมินพัฒนาการ</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('services')" id="nav-services" class="nav-menu" title="คอร์ส/บริการ">
+                <i class="fas fa-book-open"></i> <span class="sidebar-text">คอร์ส/บริการ</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('receipt')" id="nav-receipt" class="nav-menu" title="ออกใบเสร็จ">
+                <i class="fas fa-file-invoice-dollar"></i> <span class="sidebar-text">ออกใบเสร็จ</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('receipt-history')" id="nav-receipt-history" class="nav-menu" title="ประวัติใบเสร็จ">
+                <i class="fas fa-history"></i> <span class="sidebar-text">ประวัติใบเสร็จ</span>
+            </a>
+            <a href="javascript:void(0);" onclick="routeTo('settings')" id="nav-settings" class="nav-menu" title="ตั้งค่าระบบ">
+                <i class="fas fa-cog"></i> <span class="sidebar-text">ตั้งค่าระบบ</span>
+            </a>
         </nav>
-        <div class="p-6 border-t border-gray-50 mt-auto">
-            <div class="flex items-center gap-3 mb-6">
+        <div class="sidebar-footer p-6 border-t border-gray-50 mt-auto flex flex-col">
+            <div class="user-profile-box flex items-center gap-3 mb-6">
                 <div class="w-10 h-10 bg-dark rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" id="sidebarAvatar">A</div>
-                <div class="overflow-hidden">
+                <div class="sidebar-text overflow-hidden whitespace-nowrap">
                     <p class="text-sm font-extrabold text-dark leading-tight truncate" id="sidebarUserName">admin</p>
                     <p class="text-[10px] font-bold text-secondary uppercase tracking-wider mt-0.5" id="sidebarUserRole">ADMIN</p>
                 </div>
             </div>
-            <button type="button" onclick="logout()" class="flex items-center text-red-500 hover:text-red-700 font-bold transition text-sm">
-                <i class="fas fa-sign-out-alt mr-2 text-lg"></i> ออกจากระบบ
+            <button type="button" onclick="logout()" class="flex items-center text-red-500 hover:text-red-700 font-bold transition text-sm w-full" title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt mr-2 text-lg"></i> <span class="sidebar-text">ออกจากระบบ</span>
             </button>
         </div>
     </aside>
@@ -948,6 +981,12 @@
             if(window.innerWidth < 768) { if($('sidebar')) $('sidebar').classList.add('hidden'); } 
         }
 
+        function toggleSidebarSize() {
+            const sb = $('sidebar');
+            sb.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('SIDEBAR_COLLAPSED', sb.classList.contains('sidebar-collapsed'));
+        }
+
         function checkSettingsRBAC() { 
             if(!aS.currentUser) return; 
             const isAdmin = aS.currentUser.role === 'admin'; 
@@ -987,7 +1026,7 @@
         }
 
         function loadInitialDataFromGAS() {
-            showLoading('โปรดรอสักครู่...');
+            showLoading('กำลังซิงค์ข้อมูล...');
             return runGas('getInitialData').then(res => {
                 if (res) {
                     ['patients','appointments','assessments','receipts','services','banks'].forEach(k => aD[k] = res[k] || []);
@@ -2005,6 +2044,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            if(localStorage.getItem('SIDEBAR_COLLAPSED') === 'true') {
+                $('sidebar').classList.add('sidebar-collapsed');
+            }
+
             const gUrl = localStorage.getItem('GAS_WEB_APP_URL'), lUrl = localStorage.getItem('CLINIC_LOGO');
             const cEl = $('loginClinicName'), lg = $('loginLogo'), sbL = $('sidebarLogo'), sbI = $('sidebarInitial');
             
