@@ -987,7 +987,7 @@
         }
 
         function loadInitialDataFromGAS() {
-            showLoading('กำลังซิงค์ข้อมูล...');
+            showLoading('โปรดรอสักครู่...');
             return runGas('getInitialData').then(res => {
                 if (res) {
                     ['patients','appointments','assessments','receipts','services','banks'].forEach(k => aD[k] = res[k] || []);
