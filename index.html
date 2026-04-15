@@ -437,7 +437,7 @@
                             <div class="text-right text-xs text-red-500 mt-2 hidden font-bold" id="cartDiscSummary">หักส่วนลด: ฿0</div>
                         </div>
                         <div class="flex justify-between mb-8 text-xl font-black text-dark border-t pt-6"><span>ยอดสุทธิ</span><span id="cartTotal" class="text-secondary text-2xl">฿0</span></div>
-                        <div class="mb-8">
+                        <div class="mb-6">
                             <label class="block text-sm font-bold text-dark mb-3">ช่องทางชำระเงิน</label>
                             <div class="grid grid-cols-2 gap-3">
                                 <button type="button" id="btnPayCash" onclick="setPayType('cash')" class="btn-pri py-3.5"><i class="far fa-money-bill-alt"></i> เงินสด</button>
@@ -449,7 +449,10 @@
                             <div><label class="block mb-2 font-bold text-dark text-xs">ธนาคารที่รับโอน</label><select id="rcBankSelect" class="inp py-2.5"></select></div>
                             <div><label class="block mb-2 font-bold text-dark text-xs">แนบสลิป</label><input type="file" id="rcSlipUpload" accept="image/*" class="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-secondary/10 file:text-secondary hover:file:bg-secondary/20 cursor-pointer"></div>
                         </div>
-                        <button type="button" onclick="saveReceipt()" class="w-full btn-pri py-4 text-base shadow-lg"><i class="far fa-save mr-2"></i> บันทึกและออกใบเสร็จ</button>
+                        <div class="grid grid-cols-2 gap-3 border-t border-gray-100 pt-6">
+                            <button type="button" onclick="saveReceipt(true)" class="w-full btn-sec py-4 text-sm md:text-base shadow-sm text-yellow-600 border-yellow-200 bg-yellow-50 hover:bg-yellow-100"><i class="far fa-file-alt mr-2"></i> บันทึกร่าง</button>
+                            <button type="button" onclick="saveReceipt(false)" class="w-full btn-pri py-4 text-sm md:text-base shadow-lg"><i class="fas fa-check-circle mr-2"></i> รับชำระเงิน</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -481,7 +484,7 @@
                 <div class="bg-white rounded-3xl shadow-sm border overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left whitespace-nowrap">
-                            <thead><tr class="text-gray-500 text-xs border-b bg-gray-50"><th class="p-5 font-bold">เลขที่</th><th class="p-5 font-bold">วันที่</th><th class="p-5 font-bold">ผู้รับบริการ</th><th class="p-5 font-bold">ยอดเงิน</th><th class="p-5 font-bold">ช่องทาง</th><th class="p-5 font-bold text-center">จัดการ</th></tr></thead>
+                            <thead><tr class="text-gray-500 text-xs border-b bg-gray-50"><th class="p-5 font-bold">เลขที่</th><th class="p-5 font-bold">วันที่</th><th class="p-5 font-bold">ผู้รับบริการ</th><th class="p-5 font-bold">ยอดเงิน</th><th class="p-5 font-bold">สถานะ/ช่องทาง</th><th class="p-5 font-bold text-center">จัดการ</th></tr></thead>
                             <tbody id="tbodyReceipts" class="text-sm font-medium text-dark divide-y"></tbody>
                         </table>
                     </div>
@@ -1020,7 +1023,7 @@
             $s('loginUser', '');
             $s('loginPass', '');
             $('loginOverlay').style.display = 'flex';
-            routeTo('dashboard'); // รีเซ็ตหน้ากลับไปที่ Dashboard เมื่อล็อกอินเข้ามาใหม่
+            routeTo('dashboard'); 
         }
 
         function loadInitialDataFromGAS() {
@@ -1174,7 +1177,7 @@
             }).sort((a,b) => b.No.localeCompare(a.No)); 
             
             renderTbl(id, d, 'receipt', r => {
-                const mt = r.Method === 'โอนเงิน' ? '<span class="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-xs font-bold border border-purple-100">โอนเงิน</span>' : '<span class="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-bold border border-green-100">เงินสด</span>';
+                const mt = r.Method === 'รอชำระเงิน' ? '<span class="px-3 py-1 bg-yellow-50 text-yellow-600 rounded-full text-xs font-bold border border-yellow-200">รอชำระเงิน</span>' : r.Method === 'โอนเงิน' ? '<span class="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-xs font-bold border border-purple-100">โอนเงิน</span>' : '<span class="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-bold border border-green-100">เงินสด</span>';
                 return `<tr class="border-b"><td class="p-4 font-bold text-secondary">${r.No}</td><td class="p-4">${r.Date}</td><td class="p-4 font-bold">${r.Name}<br><span class="text-xs font-normal text-gray-500">HN: ${r.HN}</span></td><td class="p-4 font-bold text-dark text-lg">฿${Number(r.Amount||0).toLocaleString()}</td><td class="p-4">${mt}</td><td class="p-4 text-center"><button type="button" onclick="viewReceipt('${r.No}')" class="text-blue-500 mx-1 hover:text-blue-700"><i class="far fa-eye"></i></button><button type="button" onclick="printReceipt('${r.No}')" class="text-purple-500 mx-1 hover:text-purple-700"><i class="fas fa-print"></i></button><button type="button" onclick="editReceipt('${r.No}')" class="text-orange-500 mx-1 hover:text-orange-700"><i class="fas fa-pen"></i></button><button type="button" onclick="deleteReceipt('${r.No}')" class="text-red-500 mx-1 hover:text-red-700"><i class="fas fa-trash"></i></button></td></tr>`;
             }); 
         }
@@ -1190,6 +1193,7 @@
             const s = $v('searchCourseBal').toLowerCase(); let b = {}; 
             aD.patients.forEach(p => { if(p.Status === 'Active') b[p.HN] = { b: 0, u: 0, l: 0 }; }); 
             aD.receipts.forEach(r => {
+                if(r.Method === 'รอชำระเงิน') return; // ไม่นับยอดคอร์สถ้ารอชำระเงิน
                 if(r.CartItems && b[r.HN]) {
                     try {
                         let c = JSON.parse(r.CartItems);
@@ -1234,6 +1238,7 @@
             let b = {}; 
             aD.patients.forEach(p => { if(p.Status === 'Active') b[p.HN] = { b: 0, u: 0 }; }); 
             aD.receipts.forEach(r => {
+                if(r.Method === 'รอชำระเงิน') return; // ไม่นับยอดคอร์สถ้ารอชำระเงิน
                 if(r.CartItems && b[r.HN]) {
                     try {
                         let c = JSON.parse(r.CartItems);
@@ -1268,7 +1273,7 @@
             
             const d = new Date(), m = d.getMonth() + 1, y = d.getFullYear() + 543; 
             const ms = aD.receipts.reduce((s, r) => {
-                if(!r.Date) return s;
+                if(!r.Date || r.Method === 'รอชำระเงิน' || r.Method === 'Manual') return s; // ไม่นับยอดในบิลที่รอชำระเงิน
                 let rm = -1, ry = -1;
                 if(r.Date.includes('/')) { let p = r.Date.split('/'); rm = +p[1]; ry = +p[2]; } 
                 else if(r.Date.includes('-')) { let rd = new Date(r.Date); rm = rd.getMonth() + 1; ry = rd.getFullYear() + 543; } 
@@ -1657,9 +1662,9 @@
             calcCart(); 
         }
 
-        function saveReceipt() {
+        function saveReceipt(isDraft = false) {
             if(!$v('rcHN')) return showToast('เลือกผู้รับบริการ', 'warning'); if(aD.cart.length === 0) return showToast('ตะกร้าว่าง', 'warning'); 
-            showLoading('กำลังออกใบเสร็จ...');
+            showLoading(isDraft ? 'กำลังบันทึกร่าง...' : 'กำลังบันทึก...');
             let isEd = $v('rcNoEdit'), rcNo = isEd; 
             if(!rcNo) { 
                 const d = new Date(), pfx = 'HDR'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+'-'; let mx=0; 
@@ -1669,10 +1674,25 @@
             let sb = aD.cart.reduce((sm, i) => sm + (i.price*i.qty), 0), dV = parseFloat($v('cartDisc'))||0, dAm = $v('cartDiscType')==='percent' ? sb*(dV/100) : dV; 
             if(dAm > sb) dAm = sb; const tot = sb-dAm, d = new Date(), fD = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear() + 543}`;
             const cS = JSON.stringify({ items: aD.cart, discount: { type: $v('cartDiscType'), value: dV, amount: dAm, note: $v('cartDiscNote') } });
-            const obj = { No: rcNo, Date: isEd ? aD.receipts.find(x => x.No === isEd)?.Date : fD, Name: $v('rcName'), HN: $v('rcHN'), Amount: tot, Method: $v('rcPayType')==='cash'?'เงินสด':'โอนเงิน', SlipUrl: '', CartItems: cS };
+            
+            let payMethod = isDraft ? 'รอชำระเงิน' : ($v('rcPayType')==='cash'?'เงินสด':'โอนเงิน');
+            
+            const obj = { No: rcNo, Date: isEd ? aD.receipts.find(x => x.No === isEd)?.Date : fD, Name: $v('rcName'), HN: $v('rcHN'), Amount: tot, Method: payMethod, SlipUrl: '', CartItems: cS };
             
             saveToDB('Receipts', obj, COL.REC, 'No').then(r => {
-                if(r) { showToast('สำเร็จ'); aD.cart=[]; renderCart(); $s('rcHN',''); $s('rcName',''); $s('rcSearchPat',''); $s('cartDisc','0'); $s('cartDiscNote',''); if($('rcNoEdit')) $s('rcNoEdit',''); calcCart(); printReceipt(rcNo); }
+                if(r) { 
+                    showToast('สำเร็จ'); 
+                    aD.cart=[]; renderCart(); 
+                    $s('rcHN',''); $s('rcName',''); $s('rcSearchPat',''); 
+                    $s('cartDisc','0'); $s('cartDiscNote',''); 
+                    if($('rcNoEdit')) $s('rcNoEdit',''); 
+                    calcCart(); 
+                    if (!isDraft) {
+                        printReceipt(rcNo);
+                    } else {
+                        routeTo('receipt-history'); // ถ้าร่างเสร็จให้เด้งไปหน้าประวัติ
+                    }
+                }
             });
         }
 
@@ -1690,14 +1710,17 @@
                     } 
                 } catch(e) {} 
             }
-            Swal.fire({ title: 'รายละเอียดใบเสร็จ', html: `<div class="text-left text-sm space-y-2 mt-4 bg-gray-50 p-4 rounded-xl border"><p><b>เลขที่:</b> ${r.No}</p><p><b>วันที่:</b> ${r.Date}</p><p><b>ลูกค้า:</b> ${r.Name} (HN: ${r.HN})</p><p><b>ยอดสุทธิ:</b> <span class="text-secondary font-bold text-lg">฿${Number(r.Amount||0).toLocaleString()}</span></p><p><b>ช่องทาง:</b> ${r.Method}</p><hr class="my-3"><p class="font-bold">รายการบริการ:</p>${cH}</div>`, confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิด' });
+            let stText = r.Method === 'รอชำระเงิน' ? '<span class="text-orange-500">รอชำระเงิน</span>' : r.Method;
+            Swal.fire({ title: r.Method === 'รอชำระเงิน' ? 'รายละเอียด (รอชำระเงิน)' : 'รายละเอียดใบเสร็จ', html: `<div class="text-left text-sm space-y-2 mt-4 bg-gray-50 p-4 rounded-xl border"><p><b>เลขที่:</b> ${r.No}</p><p><b>วันที่:</b> ${r.Date}</p><p><b>ลูกค้า:</b> ${r.Name} (HN: ${r.HN})</p><p><b>ยอดสุทธิ:</b> <span class="text-secondary font-bold text-lg">฿${Number(r.Amount||0).toLocaleString()}</span></p><p><b>สถานะ:</b> ${stText}</p><hr class="my-3"><p class="font-bold">รายการบริการ:</p>${cH}</div>`, confirmButtonColor: '#c19b6c', confirmButtonText: 'ปิด' });
         }
         
         function editReceipt(no) { 
             const r = aD.receipts.find(x => x.No === no); if(!r) return; 
-            Swal.fire({ title: 'ยืนยัน', text: 'แก้ไขใบเสร็จทับใบเดิม?', showCancelButton: true, confirmButtonText: 'ตกลง', confirmButtonColor: '#c19b6c' }).then(res => { 
+            let msg = r.Method === 'รอชำระเงิน' ? 'ดึงข้อมูลเพื่อชำระเงินต่อ?' : 'แก้ไขใบเสร็จทับใบเดิม?';
+            Swal.fire({ title: 'ยืนยัน', text: msg, showCancelButton: true, confirmButtonText: 'ตกลง', confirmButtonColor: '#c19b6c' }).then(res => { 
                 if(res.isConfirmed) { 
-                    routeTo('receipt'); $s('rcHN',r.HN); $s('rcName',r.Name); $s('rcSearchPat',`${r.HN} - ${r.Name}`); setPayType(r.Method==='เงินสด'?'cash':'transfer'); 
+                    routeTo('receipt'); $s('rcHN',r.HN); $s('rcName',r.Name); $s('rcSearchPat',`${r.HN} - ${r.Name}`); 
+                    setPayType((r.Method==='เงินสด' || r.Method==='รอชำระเงิน')?'cash':'transfer'); 
                     if(!$('rcNoEdit')) { let i=document.createElement('input'); i.type='hidden'; i.id='rcNoEdit'; $('page-receipt').appendChild(i); } 
                     $s('rcNoEdit', r.No); aD.cart = []; 
                     if(r.CartItems) { 
@@ -1711,11 +1734,11 @@
             }); 
         }
         
-        function deleteReceipt(no) { Swal.fire({ title:'ยกเลิกใบเสร็จ?', text:`ยกเลิก ${no}?`, icon:'warning', showCancelButton:true, confirmButtonColor:'#e3342f', confirmButtonText:'ยกเลิกเลย' }).then(async r => { if(r.isConfirmed) await deleteFromDB('Receipts', no, 'No'); }); }
+        function deleteReceipt(no) { Swal.fire({ title:'ยกเลิกบิล?', text:`ยกเลิก ${no}?`, icon:'warning', showCancelButton:true, confirmButtonColor:'#e3342f', confirmButtonText:'ยกเลิกเลย' }).then(async r => { if(r.isConfirmed) await deleteFromDB('Receipts', no, 'No'); }); }
 
         function printReceipt(no) {
             const r = aD.receipts.find(x => x.No === no); if(!r) return;
-            const cName = $v('confClinicName') || 'Hug Dee Home', logo = getDirectImageUrl($v('confLogoUrl')), pPhone = $v('confPhone') || '-', addr = $v('confAddress') || '-', stp = getDirectImageUrl($v('confStampUrl')), ftr = $v('confReceiptFooter') || '"ขอบคุณที่ใช้บริการและไว้วางใจครับ/ค่ะ"';
+            const cName = $v('confClinicName') || 'Hug Dee Home', logo = getDirectImageUrl($v('confLogoUrl')), pPhone = $v('confPhone') || '-', addr = $v('confAddress') || '-', stp = getDirectImageUrl($v('confStampUrl')), ftr = $v('confReceiptFooter') || '"ขอบคุณที่ใช้บริการครับ/ค่ะ"';
             const p = aD.patients.find(x => x.HN === r.HN) || {}, pName = p.ParentName || p.Name, ptPhone = p.Phone || '-'; 
             const coll = aS.currentUser ? aS.currentUser.name : ($('sidebarUserName') ? $('sidebarUserName').innerText : 'เจ้าหน้าที่');
             
@@ -1726,94 +1749,48 @@
                     if(!Array.isArray(c) && c.discount) dAm = c.discount.amount || 0; 
                     sb = it.reduce((sm,i) => sm + (i.price*i.qty), 0); 
                     it.forEach((i, ix) => { 
-                        cHtml += `<tr class="border-b border-gray-100"><td class="py-4 text-center text-gray-600 align-top border-none">${ix+1}</td><td class="py-4 align-top border-none"><p class="font-medium text-gray-800">${i.name}</p>${i.desc ? `<p class="text-xs text-gray-500 mt-1">${i.desc}</p>` : ''}</td><td class="py-4 text-center text-gray-600 align-top border-none">${i.qty}</td><td class="py-4 text-right text-gray-600 align-top border-none">${(i.price||0).toLocaleString()}</td><td class="py-4 text-right text-red-500 align-top border-none">-</td><td class="py-4 text-right font-medium text-gray-800 pr-4 align-top border-none">${(i.price*i.qty).toLocaleString()}</td></tr>`; 
+                        cHtml += `<tr><td class="text-center">${ix+1}</td><td><span class="font-bold">${i.name}</span><br><span class="text-xs text-gray-500">${i.desc||''}</span></td><td class="text-center">${i.qty}</td><td class="text-right">${(i.price||0).toLocaleString()}</td><td class="text-center text-red-500">-</td><td class="text-right">${(i.price*i.qty).toLocaleString()}</td></tr>`; 
                     });
                 } catch(e) {} 
             }
-            let pDH = r.Method === 'โอนเงิน' ? `<p>${r.Method}</p><p class="text-xs text-gray-500 mt-1">[โอนเมื่อ: ${r.Date}]</p>` : `<p>${r.Method}</p>`;
+            
+            let docTitle = r.Method === 'รอชำระเงิน' ? 'ใบแจ้งหนี้ / ใบเรียกเก็บเงิน' : 'ใบเสร็จรับเงิน';
+            let docSub = r.Method === 'รอชำระเงิน' ? 'INVOICE' : 'RECEIPT';
+            let pDH = r.Method === 'รอชำระเงิน' ? `<p class="text-orange-500 font-bold">รอชำระเงิน</p>` : r.Method === 'โอนเงิน' ? `<p class="mb-2 text-gray-700">${r.Method}</p><p class="text-xs text-gray-500 italic">[โอนเมื่อ: ${r.Date}]</p>` : `<p class="text-gray-700">${r.Method}</p>`;
 
             const html = `
-                <div class="flex flex-col sm:flex-row justify-between items-start border-b border-secondary pb-6 mb-6 gap-4">
+                <div class="border-b-2 border-secondary pb-4 mb-4 flex justify-between items-center">
                     <div class="flex items-center gap-4">
-                        ${logo ? `<div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center border-2 border-blue-200 shrink-0 overflow-hidden"><img src="${logo}" referrerpolicy="no-referrer" class="w-full h-full object-contain"></div>` : `<div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center border-2 border-blue-200 shrink-0 text-center"><span class="text-blue-500 font-bold text-xs block mt-6">บ้านฮักดี</span></div>`}
-                        <div>
-                            <h2 class="text-lg sm:text-xl font-bold text-secondary mb-1">${cName}</h2>
-                            <p class="text-xs sm:text-sm text-gray-600">${addr}</p>
-                            <p class="text-xs sm:text-sm text-gray-600">โทร: ${pPhone}</p>
-                        </div>
+                        ${logo ? `<img src="${logo}" referrerpolicy="no-referrer" class="w-20 h-20 object-contain rounded-full">` : ''}
+                        <div><h2 class="text-2xl font-bold text-secondary">${cName}</h2><p class="text-sm text-gray-600">${addr}</p><p class="text-sm text-gray-600">โทร: ${pPhone}</p></div>
                     </div>
-                    <div class="text-left sm:text-right">
-                        <h1 class="text-xl sm:text-2xl font-bold text-secondary mb-1">ใบเสร็จรับเงิน</h1>
-                        <p class="text-xs text-gray-500 mb-2 uppercase tracking-widest">RECEIPT</p>
-                        <div class="text-xs sm:text-sm font-medium text-gray-700">
-                            <p>เลขที่: <span class="font-normal">${r.No}</span></p>
-                            <p>วันที่: <span class="font-normal">${r.Date}</span></p>
-                        </div>
+                    <div class="text-right">
+                        <h1 class="text-2xl font-bold text-secondary mb-1">${docTitle}</h1><p class="text-xs text-gray-500 uppercase tracking-wider mb-2">${docSub}</p>
+                        <p class="text-sm"><b>เลขที่:</b> ${r.No}</p><p class="text-sm"><b>วันที่:</b> ${r.Date}</p>
                     </div>
                 </div>
-
-                <div class="border border-gray-200 rounded-lg p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm bg-gray-50/50">
-                    <div>
-                        <p class="mb-2 flex"><span class="font-semibold w-24 shrink-0 text-gray-700">ได้รับเงินจาก:</span> <span>${pName}</span></p>
-                        <p class="flex"><span class="font-semibold w-24 shrink-0 text-gray-700">ผู้รับบริการ:</span> <span>${r.Name}</span></p>
-                    </div>
-                    <div>
-                        <p class="mb-2 flex"><span class="font-semibold w-16 sm:w-20 shrink-0 text-gray-700">HN:</span> <span>${r.HN}</span></p>
-                        <p class="flex"><span class="font-semibold w-16 sm:w-20 shrink-0 text-gray-700">เบอร์โทร:</span> <span>${ptPhone}</span></p>
+                <div class="flex justify-between bg-gray-50 border rounded-lg p-4 mb-6 text-sm">
+                    <div class="w-1/2 space-y-1"><p><b>ชื่อลูกค้า:</b> ${pName}</p><p><b>ผู้รับบริการ:</b> ${r.Name}</p></div>
+                    <div class="w-1/2 space-y-1"><p><b>HN:</b> ${r.HN}</p><p><b>เบอร์โทร:</b> ${ptPhone}</p></div>
+                </div>
+                <table class="prt-tbl">
+                    <thead><tr><th class="w-12 text-center">ลำดับ</th><th>รายการ</th><th class="w-16 text-center">จำนวน</th><th class="w-24 text-right">ราคา</th><th class="w-20 text-center">ส่วนลด</th><th class="w-28 text-right">จำนวนเงิน</th></tr></thead>
+                    <tbody>${cHtml}</tbody>
+                    <tfoot>
+                        <tr><td colspan="3" rowspan="3" class="align-top"><p class="font-bold text-gray-600 mb-1">หมายเหตุ:</p>${pDH}</td><td colspan="2" class="text-right font-bold text-gray-600">รวมเป็นเงิน</td><td class="text-right font-bold">${sb.toLocaleString()}</td></tr>
+                        <tr><td colspan="2" class="text-right font-bold text-red-500">ส่วนลด</td><td class="text-right font-bold text-red-500">-${dAm.toLocaleString()}</td></tr>
+                        <tr class="bg-orange-50"><td colspan="2" class="text-right font-bold text-lg text-dark">ยอดสุทธิ</td><td class="text-right font-bold text-xl text-secondary">${Number(r.Amount||0).toLocaleString()}</td></tr>
+                    </tfoot>
+                </table>
+                <div class="flex justify-between items-end mt-12 px-4">
+                    <div class="font-bold text-gray-700">(${ThaiBaht(r.Amount)})</div>
+                    <div class="text-center w-64 relative">
+                        ${stp ? `<img src="${stp}" referrerpolicy="no-referrer" class="absolute -right-6 -bottom-4 w-28 opacity-80 pointer-events-none z-0">` : ''}
+                        <div class="border-b border-gray-400 pb-1 mb-1 relative z-10 font-medium">${coll}</div>
+                        <div class="text-sm text-gray-600 relative z-10">${coll} (ผู้ออกเอกสาร)</div>
                     </div>
                 </div>
-
-                <div class="mb-6 overflow-x-auto">
-                    <table class="w-full text-xs sm:text-sm min-w-[500px]" style="border:none;">
-                        <thead>
-                            <tr class="border-b-2 border-gray-200 text-gray-700" style="background:transparent;">
-                                <th class="py-3 text-center w-12 sm:w-16 font-semibold border-none">ลำดับ</th>
-                                <th class="py-3 text-left font-semibold border-none">รายการ</th>
-                                <th class="py-3 text-center w-20 font-semibold border-none">จำนวน</th>
-                                <th class="py-3 text-right w-20 sm:w-24 font-semibold border-none">ราคา</th>
-                                <th class="py-3 text-right w-20 sm:w-24 font-semibold border-none">ส่วนลด</th>
-                                <th class="py-3 text-right w-28 sm:w-32 font-semibold pr-4 border-none">จำนวนเงิน</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${cHtml}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex flex-col sm:flex-row justify-between items-start mb-12 gap-6 sm:gap-0">
-                    <div class="text-xs sm:text-sm text-gray-600 mt-2">
-                        <p class="font-semibold text-gray-700 mb-1">หมายเหตุ:</p>
-                        ${pDH}
-                    </div>
-                    <div class="w-full sm:w-72">
-                        <div class="flex justify-between py-1.5 text-sm">
-                            <span class="font-semibold text-gray-700">รวมเป็นเงิน</span>
-                            <span class="font-medium pr-4">${sb.toLocaleString()}</span>
-                        </div>
-                        <div class="flex justify-between py-1.5 text-sm text-red-500">
-                            <span class="font-semibold">ส่วนลด</span>
-                            <span class="font-medium pr-4">-${dAm.toLocaleString()}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-3 text-base bg-[#F8F3ED] rounded-md mt-2 px-4 font-bold text-secondary">
-                            <span>ยอดสุทธิ</span>
-                            <span>${Number(r.Amount||0).toLocaleString()}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex flex-col sm:flex-row justify-between items-center sm:items-end mt-20 text-sm gap-12 sm:gap-0">
-                    <div class="font-bold text-gray-800 self-center sm:self-end">
-                        (${ThaiBaht(r.Amount)})
-                    </div>
-                    <div class="text-center relative w-56 sm:w-64">
-                        <p class="mb-2 font-medium">${coll}</p>
-                        <div class="border-t border-gray-400 w-full mb-2"></div>
-                        <p class="text-gray-600 text-xs sm:text-sm">${coll} (ผู้รับเงิน)</p>
-                        ${stp ? `<div class="absolute -right-4 sm:-right-8 -top-12 opacity-60 transform rotate-[-15deg] pointer-events-none"><div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-blue-500 flex flex-col items-center justify-center p-1 sm:p-2 text-blue-600 bg-white/40 backdrop-blur-sm"><img src="${stp}" referrerpolicy="no-referrer" class="w-full h-full object-contain"></div></div>` : `<div class="absolute -right-4 sm:-right-8 -top-12 opacity-60 transform rotate-[-15deg] pointer-events-none"><div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-blue-500 flex flex-col items-center justify-center p-1 sm:p-2 text-blue-600 bg-white/40 backdrop-blur-sm"><i class="fas fa-building mb-0.5 text-2xl mt-4"></i><span class="text-[7px] sm:text-[8px] font-bold text-center leading-tight mt-1">คลินิกพัฒนาการเด็ก<br/>บ้านฮักดี</span></div></div>`}
-                    </div>
-                </div>
-                <div class="text-center text-[10px] sm:text-xs text-gray-400 mt-16 italic">${ftr}</div>
+                <div class="text-center mt-10 text-xs text-gray-400 italic pt-4 border-t border-gray-100">${ftr}</div>
             `;
             $h('printPaper', html); openModal('modalPrintPreview');
         }
