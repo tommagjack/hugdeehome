@@ -507,8 +507,6 @@
                             <div class="icon-bg"><i class="far fa-user"></i></div><span>นักกิจกรรมบำบัด</span>
                         </button>
                         
-                        <div class="h-16 md:h-20 bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-gray-100 my-1 hidden lg:block"></div>
-                        
                         <button type="button" id="tabBtnBank" class="settings-tab" onclick="switchSetting(this, 'setBank')">
                             <div class="icon-bg"><i class="far fa-credit-card"></i></div><span>บัญชีธนาคาร</span>
                         </button>
@@ -526,7 +524,7 @@
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div><label class="block text-sm font-bold mb-2">อีเมล</label><input type="text" id="confEmail" class="inp bg-gray-50 border-gray-100"></div>
-                                <div><label class="block text-sm font-bold mb-2">Line ID</label><input type="text" id="confLineId" class="inp bg-gray-50 border-gray-100"></div>
+                                <div><label class="block text-sm font-bold mb-2">Line ID</label><input type="text" id="confLineID" class="inp bg-gray-50 border-gray-100"></div>
                             </div>
                             <div><label class="block text-sm font-bold mb-2">ที่อยู่</label><input type="text" id="confAddress" class="inp bg-gray-50 border-gray-100"></div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -537,10 +535,10 @@
                             
                             <h4 class="font-extrabold text-lg mb-4 mt-8 pt-6 border-t"><i class="fas fa-database text-secondary mr-3"></i> การเชื่อมต่อฐานข้อมูล</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><label class="block text-sm font-bold mb-2">Sheet ID (Clinic)</label><input type="text" id="confSheetClinic" class="inp bg-gray-50 border-gray-100 text-xs"></div>
-                                <div><label class="block text-sm font-bold mb-2">Sheet ID (User)</label><input type="text" id="confSheetUser" class="inp bg-gray-50 border-gray-100 text-xs"></div>
-                                <div><label class="block text-sm font-bold mb-2">GAS ID / Web App URL</label><input type="text" id="confGasId" class="inp bg-gray-50 border-gray-100 text-xs"></div>
-                                <div><label class="block text-sm font-bold mb-2">Slip Folder ID</label><input type="text" id="confSlipFolder" class="inp bg-gray-50 border-gray-100 text-xs"></div>
+                                <div><label class="block text-sm font-bold mb-2">Sheet ID (Clinic)</label><input type="text" id="confSheetClinicID" class="inp bg-gray-50 border-gray-100 text-xs"></div>
+                                <div><label class="block text-sm font-bold mb-2">Sheet ID (User)</label><input type="text" id="confSheetUserID" class="inp bg-gray-50 border-gray-100 text-xs"></div>
+                                <div><label class="block text-sm font-bold mb-2">GAS ID / Web App URL</label><input type="text" id="confGasURL" class="inp bg-gray-50 border-gray-100 text-xs"></div>
+                                <div><label class="block text-sm font-bold mb-2">Slip Folder ID</label><input type="text" id="confSlipFolderID" class="inp bg-gray-50 border-gray-100 text-xs"></div>
                             </div>
                             <div class="pt-6"><button type="button" onclick="saveClinicInfo()" class="btn-pri px-8 shadow-md w-max ml-auto"><i class="far fa-save"></i> บันทึกข้อมูล</button></div>
                         </div>
@@ -859,10 +857,10 @@
             if(typeof google !== 'undefined' && google.script && google.script.run) {
                 return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
             }
-            let url = localStorage.getItem('GAS_WEB_APP_URL') || $v('confGasId') || GLOBAL_GAS_API_URL;
+            let url = localStorage.getItem('GAS_WEB_APP_URL') || $v('confGasURL') || GLOBAL_GAS_API_URL;
             if(!url || !url.startsWith('http')) { 
                 const {value:u} = await Swal.fire({title:'เชื่อมต่อฐานข้อมูล', input:'url', allowOutsideClick:false}); 
-                if(u) { url = u.trim(); localStorage.setItem('GAS_WEB_APP_URL', url); $s('confGasId', url); } 
+                if(u) { url = u.trim(); localStorage.setItem('GAS_WEB_APP_URL', url); $s('confGasURL', url); } 
             }
             if(url && url.startsWith('http')) { 
                 try { 
@@ -1036,7 +1034,7 @@
                     if(res.config && res.config.length > 0) { 
                         const c = res.config[0]; 
                         COL.CFG.forEach(k => $s('conf'+k, c[k])); 
-                        $s('confGasId', c.GasURL || GLOBAL_GAS_API_URL); 
+                        $s('confGasURL', c.GasURL || GLOBAL_GAS_API_URL); 
                         $t('loginClinicName', c.ClinicName || 'Hug Dee Home'); 
                         if(c.LogoUrl) {
                             const u = getDirectImageUrl(c.LogoUrl);
@@ -1836,15 +1834,15 @@
         }
 
         function switchSetting(b, pId) { 
-            $$('.settings-tab').forEach(e => e.classList.remove('active')); 
-            b.classList.add('active'); 
+            $$('.settings-tab').forEach(e => { e.classList.remove('active','btn-pri'); e.classList.add('btn-sec'); }); 
+            b.classList.add('active','btn-pri'); b.classList.remove('btn-sec'); 
             $$('.setting-panel').forEach(e => e.classList.add('hidden')); 
             $(pId).classList.remove('hidden'); 
         }
         
         function saveClinicInfo() { 
-            const obj = { ConfigID: 'MAIN_CONFIG', ClinicName: $v('confClinicName'), Phone: $v('confPhone'), Email: $v('confEmail'), LineID: $v('confLineId'), Address: $v('confAddress'), LogoUrl: $v('confLogoUrl'), StampUrl: $v('confStampUrl'), ReceiptFooter: $v('confReceiptFooter'), SheetClinicID: $v('confSheetClinic'), SheetUserID: $v('confSheetUser'), GasURL: $v('confGasId'), SlipFolderID: $v('confSlipFolder') }; 
-            let gu = $v('confGasId').trim(); if(gu && gu.startsWith('http')) localStorage.setItem('GAS_WEB_APP_URL', gu); 
+            const obj = { ConfigID: 'MAIN_CONFIG', ClinicName: $v('confClinicName'), Phone: $v('confPhone'), Email: $v('confEmail'), LineID: $v('confLineID'), Address: $v('confAddress'), LogoUrl: $v('confLogoUrl'), StampUrl: $v('confStampUrl'), ReceiptFooter: $v('confReceiptFooter'), SheetClinicID: $v('confSheetClinicID'), SheetUserID: $v('confSheetUserID'), GasURL: $v('confGasURL'), SlipFolderID: $v('confSlipFolderID') }; 
+            let gu = $v('confGasURL').trim(); if(gu && gu.startsWith('http')) localStorage.setItem('GAS_WEB_APP_URL', gu); 
             saveToDB('Config', obj, COL.CFG, 'ConfigID').then(r => {
                 if(r) {
                     $t('loginClinicName', obj.ClinicName||'Hug Dee Home'); 
