@@ -1529,6 +1529,73 @@
             Swal.fire({ title:'ข้อมูลการประเมิน', html:`<div class="text-left text-sm space-y-2 mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100"><p><b>วันที่:</b> ${a.Date}</p><p><b>ผู้รับบริการ:</b> ${a.Name} (HN: ${a.HN})</p><hr class="my-3 border-gray-200"><p class="font-bold text-secondary mb-1">พัฒนาการ 4 ด้าน</p><div class="mb-2">${devH}</div><hr class="my-3 border-gray-200"><p class="font-bold text-secondary mb-1">SNAP-IV:</p><div class="mb-2">${snpH} ${snpDet}</div><p class="mt-3"><b>ความเห็น:</b> ${a.Comment||'-'}</p></div>`, confirmButtonColor:'#c19b6c', confirmButtonText:'ปิด' }); 
         }
 
+        function editAssess(ix) {
+            const a = aD.assessments[ix]; if(!a) return;
+            aS.editingAssessIndex = ix;
+            const p = aD.patients.find(x => x.HN === a.HN);
+            $s('assessSearchPat', `${a.HN} - ${a.Name}`);
+            $s('assessHN', a.HN);
+            $s('asName', a.Name || '-');
+            $s('asAge', p ? (p.Age || '-') : '-');
+            
+            let dStr = a.Date;
+            if (dStr && dStr.includes('/')) {
+                let pt = dStr.split('/');
+                let y = +pt[2]; if (y > 2500) y -= 543;
+                dStr = `${y}-${pt[1].padStart(2,'0')}-${pt[0].padStart(2,'0')}`;
+            } else if (dStr && dStr.includes('-')) {
+                let dObj = new Date(dStr);
+                if(!isNaN(dObj.getTime())) dStr = dObj.toISOString().split('T')[0];
+            } else {
+                dStr = new Date().toISOString().split('T')[0];
+            }
+            $s('assessDate', dStr);
+            
+            $s('assessRef', a.RefCode || '');
+            $s('assessHist', a.History || '');
+            $s('assessPrev', a.PrevResult || '');
+            $s('devGM', a.GM || 'สมวัย');
+            $s('devFM', a.FM || 'สมวัย');
+            $s('devLang', a.Lang || 'สมวัย');
+            $s('devSoc', a.Soc || 'สมวัย');
+            $s('senVis', a.SenVis || '');
+            $s('senHear', a.SenHear || '');
+            $s('senMove', a.SenMove || '');
+            $s('senBal', a.SenBal || '');
+            $s('senTaste', a.SenTaste || '');
+            $s('senResp', a.SenResp || '');
+            $s('asSensory6', a.SenTotal6 || '');
+            $s('sn1', a.SnInatt || '');
+            $s('sn2', a.SnHyper || '');
+            $s('sn3', a.SnOdd || '');
+            $s('assessComment', a.Comment || '');
+            
+            let frms = (a.FormTypes || '').split(',');
+            if($('asFormType1')) $('asFormType1').checked = frms.includes('ประเมินพัฒนาการ');
+            if($('asFormType2')) $('asFormType2').checked = frms.includes('Sensory test');
+            if($('asFormType3')) $('asFormType3').checked = frms.includes('SNAP-IV');
+            
+            calcSnap(); 
+            openModal('modalAssess');
+        }
+
+        function deleteAssess(ix) {
+            const a = aD.assessments[ix]; if(!a) return;
+            Swal.fire({
+                title: 'ลบผลประเมิน?', 
+                text: `ลบผลประเมินของ ${a.Name} แน่ใจหรือไม่?`, 
+                icon: 'warning', 
+                showCancelButton: true, 
+                confirmButtonColor: '#e3342f', 
+                confirmButtonText: 'ลบเลย'
+            }).then(async res => {
+                if(res.isConfirmed) { 
+                    await deleteFromDB('Assessments', a.AssessID, 'AssessID'); 
+                    changePage('assess', 1); 
+                }
+            });
+        }
+
         function saveAssessment() { 
             const hn = $v('assessHN'); if(!hn) return showToast('เลือกผู้รับบริการ','warning'); 
             const p = aD.patients.find(x => x.HN === hn), dt = $v('assessDate') || new Date().toISOString().split('T')[0]; 
