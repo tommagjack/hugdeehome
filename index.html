@@ -807,6 +807,36 @@
         </div>
     </div>
 
+    <!-- โอนคอร์ส Modal -->
+    <div id="modalTransferCourse" class="mod-overlay">
+        <div class="mod-box max-w-md">
+            <div class="mod-head"><h3 class="font-bold text-xl">โอนคอร์ส</h3><button type="button" onclick="closeModal('modalTransferCourse')"><i class="fas fa-times"></i></button></div>
+            <div class="mod-body space-y-4">
+                <input type="hidden" id="tfSenderHN">
+                <div><label class="block mb-2 font-bold text-gray-500">ผู้โอน</label><input type="text" id="tfSenderName" class="inp bg-gray-100" readonly></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block mb-2 font-bold text-gray-500">จำนวนคงเหลือ</label><input type="text" id="tfMaxQty" class="inp bg-gray-100 text-green-600 font-bold" readonly></div>
+                    <div><label class="block mb-2 font-bold text-blue-600">จำนวนที่จะโอน</label><input type="number" id="tfQty" min="1" class="inp text-lg text-center font-bold border-blue-200 focus:border-blue-400 focus:ring-blue-400/20"></div>
+                </div>
+                <div>
+                    <label class="block mb-2 font-bold">ผู้รับโอน (HN/ชื่อ)</label>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 z-10"></i>
+                        <input type="text" id="tfSearchPat" class="inp pl-11" placeholder="ค้นหา..." oninput="searchPatientList(this.value, 'tf')" onfocus="searchPatientList(this.value, 'tf')">
+                        <div id="tfSearchResult" class="hidden absolute w-full bg-white border rounded-xl mt-1 shadow-lg z-50 max-h-48 overflow-y-auto top-full left-0"></div>
+                    </div>
+                    <input type="hidden" id="tfReceiverHN">
+                    <input type="hidden" id="tfReceiverName">
+                </div>
+                <div><label class="block mb-2 font-bold">วันที่ทำรายการ</label><input type="date" id="tfDate" class="inp"></div>
+            </div>
+            <div class="mod-foot">
+                <button type="button" onclick="closeModal('modalTransferCourse')" class="btn-sec">ยกเลิก</button>
+                <button type="button" onclick="saveTransferCourse()" class="btn-pri bg-blue-500 hover:bg-blue-600"><i class="fas fa-exchange-alt"></i> ยืนยันการโอน</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JS Scripts (Refactored cleanly) -->
     <script>
         const documentGetElementById = id => document.getElementById(id);
@@ -1200,7 +1230,7 @@
                         let it = Array.isArray(c) ? c : c.items || [];
                         it.forEach(i => {
                             let n = i.name || '';
-                            if((n.includes('คอร์ส') || i.id === 'MANUAL_ADD') && !n.includes('ประเมิน')) {
+                            if((n.includes('คอร์ส') || i.id === 'MANUAL_ADD' || String(i.id).startsWith('MANUAL_TRF')) && !n.includes('ประเมิน')) {
                                 let m = n.match(/(\d+)\s*ครั้ง/);
                                 b[r.HN].b += ((m ? +m[1] : 1) * i.qty);
                                 let dt = parseD(r.Date);
@@ -1229,7 +1259,7 @@
             
             renderTbl('tbodyCourseBal', arr, 'courseBal', r => {
                 const remClass = r.Rem > 0 ? 'text-green-500 bg-green-50' : 'text-red-500 bg-red-50';
-                return `<tr class="border-b"><td class="p-4 font-bold text-orange-500">${r.HN}</td><td class="p-4 font-bold">${r.FullName}<br><span class="text-xs font-normal text-gray-500">${r.Nick}</span></td><td class="p-4 text-center font-bold text-gray-600">${r.Bought}</td><td class="p-4 text-center font-bold text-blue-500">${r.Used}</td><td class="p-4 text-center"><span class="px-3 py-1 rounded-full font-bold ${remClass}">${r.Rem}</span></td><td class="p-4 text-center"><button type="button" onclick="openManualCourseModal('${r.HN}','${escapeJS(r.FullName)}')" class="btn-sec w-8 h-8 px-0 text-orange-500 mx-auto border-orange-100 hover:bg-orange-50" title="เพิ่มคอร์ส"><i class="fas fa-plus"></i></button></td></tr>`;
+                return `<tr class="border-b"><td class="p-4 font-bold text-orange-500">${r.HN}</td><td class="p-4 font-bold">${r.FullName}<br><span class="text-xs font-normal text-gray-500">${r.Nick}</span></td><td class="p-4 text-center font-bold text-gray-600">${r.Bought}</td><td class="p-4 text-center font-bold text-blue-500">${r.Used}</td><td class="p-4 text-center"><span class="px-3 py-1 rounded-full font-bold ${remClass}">${r.Rem}</span></td><td class="p-4 text-center"><div class="flex justify-center gap-1"><button type="button" onclick="openManualCourseModal('${r.HN}','${escapeJS(r.FullName)}')" class="btn-sec w-8 h-8 px-0 text-orange-500 border-orange-100 hover:bg-orange-50" title="เพิ่มคอร์ส"><i class="fas fa-plus"></i></button>${r.Rem > 0 ? `<button type="button" onclick="openTransferCourseModal('${r.HN}', '${escapeJS(r.FullName)}', ${r.Rem})" class="btn-sec w-8 h-8 px-0 text-blue-500 border-blue-100 hover:bg-blue-50" title="โอนคอร์ส"><i class="fas fa-exchange-alt"></i></button>` : ''}</div></td></tr>`;
             }); 
         }
         
@@ -1245,7 +1275,7 @@
                         let it = Array.isArray(c) ? c : c.items || [];
                         it.forEach(i => {
                             let n = i.name || '';
-                            if((n.includes('คอร์ส') || i.id === 'MANUAL_ADD') && !n.includes('ประเมิน')) {
+                            if((n.includes('คอร์ส') || i.id === 'MANUAL_ADD' || String(i.id).startsWith('MANUAL_TRF')) && !n.includes('ประเมิน')) {
                                 let m = n.match(/(\d+)\s*ครั้ง/);
                                 b[r.HN].b += ((m ? +m[1] : 1) * i.qty);
                             }
@@ -1671,6 +1701,7 @@
             if(pre === 'rc') $s('rcName', fn); 
             else if(pre === 'assess') { const p = aD.patients.find(x => x.HN === h); if(p) { $s('asName', fn||'-'); $s('asAge', p.Age||'-'); } } 
             else if(pre === 'appt') updateAvailableTimeSlots(); 
+            else if(pre === 'tf') $s('tfReceiverName', fn); 
         }
 
         function setPayType(t) { 
@@ -1757,7 +1788,7 @@
                     if (!isDraft) {
                         printReceipt(rcNo);
                     } else {
-                        routeTo('receipt-history'); // ถ้าร่างเสร็จให้เด้งไปหน้าประวัติ
+                        routeTo('receipt-history'); 
                     }
                 }
             });
@@ -2083,6 +2114,63 @@
             saveToDB('Receipts', obj, COL.REC, 'No').then(r => {
                 if(r) { closeModal('modalManualCourse'); Swal.fire('สำเร็จ', `เพิ่ม ${q} ครั้งให้ HN: ${hn}`, 'success'); renderCourseBalTable(); }
             });
+        }
+
+        /* ------------------ ระบบโอนคอร์ส ------------------ */
+        function openTransferCourseModal(hn, name, maxQty) {
+            $s('tfSenderHN', hn);
+            $s('tfSenderName', name);
+            $s('tfMaxQty', maxQty);
+            $s('tfQty', 1);
+            $s('tfSearchPat', '');
+            $s('tfReceiverHN', '');
+            $s('tfReceiverName', '');
+            $s('tfDate', new Date().toISOString().split('T')[0]);
+            
+            if($('tfSearchResult')) $('tfSearchResult').style.display = 'none';
+            openModal('modalTransferCourse');
+        }
+
+        async function saveTransferCourse() {
+            const sHN = $v('tfSenderHN'), sName = $v('tfSenderName');
+            const rHN = $v('tfReceiverHN'), rName = $v('tfReceiverName');
+            const dt = $v('tfDate'), q = parseInt($v('tfQty')), mx = parseInt($v('tfMaxQty'));
+            
+            if(!rHN) return showToast('กรุณาเลือกผู้รับโอน', 'warning');
+            if(sHN === rHN) return showToast('ไม่สามารถโอนให้ตัวเองได้', 'warning');
+            if(!q || q <= 0 || q > mx) return showToast('จำนวนที่ต้องการโอนไม่ถูกต้อง', 'warning');
+            
+            showLoading('กำลังดำเนินการโอน...');
+            
+            const d = new Date(), px = 'TRF'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+'-'; 
+            let mxNo = 0; 
+            aD.receipts.forEach(r => { if(r.No && r.No.startsWith(px)) { let n=parseInt(r.No.substring(px.length),10); if(!isNaN(n)&&n>mxNo) mxNo=n; } });
+            
+            const pd = new Date(dt), fD = `${pd.getDate()}/${pd.getMonth()+1}/${pd.getFullYear()+543}`;
+            
+            // สร้างบิลหักออกของฝั่งผู้โอน
+            const cSender = JSON.stringify({items:[{id:'MANUAL_TRF_OUT', name:`หักโอนคอร์ส ${q} ครั้ง ให้ ${rName}`, desc:'แอดมินดำเนินการ', price:0, qty:-1}]});
+            const objSender = { No: px+String(mxNo+1).padStart(4,'0'), Date: fD, Name: sName, HN: sHN, Amount: 0, Method: 'Manual', SlipUrl: '', CartItems: cSender };
+            
+            // สร้างบิลเพิ่มเข้าของฝั่งผู้รับโอน
+            const cReceiver = JSON.stringify({items:[{id:'MANUAL_TRF_IN', name:`รับโอนคอร์ส ${q} ครั้ง จาก ${sName}`, desc:'แอดมินดำเนินการ', price:0, qty:1}]});
+            const objReceiver = { No: px+String(mxNo+2).padStart(4,'0'), Date: fD, Name: rName, HN: rHN, Amount: 0, Method: 'Manual', SlipUrl: '', CartItems: cReceiver };
+            
+            try {
+                // บันทึกสองรายการ
+                const r1 = await runGas('saveRecord', 'Receipts', objSender, COL.REC, 'No');
+                if(!r1 || !r1.success) throw new Error();
+                const r2 = await runGas('saveRecord', 'Receipts', objReceiver, COL.REC, 'No');
+                if(!r2 || !r2.success) throw new Error();
+                
+                await loadInitialDataFromGAS(); // รีเฟรชข้อมูลใหม่ทั้งหมด
+                closeModal('modalTransferCourse');
+                Swal.fire('สำเร็จ', `โอนคอร์สจำนวน ${q} ครั้ง ให้ ${rName} เรียบร้อยแล้ว`, 'success');
+                renderCourseBalTable();
+            } catch(e) {
+                hideLoading();
+                Swal.fire('ผิดพลาด', 'โอนคอร์สไม่สำเร็จ', 'error');
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
