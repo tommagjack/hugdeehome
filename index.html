@@ -825,8 +825,8 @@
                         <input type="text" id="tfSearchPat" class="inp pl-11" placeholder="ค้นหา..." oninput="searchPatientList(this.value, 'tf')" onfocus="searchPatientList(this.value, 'tf')">
                         <div id="tfSearchResult" class="hidden absolute w-full bg-white border rounded-xl mt-1 shadow-lg z-50 max-h-48 overflow-y-auto top-full left-0"></div>
                     </div>
-                    <input type="hidden" id="tfReceiverHN">
-                    <input type="hidden" id="tfReceiverName">
+                    <input type="hidden" id="tfHN">
+                    <input type="hidden" id="tfName">
                 </div>
                 <div><label class="block mb-2 font-bold">วันที่ทำรายการ</label><input type="date" id="tfDate" class="inp"></div>
             </div>
@@ -1701,7 +1701,7 @@
             if(pre === 'rc') $s('rcName', fn); 
             else if(pre === 'assess') { const p = aD.patients.find(x => x.HN === h); if(p) { $s('asName', fn||'-'); $s('asAge', p.Age||'-'); } } 
             else if(pre === 'appt') updateAvailableTimeSlots(); 
-            else if(pre === 'tf') $s('tfReceiverName', fn); 
+            else if(pre === 'tf') $s('tfName', fn); 
         }
 
         function setPayType(t) { 
@@ -2123,8 +2123,8 @@
             $s('tfMaxQty', maxQty);
             $s('tfQty', 1);
             $s('tfSearchPat', '');
-            $s('tfReceiverHN', '');
-            $s('tfReceiverName', '');
+            $s('tfHN', '');
+            $s('tfName', '');
             $s('tfDate', new Date().toISOString().split('T')[0]);
             
             if($('tfSearchResult')) $('tfSearchResult').style.display = 'none';
@@ -2133,7 +2133,7 @@
 
         async function saveTransferCourse() {
             const sHN = $v('tfSenderHN'), sName = $v('tfSenderName');
-            const rHN = $v('tfReceiverHN'), rName = $v('tfReceiverName');
+            const rHN = $v('tfHN'), rName = $v('tfName');
             const dt = $v('tfDate'), q = parseInt($v('tfQty')), mx = parseInt($v('tfMaxQty'));
             
             if(!rHN) return showToast('กรุณาเลือกผู้รับโอน', 'warning');
