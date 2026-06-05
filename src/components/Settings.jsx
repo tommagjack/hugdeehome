@@ -31,7 +31,6 @@ export default function Settings({
   setHolidays,
   users,
   setUsers,
-  onResetAllData,
   onPrintAnnualHolidays
 }) {
   const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users
@@ -559,16 +558,6 @@ export default function Settings({
             <a className={`settings-link ${activeSubMenu === 'holidays' ? 'active' : ''}`} onClick={() => setActiveSubMenu('holidays')}>
               <CalendarDays size={16} /> วันหยุดคลินิก
             </a>
-          </div>
-          
-          <div style={{ borderTop: '1px solid var(--border-light)', marginTop: '1rem', paddingTop: '1rem' }}>
-            <button 
-              className="btn btn-danger" 
-              style={{ width: '100%', fontSize: '0.8rem', padding: '0.5rem' }}
-              onClick={onResetAllData}
-            >
-              รีเซ็ตข้อมูลตัวอย่างทั้งหมด
-            </button>
           </div>
         </div>
 

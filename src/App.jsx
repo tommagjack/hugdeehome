@@ -18,7 +18,6 @@ import Transactions from './components/Transactions';
 import OPD from './components/OPD';
 import GuestRegister from './components/GuestRegister';
 import Swal from 'sweetalert2';
-import { ShieldCheck, UserCheck2, Landmark } from 'lucide-react';
 
 export default function App() {
   // 1. ตรวจสอบการรันระบบครั้งแรก (โหลดข้อมูลตัวอย่างลง LocalStorage)
@@ -336,61 +335,7 @@ export default function App() {
     setReceipts([...receipts, receipt1, receipt2]);
   };
 
-  // ล้างล้างประวัติจำลองใหม่หมดจด
-  const handleResetAllData = () => {
-    Swal.fire({
-      title: 'กู้คืนค่าเริ่มต้นของระบบทั้งหมด?',
-      text: "การกู้คืนจะรีเซ็ตข้อมูลผู้ป่วย ประวัตินัดหมาย บิลเงินสดและการตั้งค่าหลังบ้านกลับไปยัง Mock Data เริ่มแรก และทำการรีเฟรชระบบใหม่",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: 'var(--danger)',
-      cancelButtonColor: 'var(--dark-light)',
-      confirmButtonText: 'รีเซ็ตข้อมูลเลย!',
-      cancelButtonText: 'ยกเลิก'
-    }).then(res => {
-      if (res.isConfirmed) {
-        initDatabase(true);
-        // เคลียร์ล็อกอินด่วน
-        localStorage.removeItem('hdh_logged_in_user');
-        Swal.fire({
-          title: 'รีเซ็ตระบบเสร็จสิ้น',
-          icon: 'success',
-          timer: 1500,
-          showConfirmButton: false
-        }).then(() => {
-          window.location.reload();
-        });
-      }
-    });
-  };
 
-  // สลับสิทธิ์เข้าถึงจำลองด่วนใน Sidebar
-  const handleRoleSelector = (role) => {
-    const updatedUser = {
-      username: role === 'Admin' ? 'admin' : role === 'OT' ? 'ot_pin' : 'staff_oil',
-      password: '123',
-      fullname: role === 'Admin' ? 'ผู้ดูแลระบบ สุดหล่อ' : role === 'OT' ? 'ครูปิ่น ปิ่นมณี' : 'พนักงาน อัญชลี',
-      role: role
-    };
-    setCurrentUser(updatedUser);
-    localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
-    
-    // รีเซ็ตหน้ากลับไปหน้าหลักเพื่อไม่ให้เกิดข้อผิดพลาดของเมนู Admin
-    if ((role === 'Staff' || role === 'OT') && 
-        (activeTab === 'summaries' || activeTab === 'settings' || activeTab === 'users' || activeTab === 'salarySettings')) {
-      setActiveTab('dashboard');
-    }
-
-    Swal.fire({
-      icon: 'success',
-      title: `สลับบทบาทการใช้งานสำเร็จ`,
-      text: `ขณะนี้คุณกำลังใช้งานในสิทธิ์: ${role}`,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000
-    });
-  };
 
   // 10. รันหน้าสมัครงานภายนอก (สาธารณะ) เข้าได้เลยไม่ต้องผ่านเมนูSidebar และ Logn
   if (isApplyPage) {
@@ -430,7 +375,7 @@ export default function App() {
               <input 
                 type="text" 
                 className="form-control" 
-                placeholder="กรอกชื่อผู้ใช้ เช่น admin, staff_oil" 
+                placeholder="กรอกชื่อผู้ใช้งานระบบ" 
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 required
@@ -442,7 +387,7 @@ export default function App() {
               <input 
                 type="password" 
                 className="form-control" 
-                placeholder="กรอกรหัสผ่านจำลอง เช่น 123" 
+                placeholder="กรอกรหัสผ่าน" 
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 required
@@ -453,39 +398,6 @@ export default function App() {
               เข้าสู่ระบบบริหารคลินิก
             </button>
           </form>
-
-          {/* ปุ่มล็อกอินด่วนตามความต้องการเพื่อความรวดเร็วในการทดสอบ */}
-          <div className="login-quick-roles">
-            <div className="login-quick-roles-title">ล็อกอินด่วนสำหรับการตรวจเช็ค (Quick Login)</div>
-            <div className="login-role-buttons">
-              <button 
-                type="button" 
-                className="btn btn-primary" 
-                style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                onClick={() => { setLoginUsername('admin'); setLoginPassword('123'); setTimeout(() => document.forms[0].dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100); }}
-              >
-                <ShieldCheck size={14} /> Admin
-              </button>
-              
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                onClick={() => { setLoginUsername('staff_oil'); setLoginPassword('123'); setTimeout(() => document.forms[0].dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100); }}
-              >
-                <UserCheck2 size={14} /> Staff
-              </button>
-              
-              <button 
-                type="button" 
-                className="btn btn-light" 
-                style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                onClick={() => { setLoginUsername('ot_pin'); setLoginPassword('123'); setTimeout(() => document.forms[0].dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100); }}
-              >
-                <Landmark size={14} /> OT ครูปิ่น
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -505,20 +417,7 @@ export default function App() {
         clinicInfo={clinicInfo}
       />
 
-      {/* สวิตช์สลับบทบาทเข้าถึงแบบด่วนที่มุมบนขวา เพื่อความสะดวกของเจ้าของโปรเจ็กต์ในการเช็คงาน */}
-      <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 99, display: 'flex', gap: '0.5rem', alignItems: 'center' }} className="no-print">
-        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--dark-light)' }}>สลับบทบาทด่วน:</span>
-        <select 
-          className="form-control" 
-          value={currentUser.role}
-          onChange={(e) => handleRoleSelector(e.target.value)}
-          style={{ width: '110px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-        >
-          <option value="Admin">Admin</option>
-          <option value="OT">OT (ครูปิ่น)</option>
-          <option value="Staff">Staff</option>
-        </select>
-      </div>
+
 
       {/* 7. ส่วนแสดงเนื้อหา SPA ตามเมนูย่อย */}
       <div className="main-content">
@@ -698,7 +597,6 @@ export default function App() {
             setTherapists={setTherapists}
             holidays={holidays}
             setHolidays={setHolidays}
-            onResetAllData={handleResetAllData}
             onPrintAnnualHolidays={(year, list) => {
               setPrintView({ show: true, type: 'holidays_annual', data: { year, list } });
             }}
