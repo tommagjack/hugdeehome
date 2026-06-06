@@ -173,7 +173,7 @@ export default function PatientRegister({
         
         return matchesQuery && matchesStatus;
       })
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // ใหม่ไปเก่า
+      .sort((a, b) => String(b.hn || '').localeCompare(String(a.hn || ''))); // เรียง HN จากมากไปน้อย
   }, [patients, searchQuery, statusFilter]);
 
   const paginatedPatients = useMemo(() => {
