@@ -9,6 +9,7 @@ export default function PDFViewer({
   patients, 
   therapists,
   bankAccounts = [],
+  users = [],
   onClose 
 }) {
   const documentRef = useRef();
@@ -1007,6 +1008,293 @@ export default function PDFViewer({
     );
   };
 
+  // ฟังก์ชันแปลงตัวเลขเป็นอักษรไทยสำหรับสลิป
+  const thaiBahtText = (num) => {
+    if (num === 0) return 'ศูนย์บาทถ้วน';
+    const thaiNum = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const thaiUnit = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    
+    const parts = Number(num).toFixed(2).split('.');
+    const bahtStr = parts[0];
+    const satangStr = parts[1];
+    
+    let bahtText = '';
+    const len = bahtStr.length;
+    for (let i = 0; i < len; i++) {
+      const digit = Number(bahtStr[i]);
+      const unit = len - 1 - i;
+      if (digit !== 0) {
+        if (unit === 1 && digit === 1) {
+          bahtText += 'สิบ';
+        } else if (unit === 1 && digit === 2) {
+          bahtText += 'ยี่สิบ';
+        } else if (unit === 0 && digit === 1 && len > 1) {
+          bahtText += 'เอ็ด';
+        } else {
+          bahtText += thaiNum[digit];
+        }
+        bahtText += thaiUnit[unit];
+      }
+    }
+    if (bahtText !== '') bahtText += 'บาท';
+
+    let satangText = '';
+    if (satangStr !== '00') {
+      const digit1 = Number(satangStr[0]);
+      const digit2 = Number(satangStr[1]);
+      if (digit1 !== 0) {
+        if (digit1 === 1) satangText += 'สิบ';
+        else if (digit1 === 2) satangText += 'ยี่สิบ';
+        else satangText += thaiNum[digit1] + 'สิบ';
+      }
+      if (digit2 !== 0) {
+        if (digit2 === 1 && digit1 !== 0) satangText += 'เอ็ด';
+        else satangText += thaiNum[digit2];
+      }
+      satangText += 'สตางค์';
+    } else {
+      satangText += 'ถ้วน';
+    }
+
+    return bahtText + satangText;
+  };
+
+  const renderPayslip = () => {
+    const slip = documentData;
+    const isVoided = slip.status === 'ยกเลิก';
+    const userProfile = (users || []).find(u => u.username === slip.employeeUsername) || {};
+
+    return (
+      <div className="a4-document" ref={documentRef} id="printable-a4-area" style={{ paddingTop: '10mm' }}>
+        {isVoided && <div className="void-watermark">ยกเลิกสลิปนี้แล้ว (VOIDED)</div>}
+
+        <div className="a4-header" style={{ marginBottom: '15px', borderBottom: '2px solid var(--secondary)', paddingBottom: '10px' }}>
+          <div className="a4-header-left" style={{ width: '60%' }}>
+            <div className="a4-logo-circle">
+              {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" /> : <span>HUG</span>}
+            </div>
+            <div className="a4-clinic-details">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                {clinicInfo.name || 'คลินิกกิจกรรมบำบัด ฮักดีโฮม'}
+              </h2>
+              {clinicInfo.licenseNo && <span className="a4-clinic-subtext">ใบอนุญาตเลขที่: {clinicInfo.licenseNo}</span>}
+              <span className="a4-clinic-subtext" style={{ whiteSpace: 'nowrap', display: 'block' }}>ที่อยู่: {clinicInfo.address}</span>
+              <span className="a4-clinic-subtext">โทร: {clinicInfo.phone} | Line: {clinicInfo.lineId}</span>
+            </div>
+          </div>
+          <div className="a4-header-right" style={{ width: '40%' }}>
+            <span className="a4-doc-type-th" style={{ color: 'var(--secondary)', whiteSpace: 'nowrap', display: 'block', fontSize: '1.3rem' }}>
+              ใบเสร็จรับเงินเดือน / Payslip
+            </span>
+            <span className="a4-doc-type-en" style={{ whiteSpace: 'nowrap', display: 'block' }}>ใบเสร็จรับเงินเดือน</span>
+            
+            <div className="a4-doc-meta" style={{ marginTop: '10px' }}>
+              <span className="a4-doc-meta-label">เลขที่เอกสาร:</span>
+              <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontFamily: 'monospace' }}>{slip.id}</span>
+              <span className="a4-doc-meta-label">ประจำงวด:</span>
+              <span className="a4-doc-meta-value">{slip.month} {slip.year}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', fontSize: '12px', border: '1px solid #000', padding: '10px', borderRadius: '4px', backgroundColor: '#fafafa', marginBottom: '15px' }}>
+          <div>
+            <div><strong>รหัสพนักงาน:</strong> {slip.employeeId || '-'}</div>
+            <div><strong>ชื่อ-สกุล:</strong> {slip.employeeName}</div>
+            <div><strong>ตำแหน่งงาน:</strong> {userProfile.position || '-'}</div>
+          </div>
+          <div>
+            <div><strong>ธนาคาร:</strong> {userProfile.bankName || '-'}</div>
+            <div><strong>เลขที่บัญชี:</strong> {userProfile.bankAccountNo || '-'}</div>
+            <div><strong>วันที่จ่าย:</strong> {slip.paymentDate ? new Date(slip.paymentDate).toLocaleDateString('th-TH') : new Date(slip.created_at).toLocaleDateString('th-TH')}</div>
+          </div>
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000', fontSize: '12px', marginBottom: '15px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '1.5px solid #000' }}>
+              <th style={{ width: '50%', padding: '8px', borderRight: '1px solid #000', textAlign: 'left' }}>รายการรับ (Earnings)</th>
+              <th style={{ width: '50%', padding: '8px', textAlign: 'left' }}>รายการหัก (Deductions)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ verticalAlign: 'top', padding: '8px', borderRight: '1px solid #000', height: '180px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontWeight: 600 }}>
+                  <span>เงินเดือนพื้นฐาน (Basic Salary)</span>
+                  <span>฿{(slip.basicSalary || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                </div>
+                {(slip.earningsList || []).map((e, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>{e.name}</span>
+                    <span>฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+                {(slip.specialEarnings || []).map((e, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>{e.name} (รายรับพิเศษ)</span>
+                    <span>฿{e.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </td>
+              <td style={{ verticalAlign: 'top', padding: '8px', height: '180px' }}>
+                {(slip.deductionsList || []).map((d, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>{d.name}</span>
+                    <span>฿{d.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+                {(slip.specialDeductions || []).map((d, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>{d.name} (รายการหักพิเศษ)</span>
+                    <span>฿{d.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid #000', fontWeight: 700, backgroundColor: '#fafafa' }}>
+              <td style={{ padding: '8px', borderRight: '1px solid #000' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>รวมรายรับ (Total Earnings)</span>
+                  <span>฿{slip.totalEarnings.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </td>
+              <td style={{ padding: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>รวมรายการหัก (Total Deductions)</span>
+                  <span>฿{slip.totalDeductions.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #000', padding: '12px 15px', backgroundColor: '#f0f4f8', fontSize: '13px', borderRadius: '4px', marginBottom: '25px' }}>
+          <div><strong>ตัวอักษร:</strong> {thaiBahtText(slip.netPay)}</div>
+          <div><strong>รับสุทธิ (Net Pay):</strong> <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success)' }}>฿{slip.netPay.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span></div>
+        </div>
+
+        <div style={{ textAlign: 'center', fontSize: '11px', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '10px', marginBottom: '40px' }}>
+          "{clinicInfo.receiptFooter || 'ขอบคุณที่ร่วมงานกับเรา'}"
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', textAlign: 'center', fontSize: '11px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '180px', borderBottom: '1px solid #333', height: '45px', marginBottom: '6px' }}></div>
+            <div>ผู้รับเงิน / Employee Signature</div>
+            <div style={{ color: '#666', fontSize: '10px', marginTop: '2px' }}>วันที่: ______/______/______</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '180px', borderBottom: '1px solid #333', height: '45px', marginBottom: '6px' }}></div>
+            <div style={{ fontWeight: 600, fontSize: '11.5px', marginBottom: '2px' }}>(นางสาวสุทธิพร สมเนตร)</div>
+            <div>ผู้อนุมัติจ่าย / Employer Signature</div>
+            <div style={{ color: '#333', fontSize: '10px', marginTop: '2px' }}>วันที่: {slip.paymentDate ? new Date(slip.paymentDate).toLocaleDateString('th-TH') : new Date(slip.created_at).toLocaleDateString('th-TH')}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEmployeeProfile = () => {
+    const u = documentData;
+    
+    return (
+      <div className="a4-document" ref={documentRef} id="printable-a4-area" style={{ paddingTop: '10mm' }}>
+        <div className="a4-header" style={{ marginBottom: '25px', borderBottom: '2px solid var(--secondary)', paddingBottom: '10px' }}>
+          <div className="a4-header-left" style={{ width: '60%' }}>
+            <div className="a4-logo-circle">
+              {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" /> : <span>HUG</span>}
+            </div>
+            <div className="a4-clinic-details">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
+                {clinicInfo.name || 'คลินิกกิจกรรมบำบัด ฮักดีโฮม'}
+              </h2>
+              {clinicInfo.licenseNo && <span className="a4-clinic-subtext">ใบอนุญาตเลขที่: {clinicInfo.licenseNo}</span>}
+              <span className="a4-clinic-subtext" style={{ whiteSpace: 'nowrap', display: 'block' }}>ที่อยู่: {clinicInfo.address}</span>
+              <span className="a4-clinic-subtext">โทร: {clinicInfo.phone} | Line: {clinicInfo.lineId}</span>
+            </div>
+          </div>
+          <div className="a4-header-right" style={{ width: '40%' }}>
+            <span className="a4-doc-type-th" style={{ color: 'var(--secondary)', whiteSpace: 'nowrap', display: 'block', fontSize: '1.3rem' }}>
+              ทะเบียนประวัติพนักงาน
+            </span>
+            <span className="a4-doc-type-en" style={{ whiteSpace: 'nowrap', display: 'block' }}>Employee Profile Form</span>
+            
+            <div className="a4-doc-meta" style={{ marginTop: '10px' }}>
+              <span className="a4-doc-meta-label">รหัสพนักงาน:</span>
+              <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontFamily: 'monospace' }}>{u.employeeId || '-'}</span>
+              <span className="a4-doc-meta-label">สถานะการทำงาน:</span>
+              <span className="a4-doc-meta-value" style={{ fontWeight: 700, color: u.status === 'Active' ? 'green' : 'red' }}>{u.status}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden', marginBottom: '30px' }}>
+          <div style={{ backgroundColor: '#f8fafc', padding: '12px 15px', borderBottom: '1px solid #ddd', fontWeight: 700, fontSize: '14px', color: 'var(--secondary)' }}>
+            ข้อมูลทั่วไปพนักงาน (General Information)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0px', fontSize: '13px' }}>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
+              <strong>ชื่อ-นามสกุลจริง:</strong> {u.fullname || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
+              <strong>ชื่อเล่น:</strong> {u.nickname || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
+              <strong>ชื่อบัญชีผู้ใช้งาน (Username):</strong> {u.username}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
+              <strong>ตำแหน่งงาน:</strong> {u.position || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
+              <strong>สิทธิ์การใช้งานระบบ:</strong> {u.role === 'Admin' ? 'ผู้ดูแล (Admin)' : u.role === 'OT' ? 'นักบำบัด (OT)' : 'พนักงาน (Staff)'}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
+              <strong>เงินเดือนพื้นฐาน:</strong> {u.basicSalary ? `฿${u.basicSalary.toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : '฿0.00'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden', marginBottom: '30px' }}>
+          <div style={{ backgroundColor: '#f8fafc', padding: '12px 15px', borderBottom: '1px solid #ddd', fontWeight: 700, fontSize: '14px', color: 'var(--secondary)' }}>
+            ข้อมูลการติดต่อและการรับเงิน (Contact & Payment Details)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0px', fontSize: '13px' }}>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
+              <strong>เบอร์โทรศัพท์:</strong> {u.phone || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
+              <strong>อีเมล:</strong> {u.email || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', borderRight: '1px solid #eee', textAlign: 'left' }}>
+              <strong>ชื่อธนาคาร:</strong> {u.bankName || '-'}
+            </div>
+            <div style={{ padding: '10px 15px', textAlign: 'left' }}>
+              <strong>เลขที่บัญชีธนาคาร:</strong> {u.bankAccountNo || '-'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '80px', fontSize: '11px', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '15px' }}>
+          ข้าพเจ้าขอรับรองว่าข้อมูลรายละเอียดประวัติพนักงานดังกล่าวข้างต้นเป็นความจริงทุกประการ
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', textAlign: 'center', fontSize: '11.5px', marginTop: '40px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '180px', borderBottom: '1px solid #333', height: '40px', marginBottom: '6px' }}></div>
+            <div>ลงชื่อพนักงาน / Employee</div>
+            <div style={{ color: '#666', fontSize: '10px', marginTop: '2px' }}>วันที่: ______/______/______</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: '180px', borderBottom: '1px solid #333', height: '40px', marginBottom: '6px' }}></div>
+            <div>ผู้รับรองประวัติ / HR Officer</div>
+            <div style={{ color: '#333', fontSize: '10px', marginTop: '2px' }}>วันที่: ______/______/______</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div id="pdf-preview-overlay">
       <div className="pdf-preview-toolbar">
@@ -1029,6 +1317,8 @@ export default function PDFViewer({
       {documentType === 'receipt' && renderReceipt()}
       {(documentType === 'opd_blank' || documentType === 'opd_form' || documentType === 'opd_filled') && renderOPDCard()}
       {documentType === 'holidays_annual' && renderAnnualHolidays()}
+      {documentType === 'payslip' && renderPayslip()}
+      {documentType === 'employee' && renderEmployeeProfile()}
     </div>
   );
 }

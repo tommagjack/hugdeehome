@@ -1044,6 +1044,7 @@ export default function App() {
           <Users 
             users={users}
             setUsers={setUsers}
+            setPrintView={setPrintView}
           />
         )}
 
@@ -1055,6 +1056,7 @@ export default function App() {
             payrolls={payrolls}
             setPayrolls={setPayrolls}
             clinicInfo={clinicInfo}
+            setPrintView={setPrintView}
           />
         )}
 
@@ -1104,6 +1106,7 @@ export default function App() {
           patients={patients}
           therapists={therapists}
           bankAccounts={bankAccounts}
+          users={users}
           onClose={() => setPrintView({ show: false, type: 'receipt', data: null })}
         />
       )}

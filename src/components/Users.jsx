@@ -5,7 +5,8 @@ import {
   Edit3, 
   Trash2,
   Download,
-  Upload
+  Upload,
+  Printer
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
@@ -49,7 +50,7 @@ const getNextEmployeeId = (userList) => {
   return `HDH${String(maxId + 1).padStart(3, '0')}`;
 };
 
-export default function Users({ users, setUsers }) {
+export default function Users({ users, setUsers, setPrintView }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUsername, setEditingUsername] = useState(null);
   
@@ -609,6 +610,9 @@ export default function Users({ users, setUsers }) {
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
                         <button className="btn btn-light btn-icon-only" onClick={() => handleEditUser(u)} title="แก้ไขข้อมูล" type="button">
                           <Edit3 size={14} color="var(--secondary)" />
+                        </button>
+                        <button className="btn btn-light btn-icon-only" onClick={() => setPrintView && setPrintView({ show: true, type: 'employee', data: u })} title="พิมพ์ข้อมูลพนักงาน" type="button">
+                          <Printer size={14} color="var(--primary)" />
                         </button>
                         <button className="btn btn-light btn-icon-only" onClick={() => handleDeleteUser(u.username)} title="ลบผู้ใช้" type="button">
                           <Trash2 size={14} color="var(--danger)" />

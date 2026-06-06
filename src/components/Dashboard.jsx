@@ -40,7 +40,7 @@ export default function Dashboard({
   }, [patients, totalPatients]);
 
   const todayAppointmentsCount = useMemo(() => {
-    return appointments.filter(app => app.date === '2026-06-05' && app.status !== 'ยกเลิก').length;
+    return appointments.filter(app => app.date && app.date.split('T')[0] === '2026-06-05' && app.status !== 'ยกเลิก').length;
   }, [appointments]);
 
   const monthlySales = useMemo(() => {
@@ -56,7 +56,7 @@ export default function Dashboard({
   // 2. ตารางนัดหมายตามวันที่เลือก
   const filteredAppointments = useMemo(() => {
     return appointments
-      .filter(app => app.date === selectedDate)
+      .filter(app => app.date && app.date.split('T')[0] === selectedDate)
       .map(app => {
         const patient = patients.find(p => p.hn === app.hn);
         const therapist = therapists.find(t => t.id === app.therapistId);

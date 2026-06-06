@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-export default function Salary({ currentUser, users, salaryRules, payrolls, setPayrolls, clinicInfo }) {
+export default function Salary({ currentUser, users, salaryRules, payrolls, setPayrolls, clinicInfo, setPrintView }) {
   const [filterYear, setFilterYear] = useState('All');
   const [filterMonth, setFilterMonth] = useState('All');
   const [filterUser, setFilterUser] = useState('All');
@@ -156,9 +156,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
       if (appliedDeductions[rule.id]) {
         let amount = 0;
         if (rule.type === 'เปอร์เซ็นต์ (%)') {
-          // ประกันสังคม 5% ของเงินเดือนพื้นฐาน หรือภาษี 3% ของฐาน
-          // คำนวณอิงเงินเดือนพื้นฐาน
-          amount = (basicSalary * (Number(rule.value) || 0)) / 100;
+          // ภาษีคำนวนจากยอดรวมรับ ประกันสังคมคำนวนจากฐานเงินเดือน
+          const nameLower = String(rule.name || '').toLowerCase();
+          const isTax = nameLower.includes('ภาษี') || nameLower.includes('tax');
+          const baseForCalc = isTax ? calcTotalEarnings : basicSalary;
+          
+          amount = (baseForCalc * (Number(rule.value) || 0)) / 100;
           if (rule.maxLimit && amount > Number(rule.maxLimit)) {
             amount = Number(rule.maxLimit);
           }
@@ -858,7 +861,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
             <div className="modal-header no-print">
               <h3 style={{ fontWeight: 700 }}>ใบเสร็จรับเงินเดือน (Payslip)</h3>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <button className="btn btn-secondary" onClick={() => window.print()} style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <button className="btn btn-secondary" onClick={() => {
+                  setShowSlipModal(false);
+                  if (setPrintView) {
+                    setPrintView({ show: true, type: 'payslip', data: selectedSlip });
+                  }
+                }} style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                   <Printer size={14} /> พิมพ์สลิป
                 </button>
                 <button className="close-modal-btn" onClick={() => setShowSlipModal(false)}><X size={18} /></button>

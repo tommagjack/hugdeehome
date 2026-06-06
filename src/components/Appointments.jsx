@@ -50,6 +50,7 @@ export default function Appointments({
   
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterDate, setFilterDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Search states for custom patient dropdown
@@ -62,7 +63,7 @@ export default function Appointments({
   // Reset page when filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, filterDate]);
 
   // กรองผู้ป่วยที่ Active เท่านั้นสำหรับการจองนัดหมาย
   const activePatients = useMemo(() => {
@@ -133,7 +134,7 @@ export default function Appointments({
   const therapistBookedSlots = useMemo(() => {
     if (!bookingDate || !selectedTherapistId) return [];
     return appointments
-      .filter(app => app.date === bookingDate && app.therapistId === selectedTherapistId && app.status !== 'ยกเลิก' && app.id !== editingAppointmentId)
+      .filter(app => app.date && app.date.split('T')[0] === bookingDate && app.therapistId === selectedTherapistId && app.status !== 'ยกเลิก' && app.id !== editingAppointmentId)
       .map(app => app.timeSlot);
   }, [bookingDate, selectedTherapistId, appointments, editingAppointmentId]);
 
@@ -353,11 +354,13 @@ export default function Appointments({
           String(app.patientName || '').toLowerCase().includes(query) ||
           (app.patientNickname && String(app.patientNickname).toLowerCase().includes(query));
           
-        return matchesStatus && matchesQuery;
+        const matchesDate = !filterDate || (app.date && app.date.split('T')[0] === filterDate);
+          
+        return matchesStatus && matchesQuery && matchesDate;
       })
       // เรียงจากวันที่นัดหมายล่าสุดและเวลานัดหมายล่าสุด
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.timeSlot).localeCompare(String(a.timeSlot)));
-  }, [appointments, patients, therapists, statusFilter, searchQuery]);
+  }, [appointments, patients, therapists, statusFilter, searchQuery, filterDate]);
 
   const paginatedAppointments = useMemo(() => {
     const itemsPerPage = 20;
@@ -774,6 +777,28 @@ export default function Appointments({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ paddingRight: '2.5rem' }}
               />
+            </div>
+
+            {/* ค้นหาจากวันที่ */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--dark-light)' }}>วันที่:</span>
+              <input 
+                type="date" 
+                className="form-control" 
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{ width: '150px', padding: '0.45rem' }}
+              />
+              {filterDate && (
+                <button 
+                  type="button"
+                  className="btn btn-link btn-sm" 
+                  onClick={() => setFilterDate('')}
+                  style={{ color: 'var(--danger)', padding: 0, fontSize: '0.85rem', textDecoration: 'none', marginLeft: '0.25rem' }}
+                >
+                  ล้าง
+                </button>
+              )}
             </div>
 
             {/* ตัวกรองสถานะนัดหมาย */}

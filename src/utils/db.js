@@ -136,7 +136,13 @@ export const syncFromSupabase = async () => {
     if (result.status === 'success' && result.data) {
       // อัปเดตข้อมูลลง LocalStorage
       Object.keys(result.data).forEach(key => {
-        localStorage.setItem(key, JSON.stringify(result.data[key]));
+        let val = result.data[key];
+        if ((key === KEYS.SALARY_RULES || key === 'hdh_salary_rules' || key === 'salary_rules') && Array.isArray(val)) {
+          const earnings = val.filter(row => row.ruleType === 'earning' || (row.id && String(row.id).startsWith('earn'))).map(({ ruleType, ...rest }) => rest);
+          const deductions = val.filter(row => row.ruleType === 'deduction' || (row.id && String(row.id).startsWith('ded'))).map(({ ruleType, ...rest }) => rest);
+          val = { earnings, deductions };
+        }
+        localStorage.setItem(key, JSON.stringify(val));
       });
       return true;
     }
@@ -153,6 +159,12 @@ export const syncToSupabase = async (key, value) => {
   let finalValue = value;
   if (key === KEYS.CLINIC_INFO || key === 'hdh_clinic_info') {
     finalValue = Array.isArray(value) ? value : [value];
+  } else if (key === KEYS.SALARY_RULES || key === 'hdh_salary_rules' || key === 'salary_rules') {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const earningsRows = (value.earnings || []).map(item => ({ ...item, ruleType: 'earning' }));
+      const deductionsRows = (value.deductions || []).map(item => ({ ...item, ruleType: 'deduction' }));
+      finalValue = [...earningsRows, ...deductionsRows];
+    }
   }
 
   try {
