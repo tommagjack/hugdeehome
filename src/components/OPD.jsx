@@ -33,7 +33,12 @@ export default function OPD({
   
   // สถานะแบ่งหน้าของตารางประวัติ
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยนคนไข้หรือคำค้นหา
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedHn, searchQuery]);
 
   // ฟอร์มข้อมูลการฝึก
   const [formDate, setFormDate] = useState('2026-06-05'); // อิงเวลาของระบบ
@@ -70,8 +75,8 @@ export default function OPD({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       records = records.filter(r => 
-        r.details.toLowerCase().includes(q) || 
-        r.therapist.toLowerCase().includes(q)
+        String(r.details || '').toLowerCase().includes(q) || 
+        String(r.therapist || '').toLowerCase().includes(q)
       );
     }
     

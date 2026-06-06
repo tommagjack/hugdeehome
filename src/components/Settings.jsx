@@ -38,6 +38,25 @@ export default function Settings({
   const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users, integration
   const fileInputRef = useRef(null);
 
+  const [localClinicInfo, setLocalClinicInfo] = useState(clinicInfo);
+
+  React.useEffect(() => {
+    if (clinicInfo) {
+      setLocalClinicInfo(clinicInfo);
+    }
+  }, [clinicInfo]);
+
+  const handleSaveClinicInfo = () => {
+    setClinicInfo(localClinicInfo);
+    Swal.fire({
+      icon: 'success',
+      title: 'บันทึกข้อมูลคลินิกเรียบร้อย',
+      text: 'ระบบได้บันทึกข้อมูลและซิงค์ไปยัง Google Sheets เรียบร้อยแล้ว',
+      timer: 1500,
+      showConfirmButton: false
+    });
+  };
+
   const todayStr = '2026-06-05'; // วันที่จำลองระบบ
 
   // integration states
@@ -819,46 +838,46 @@ function saveTableToSheet(key, list) {
                 <div className="form-row">
                   <div className="form-group" style={{ flex: 1.5 }}>
                     <label className="form-label">ชื่อคลินิก</label>
-                    <input type="text" className="form-control" value={clinicInfo.name} onChange={(e) => setClinicInfo({ ...clinicInfo, name: e.target.value })} />
+                    <input type="text" className="form-control" value={localClinicInfo?.name || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, name: e.target.value })} />
                   </div>
                   <div className="form-group" style={{ flex: 2 }}>
                     <label className="form-label">ประเภทคลินิก</label>
-                    <input type="text" className="form-control" placeholder="เช่น คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด" value={clinicInfo.type || ''} onChange={(e) => setClinicInfo({ ...clinicInfo, type: e.target.value })} />
+                    <input type="text" className="form-control" placeholder="เช่น คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด" value={localClinicInfo?.type || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, type: e.target.value })} />
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
                     <label className="form-label">ใบอนุญาตเลขที่</label>
-                    <input type="text" className="form-control" value={clinicInfo.licenseNo} onChange={(e) => setClinicInfo({ ...clinicInfo, licenseNo: e.target.value })} />
+                    <input type="text" className="form-control" value={localClinicInfo?.licenseNo || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, licenseNo: e.target.value })} />
                   </div>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">เบอร์โทรศัพท์คลินิก</label>
-                    <input type="tel" className="form-control" value={clinicInfo.phone} onChange={(e) => setClinicInfo({ ...clinicInfo, phone: e.target.value })} />
+                    <input type="tel" className="form-control" value={localClinicInfo?.phone || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, phone: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">อีเมลติดต่อ</label>
-                    <input type="email" className="form-control" value={clinicInfo.email} onChange={(e) => setClinicInfo({ ...clinicInfo, email: e.target.value })} />
+                    <input type="email" className="form-control" value={localClinicInfo?.email || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, email: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Line ID คลินิก</label>
-                    <input type="text" className="form-control" value={clinicInfo.lineId} onChange={(e) => setClinicInfo({ ...clinicInfo, lineId: e.target.value })} />
+                    <input type="text" className="form-control" value={localClinicInfo?.lineId || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, lineId: e.target.value })} />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">ที่อยู่คลินิก</label>
-                  <textarea className="form-control" rows="2" value={clinicInfo.address} onChange={(e) => setClinicInfo({ ...clinicInfo, address: e.target.value })}></textarea>
+                  <textarea className="form-control" rows="2" value={localClinicInfo?.address || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, address: e.target.value })}></textarea>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">URL รูปโลโก้คลินิก</label>
-                    <input type="url" className="form-control" value={clinicInfo.logoUrl} onChange={(e) => setClinicInfo({ ...clinicInfo, logoUrl: e.target.value })} />
+                    <input type="url" className="form-control" value={localClinicInfo?.logoUrl || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, logoUrl: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">URL ตราประทับคลินิก (สำหรับใบเสร็จ)</label>
-                    <input type="url" className="form-control" value={clinicInfo.stampUrl} onChange={(e) => setClinicInfo({ ...clinicInfo, stampUrl: e.target.value })} />
+                    <input type="url" className="form-control" value={localClinicInfo?.stampUrl || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, stampUrl: e.target.value })} />
                   </div>
                 </div>
 
@@ -869,8 +888,8 @@ function saveTableToSheet(key, list) {
                       type="text" 
                       className="form-control" 
                       placeholder="ระบุ Folder ID ในระบบคลาวด์ เช่น 1A2B3C4D5E..." 
-                      value={clinicInfo.folderId || ''} 
-                      onChange={(e) => setClinicInfo({ ...clinicInfo, folderId: e.target.value })} 
+                      value={localClinicInfo?.folderId || ''} 
+                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, folderId: e.target.value })} 
                     />
                   </div>
                   <div className="form-group">
@@ -879,19 +898,19 @@ function saveTableToSheet(key, list) {
                       type="url" 
                       className="form-control" 
                       placeholder="ระบุลิงก์ เช่น https://drive.google.com/drive/folders/..." 
-                      value={clinicInfo.folderUrl || ''} 
-                      onChange={(e) => setClinicInfo({ ...clinicInfo, folderUrl: e.target.value })} 
+                      value={localClinicInfo?.folderUrl || ''} 
+                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, folderUrl: e.target.value })} 
                     />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">ข้อความส่วนท้ายใบเสร็จรับเงิน</label>
-                  <input type="text" className="form-control" value={clinicInfo.receiptFooter} onChange={(e) => setClinicInfo({ ...clinicInfo, receiptFooter: e.target.value })} />
+                  <input type="text" className="form-control" value={localClinicInfo?.receiptFooter || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, receiptFooter: e.target.value })} />
                 </div>
 
                 <div style={{ marginTop: '1rem' }}>
-                  <button className="btn btn-secondary" onClick={() => Swal.fire('สำเร็จ', 'บันทึกข้อมูลคลินิกเรียบร้อย', 'success')}>
+                  <button type="button" className="btn btn-secondary" onClick={handleSaveClinicInfo}>
                     บันทึกข้อมูลทั่วไป
                   </button>
                 </div>

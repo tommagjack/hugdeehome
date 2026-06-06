@@ -29,6 +29,12 @@ export default function ReceiptHistory({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMonth, setFilterMonth] = useState('All'); // All, 01-12
   const [filterYear, setFilterYear] = useState('2026');   // All, 2026, ฯลฯ
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยนตัวกรองหรือคำค้นหา
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterMonth, filterYear]);
 
   // ตรวจสอบบทบาทของบัญชีผู้ใช้
   const isAdmin = currentUser?.role === 'Admin';
@@ -310,10 +316,10 @@ export default function ReceiptHistory({
         // ค้นหา
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = 
-          r.id.toLowerCase().includes(query) ||
-          r.hn.toLowerCase().includes(query) ||
-          r.patientName.toLowerCase().includes(query) ||
-          (r.patientNickname && r.patientNickname.toLowerCase().includes(query));
+          String(r.id || '').toLowerCase().includes(query) ||
+          String(r.hn || '').toLowerCase().includes(query) ||
+          String(r.patientName || '').toLowerCase().includes(query) ||
+          (r.patientNickname && String(r.patientNickname).toLowerCase().includes(query));
 
         // กรองปี
         const dateParts = r.date.split('-'); // YYYY-MM-DD
@@ -327,6 +333,14 @@ export default function ReceiptHistory({
       })
       .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)); // เรียงรหัสใบเสร็จล่าสุดขึ้นก่อน (ใหม่ไปเก่า)
   }, [receipts, patients, searchQuery, filterMonth, filterYear]);
+
+  const paginatedReceipts = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredReceipts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredReceipts, currentPage]);
+
+  const maxPages = Math.ceil(filteredReceipts.length / 20) || 1;
 
   // จัดการยกเลิกบิล (Void)
   const handleVoidClick = (id) => {
@@ -435,14 +449,14 @@ export default function ReceiptHistory({
               </tr>
             </thead>
             <tbody>
-              {filteredReceipts.length === 0 ? (
+              {paginatedReceipts.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '4rem', color: 'var(--dark-light)' }}>
                     ไม่พบข้อมูลบิลการเงินตามเงื่อนไขที่ระบุ
                   </td>
                 </tr>
               ) : (
-                filteredReceipts.map((r) => {
+                paginatedReceipts.map((r) => {
                   const isVoided = r.status === 'ยกเลิก';
                   const isDraft = r.status === 'รอชำระเงิน';
                   
@@ -548,9 +562,31 @@ export default function ReceiptHistory({
             </tbody>
           </table>
         </div>
+
+        {maxPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+              type="button"
+            >
+              ก่อนหน้า
+            </button>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === maxPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              type="button"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
         
         <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '1rem' }}>
-          รวมเอกสารทั้งหมด {filteredReceipts.length} รายการ (เรียงจากเลขบิลล่าสุด)
+          แสดง {filteredReceipts.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredReceipts.length)} จากทั้งหมด {filteredReceipts.length} รายการ (เรียงจากเลขบิลล่าสุด)
         </div>
       </div>
     </div>

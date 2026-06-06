@@ -77,6 +77,12 @@ export default function DevelopmentalAssessment({
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // ดึงข้อมูลผู้ป่วยที่เลือกเพื่อคำนวณอายุ
   const selectedPatient = useMemo(() => {
@@ -263,12 +269,20 @@ export default function DevelopmentalAssessment({
     if (!searchQuery.trim()) return assessmentsList;
     const q = searchQuery.toLowerCase().trim();
     return assessmentsList.filter(item => {
-      const fullname = item.patientName.toLowerCase();
-      const nickname = item.patientNickname.toLowerCase();
-      const hn = item.hn.toLowerCase();
+      const fullname = String(item.patientName || '').toLowerCase();
+      const nickname = String(item.patientNickname || '').toLowerCase();
+      const hn = String(item.hn || '').toLowerCase();
       return hn.includes(q) || nickname.includes(q) || fullname.includes(q);
     });
   }, [assessmentsList, searchQuery]);
+
+  const paginatedAssessments = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAssessmentsList.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAssessmentsList, currentPage]);
+
+  const maxPages = Math.ceil(filteredAssessmentsList.length / 20) || 1;
 
   const handleDelete = (id) => {
     Swal.fire({
@@ -546,14 +560,14 @@ export default function DevelopmentalAssessment({
               </tr>
             </thead>
             <tbody>
-              {filteredAssessmentsList.length === 0 ? (
+              {paginatedAssessments.length === 0 ? (
                 <tr>
                   <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                     {searchQuery.trim() ? 'ไม่พบข้อมูลประเมินพัฒนาการที่ตรงกับคำค้นหา' : 'ยังไม่มีประวัติการประเมินบันทึกไว้ในระบบ'}
                   </td>
                 </tr>
               ) : (
-                filteredAssessmentsList.map((item) => (
+                paginatedAssessments.map((item) => (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{item.id}</td>
                     <td>{new Date(item.date).toLocaleDateString('th-TH')}</td>
@@ -613,6 +627,32 @@ export default function DevelopmentalAssessment({
               )}
             </tbody>
           </table>
+        </div>
+
+        {maxPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+              type="button"
+            >
+              ก่อนหน้า
+            </button>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === maxPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              type="button"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
+
+        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
+          แสดง {filteredAssessmentsList.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredAssessmentsList.length)} จากทั้งหมด {filteredAssessmentsList.length} รายการ (เรียงจากล่าสุด)
         </div>
       </div>
 

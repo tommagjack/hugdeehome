@@ -50,6 +50,7 @@ export default function Appointments({
   
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Search states for custom patient dropdown
   const [patientSearchText, setPatientSearchText] = useState('');
@@ -57,6 +58,11 @@ export default function Appointments({
 
   // ตัวกรองสำหรับตารางด้านขวา
   const [statusFilter, setStatusFilter] = useState('All'); // All, จองแล้ว, ยืนยันแล้ว, รับบริการแล้ว, ยกเลิก
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   // กรองผู้ป่วยที่ Active เท่านั้นสำหรับการจองนัดหมาย
   const activePatients = useMemo(() => {
@@ -81,10 +87,10 @@ export default function Appointments({
     const q = patientSearchText.trim().toLowerCase();
     if (!q || q.startsWith('hn:')) return activePatients;
     return activePatients.filter(p => 
-      p.hn.toLowerCase().includes(q) || 
-      p.nickname.toLowerCase().includes(q) ||
-      p.firstname.toLowerCase().includes(q) ||
-      p.lastname.toLowerCase().includes(q)
+      String(p.hn || '').toLowerCase().includes(q) || 
+      String(p.nickname || '').toLowerCase().includes(q) ||
+      String(p.firstname || '').toLowerCase().includes(q) ||
+      String(p.lastname || '').toLowerCase().includes(q)
     );
   }, [activePatients, patientSearchText]);
 
@@ -322,13 +328,13 @@ export default function Appointments({
 
   // 7. รายการนัดหมายทั้งหมดที่จะแสดงในตารางพร้อมตัวกรอง
   const filteredAppointments = useMemo(() => {
-    return appointments
+    return (appointments || [])
       .map(app => {
-        const patient = patients.find(p => p.hn === app.hn);
-        const therapist = therapists.find(t => t.id === app.therapistId);
+        const patient = (patients || []).find(p => p.hn === app.hn);
+        const therapist = (therapists || []).find(t => t.id === app.therapistId);
         let tNickname = 'ไม่ระบุชื่อครู';
         if (therapist) {
-          tNickname = therapist.nickname.startsWith('ครู') ? therapist.nickname : `ครู${therapist.nickname}`;
+          tNickname = String(therapist.nickname).startsWith('ครู') ? therapist.nickname : `ครู${therapist.nickname}`;
         }
         return {
           ...app,
@@ -343,15 +349,23 @@ export default function Appointments({
         
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = !query || 
-          app.hn.toLowerCase().includes(query) ||
-          app.patientName.toLowerCase().includes(query) ||
-          (app.patientNickname && app.patientNickname.toLowerCase().includes(query));
+          String(app.hn || '').toLowerCase().includes(query) ||
+          String(app.patientName || '').toLowerCase().includes(query) ||
+          (app.patientNickname && String(app.patientNickname).toLowerCase().includes(query));
           
         return matchesStatus && matchesQuery;
       })
       // เรียงจากวันที่นัดหมายล่าสุดและเวลานัดหมายล่าสุด
-      .sort((a, b) => b.date.localeCompare(a.date) || b.timeSlot.localeCompare(a.timeSlot));
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.timeSlot).localeCompare(String(a.timeSlot)));
   }, [appointments, patients, therapists, statusFilter, searchQuery]);
+
+  const paginatedAppointments = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAppointments.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAppointments, currentPage]);
+
+  const maxPages = Math.ceil(filteredAppointments.length / 20) || 1;
 
   const handleExportCSV = () => {
     const headers = [
@@ -813,14 +827,14 @@ export default function Appointments({
                 </tr>
               </thead>
               <tbody>
-                {filteredAppointments.length === 0 ? (
+                {paginatedAppointments.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                       ไม่พบประวัตินัดหมายตามตัวกรองที่ระบุ
                     </td>
                   </tr>
                 ) : (
-                  filteredAppointments.map((app) => (
+                  paginatedAppointments.map((app) => (
                     <tr key={app.id}>
                       <td>
                         <div style={{ fontWeight: 600 }}>
@@ -901,8 +915,30 @@ export default function Appointments({
             </table>
           </div>
 
+          {maxPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+              <button 
+                className="btn btn-light" 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                type="button"
+              >
+                ก่อนหน้า
+              </button>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+              <button 
+                className="btn btn-light" 
+                disabled={currentPage === maxPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                type="button"
+              >
+                ถัดไป
+              </button>
+            </div>
+          )}
+
           <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
-            นัดหมายทั้งหมด {filteredAppointments.length} รายการ (เรียงจากล่าสุด)
+            แสดง {filteredAppointments.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredAppointments.length)} จากทั้งหมด {filteredAppointments.length} รายการ (เรียงจากล่าสุด)
           </div>
         </div>
 

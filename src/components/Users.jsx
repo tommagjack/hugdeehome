@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Users2, 
   Plus, 
@@ -84,6 +84,12 @@ export default function Users({ users, setUsers }) {
   const [uOtherDoc, setUOtherDoc] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยนคำค้นหา
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // ฟังก์ชันอัปโหลดไฟล์จำลองและแปลงเป็น Base64
   const handleFileUpload = (e, setDocState, docType) => {
@@ -469,26 +475,36 @@ export default function Users({ users, setUsers }) {
   };
 
   // ค้นหาพนักงาน
-  const filteredUsers = users
-    .filter(u => {
-      if (u.username.toLowerCase() === 'admin') return false;
-      const query = searchQuery.trim().toLowerCase();
-      if (!query) return true;
-      return (
-        u.username.toLowerCase().includes(query) ||
-        u.fullname.toLowerCase().includes(query) ||
-        (u.nickname && u.nickname.toLowerCase().includes(query)) ||
-        (u.employeeId && u.employeeId.toLowerCase().includes(query)) ||
-        (u.position && u.position.toLowerCase().includes(query))
-      );
-    })
-    .sort((a, b) => {
-      const dateA = a.startDate || '';
-      const dateB = b.startDate || '';
-      const empIdA = a.employeeId || '';
-      const empIdB = b.employeeId || '';
-      return dateB.localeCompare(dateA) || empIdB.localeCompare(empIdA);
-    });
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter(u => {
+        if (u.username.toLowerCase() === 'admin') return false;
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return true;
+        return (
+          String(u.username || '').toLowerCase().includes(query) ||
+          String(u.fullname || '').toLowerCase().includes(query) ||
+          (u.nickname && String(u.nickname).toLowerCase().includes(query)) ||
+          (u.employeeId && String(u.employeeId).toLowerCase().includes(query)) ||
+          (u.position && String(u.position).toLowerCase().includes(query))
+        );
+      })
+      .sort((a, b) => {
+        const dateA = a.startDate || '';
+        const dateB = b.startDate || '';
+        const empIdA = a.employeeId || '';
+        const empIdB = b.employeeId || '';
+        return dateB.localeCompare(dateA) || empIdB.localeCompare(empIdA);
+      });
+  }, [users, searchQuery]);
+
+  const paginatedUsers = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredUsers, currentPage]);
+
+  const maxPages = Math.ceil(filteredUsers.length / 20) || 1;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -560,14 +576,14 @@ export default function Users({ users, setUsers }) {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length === 0 ? (
+              {paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                     ไม่พบข้อมูลผู้ใช้งานพนักงานในระบบ
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map(u => (
+                paginatedUsers.map(u => (
                   <tr key={u.username}>
                     <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{u.employeeId || '-'}</td>
                     <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{u.username}</td>
@@ -593,10 +609,10 @@ export default function Users({ users, setUsers }) {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
-                        <button className="btn btn-light btn-icon-only" onClick={() => handleEditUser(u)} title="แก้ไขข้อมูล">
+                        <button className="btn btn-light btn-icon-only" onClick={() => handleEditUser(u)} title="แก้ไขข้อมูล" type="button">
                           <Edit3 size={14} color="var(--secondary)" />
                         </button>
-                        <button className="btn btn-light btn-icon-only" onClick={() => handleDeleteUser(u.username)} title="ลบผู้ใช้">
+                        <button className="btn btn-light btn-icon-only" onClick={() => handleDeleteUser(u.username)} title="ลบผู้ใช้" type="button">
                           <Trash2 size={14} color="var(--danger)" />
                         </button>
                       </div>
@@ -606,6 +622,32 @@ export default function Users({ users, setUsers }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {maxPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+              type="button"
+            >
+              ก่อนหน้า
+            </button>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === maxPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              type="button"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
+
+        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
+          แสดง {filteredUsers.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredUsers.length)} จากทั้งหมด {filteredUsers.length} รายการ (เรียงจากล่าสุด)
         </div>
       </div>
 

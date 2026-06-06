@@ -14,10 +14,15 @@ import {
 import Swal from 'sweetalert2';
 
 export default function Salary({ currentUser, users, salaryRules, payrolls, setPayrolls, clinicInfo }) {
-  // ตัวกรอง
   const [filterYear, setFilterYear] = useState('All');
   const [filterMonth, setFilterMonth] = useState('All');
   const [filterUser, setFilterUser] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยนตัวกรอง
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [filterYear, filterMonth, filterUser]);
 
   // สถานะคำนวณเงินเดือน
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -100,6 +105,14 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
         return monthValB - monthValA;
       });
   }, [payrolls, filterYear, filterMonth, filterUser, currentUser]);
+
+  const paginatedPayrolls = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredPayrolls.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredPayrolls, currentPage]);
+
+  const maxPages = Math.ceil(filteredPayrolls.length / 20) || 1;
 
   // คำนวณเงินเดือนเรียลไทม์
   const calculationResults = useMemo(() => {
@@ -515,14 +528,14 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
               </tr>
             </thead>
             <tbody>
-              {filteredPayrolls.length === 0 ? (
+              {paginatedPayrolls.length === 0 ? (
                 <tr>
                   <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                     ไม่พบข้อมูลประวัติการทำจ่ายเงินเดือน
                   </td>
                 </tr>
               ) : (
-                filteredPayrolls.map(p => (
+                paginatedPayrolls.map(p => (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 700 }}>{p.month}/{p.year}</td>
                     <td>{p.employeeName} <span style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>({p.employeeId})</span></td>
@@ -537,7 +550,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                       <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                         <button 
                           className="btn btn-light" 
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.2' }} // wait, let's keep gap: '0.2rem'
                           onClick={() => { setSelectedSlip(p); setShowSlipModal(true); }}
                         >
                           <Eye size={12} /> Slip
@@ -548,6 +561,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                               className="btn btn-light btn-icon-only" 
                               onClick={() => handleEditPayroll(p)}
                               title="แก้ไขการคำนวณ"
+                              type="button"
                             >
                               <Edit size={13} color="var(--secondary)" />
                             </button>
@@ -555,6 +569,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                               className="btn btn-light btn-icon-only" 
                               onClick={() => handleDeletePayroll(p.id)}
                               title="ลบรายการ"
+                              type="button"
                             >
                               <Trash2 size={13} color="var(--danger)" />
                             </button>
@@ -567,6 +582,32 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
               )}
             </tbody>
           </table>
+        </div>
+
+        {maxPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+              type="button"
+            >
+              ก่อนหน้า
+            </button>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+            <button 
+              className="btn btn-light" 
+              disabled={currentPage === maxPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              type="button"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
+
+        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
+          แสดง {filteredPayrolls.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredPayrolls.length)} จากทั้งหมด {filteredPayrolls.length} รายการ
         </div>
       </div>
 

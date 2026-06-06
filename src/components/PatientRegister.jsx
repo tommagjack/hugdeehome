@@ -47,6 +47,11 @@ export default function PatientRegister({
   const isAdmin = currentUser?.role === 'Admin';
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All'); // All, Active, Pending, Inactive
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
   
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
@@ -170,6 +175,14 @@ export default function PatientRegister({
       })
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // ใหม่ไปเก่า
   }, [patients, searchQuery, statusFilter]);
+
+  const paginatedPatients = useMemo(() => {
+    const itemsPerPage = 20;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredPatients.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredPatients, currentPage]);
+
+  const maxPages = Math.ceil(filteredPatients.length / 20) || 1;
 
   // 6. ล้างข้อมูลฟอร์ม
   const resetForm = () => {
@@ -813,14 +826,14 @@ export default function PatientRegister({
                 </tr>
               </thead>
               <tbody>
-                {filteredPatients.length === 0 ? (
+                {paginatedPatients.length === 0 ? (
                   <tr>
                     <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                       ไม่พบข้อมูลผู้รับบริการตามตัวกรองนี้
                     </td>
                   </tr>
                 ) : (
-                  filteredPatients.map((p) => (
+                  paginatedPatients.map((p) => (
                     <tr key={p.hn}>
                       <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{p.hn}</td>
                       <td>
@@ -844,6 +857,7 @@ export default function PatientRegister({
                             className="btn btn-light btn-icon-only" 
                             title="ดูข้อมูลอย่างละเอียด"
                             onClick={() => handleViewDetails(p)}
+                            type="button"
                           >
                             <Eye size={16} color="var(--dark)" />
                           </button>
@@ -852,6 +866,7 @@ export default function PatientRegister({
                             className="btn btn-light btn-icon-only" 
                             title="แก้ไขข้อมูล"
                             onClick={() => handleEditClick(p)}
+                            type="button"
                           >
                             <Edit2 size={16} color="var(--secondary)" />
                           </button>
@@ -860,6 +875,7 @@ export default function PatientRegister({
                             className="btn btn-light btn-icon-only" 
                             title="พิมพ์ประวัติผู้ป่วย (PDF)"
                             onClick={() => onPrintPatient(p.hn)}
+                            type="button"
                           >
                             <Printer size={16} color="var(--info)" />
                           </button>
@@ -869,6 +885,7 @@ export default function PatientRegister({
                               className="btn btn-light btn-icon-only" 
                               title="ลบผู้ป่วย"
                               onClick={() => handleDeleteClick(p.hn)}
+                              type="button"
                             >
                               <Trash2 size={16} color="var(--danger)" />
                             </button>
@@ -881,8 +898,31 @@ export default function PatientRegister({
               </tbody>
             </table>
           </div>
+
+          {maxPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+              <button 
+                className="btn btn-light" 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                type="button"
+              >
+                ก่อนหน้า
+              </button>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+              <button 
+                className="btn btn-light" 
+                disabled={currentPage === maxPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                type="button"
+              >
+                ถัดไป
+              </button>
+            </div>
+          )}
+
           <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
-            แสดงข้อมูลทั้งหมด {filteredPatients.length} รายการ (เรียงจากล่าสุด)
+            แสดง {filteredPatients.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredPatients.length)} จากทั้งหมด {filteredPatients.length} รายการ (เรียงจากล่าสุด)
           </div>
         </div>
 

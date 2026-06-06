@@ -68,7 +68,13 @@ const set = (key, val) => {
 };
 
 export const db = {
-  getClinicInfo: () => get(KEYS.CLINIC_INFO, mock.INITIAL_CLINIC_INFO),
+  getClinicInfo: () => {
+    const data = get(KEYS.CLINIC_INFO, mock.INITIAL_CLINIC_INFO);
+    if (Array.isArray(data)) {
+      return data[0] || mock.INITIAL_CLINIC_INFO;
+    }
+    return data;
+  },
   setClinicInfo: (data) => set(KEYS.CLINIC_INFO, data),
 
   getUsers: () => get(KEYS.USERS, mock.INITIAL_USERS),
@@ -144,6 +150,11 @@ export const syncToSupabase = async (key, value) => {
   const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
   if (!gasUrl) return false;
 
+  let finalValue = value;
+  if (key === KEYS.CLINIC_INFO || key === 'hdh_clinic_info') {
+    finalValue = Array.isArray(value) ? value : [value];
+  }
+
   try {
     const response = await fetch(gasUrl, {
       method: 'POST',
@@ -153,7 +164,7 @@ export const syncToSupabase = async (key, value) => {
       body: JSON.stringify({
         action: 'sync_table',
         key: key,
-        value: value
+        value: finalValue
       })
     });
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Download, 
@@ -106,7 +106,12 @@ export default function Transactions({
 
   // สถานะแบ่งหน้า (Pagination)
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 20;
+
+  // รีเซ็ตหน้าเมื่อเปลี่ยนตัวกรองหรือคำค้นหา
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, yearFilter, monthFilter, typeFilter]);
 
   // เปลี่ยนหมวดหมู่ตัวเลือกอัตโนมัติเมื่อเลือกประเภท
   const handleTypeChange = (typeVal) => {
@@ -137,9 +142,9 @@ export default function Transactions({
         // ค้นหา
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = !query ? true : (
-          t.description.toLowerCase().includes(query) ||
-          t.category.toLowerCase().includes(query) ||
-          t.date.includes(query) ||
+          String(t.description || '').toLowerCase().includes(query) ||
+          String(t.category || '').toLowerCase().includes(query) ||
+          String(t.date || '').includes(query) ||
           formatDateBE(t.date).includes(query)
         );
 
