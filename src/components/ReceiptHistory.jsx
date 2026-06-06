@@ -325,7 +325,7 @@ export default function ReceiptHistory({
 
         return matchesQuery && matchesYear && matchesMonth;
       })
-      .sort((a, b) => b.id.localeCompare(a.id)); // เรียงรหัสใบเสร็จล่าสุดขึ้นก่อน (ใหม่ไปเก่า)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)); // เรียงรหัสใบเสร็จล่าสุดขึ้นก่อน (ใหม่ไปเก่า)
   }, [receipts, patients, searchQuery, filterMonth, filterYear]);
 
   // จัดการยกเลิกบิล (Void)

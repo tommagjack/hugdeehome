@@ -74,15 +74,31 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
   // กรองประวัติเงินเดือนแสดงในตาราง
   const filteredPayrolls = useMemo(() => {
-    return payrolls.filter(p => {
-      if (currentUser?.role !== 'Admin' && p.employeeUsername !== currentUser?.username) {
-        return false;
-      }
-      const matchY = filterYear === 'All' || p.year === filterYear;
-      const matchM = filterMonth === 'All' || p.month === filterMonth;
-      const matchU = filterUser === 'All' || p.employeeName === filterUser;
-      return matchY && matchM && matchU;
-    });
+    const thaiMonths = {
+      'มกราคม': 1, 'กุมภาพันธ์': 2, 'มีนาคม': 3, 'เมษายน': 4,
+      'พฤษภาคม': 5, 'มิถุนายน': 6, 'กรกฎาคม': 7, 'สิงหาคม': 8,
+      'กันยายน': 9, 'ตุลาคม': 10, 'พฤศจิกายน': 11, 'ธันวาคม': 12
+    };
+
+    return payrolls
+      .filter(p => {
+        if (currentUser?.role !== 'Admin' && p.employeeUsername !== currentUser?.username) {
+          return false;
+        }
+        const matchY = filterYear === 'All' || p.year === filterYear;
+        const matchM = filterMonth === 'All' || p.month === filterMonth;
+        const matchU = filterUser === 'All' || p.employeeName === filterUser;
+        return matchY && matchM && matchU;
+      })
+      .sort((a, b) => {
+        const yearA = parseInt(a.year) || 0;
+        const yearB = parseInt(b.year) || 0;
+        if (yearB !== yearA) return yearB - yearA;
+        
+        const monthValA = thaiMonths[a.month] || parseInt(a.month) || 0;
+        const monthValB = thaiMonths[b.month] || parseInt(b.month) || 0;
+        return monthValB - monthValA;
+      });
   }, [payrolls, filterYear, filterMonth, filterUser, currentUser]);
 
   // คำนวณเงินเดือนเรียลไทม์

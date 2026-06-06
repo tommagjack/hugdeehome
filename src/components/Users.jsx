@@ -469,18 +469,26 @@ export default function Users({ users, setUsers }) {
   };
 
   // ค้นหาพนักงาน
-  const filteredUsers = users.filter(u => {
-    if (u.username.toLowerCase() === 'admin') return false;
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      u.username.toLowerCase().includes(query) ||
-      u.fullname.toLowerCase().includes(query) ||
-      (u.nickname && u.nickname.toLowerCase().includes(query)) ||
-      (u.employeeId && u.employeeId.toLowerCase().includes(query)) ||
-      (u.position && u.position.toLowerCase().includes(query))
-    );
-  });
+  const filteredUsers = users
+    .filter(u => {
+      if (u.username.toLowerCase() === 'admin') return false;
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+      return (
+        u.username.toLowerCase().includes(query) ||
+        u.fullname.toLowerCase().includes(query) ||
+        (u.nickname && u.nickname.toLowerCase().includes(query)) ||
+        (u.employeeId && u.employeeId.toLowerCase().includes(query)) ||
+        (u.position && u.position.toLowerCase().includes(query))
+      );
+    })
+    .sort((a, b) => {
+      const dateA = a.startDate || '';
+      const dateB = b.startDate || '';
+      const empIdA = a.employeeId || '';
+      const empIdB = b.employeeId || '';
+      return dateB.localeCompare(dateA) || empIdB.localeCompare(empIdA);
+    });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
