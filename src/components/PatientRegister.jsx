@@ -120,13 +120,13 @@ export default function PatientRegister({
     const beYear = today.getFullYear() + 543; // แปลง ค.ศ. เป็น พ.ศ.
     const yearSuffix = beYear.toString().slice(-2); // ได้ "69"
     
-    const yearPatients = (patients || []).filter(p => p && p.hn && p.hn.startsWith(yearSuffix));
+    const yearPatients = (patients || []).filter(p => p && p.hn && String(p.hn).startsWith(yearSuffix));
     if (yearPatients.length === 0) {
       return `${yearSuffix}001`;
     }
     
     // ค้นหารหัสที่สูงสุด
-    const hns = yearPatients.map(p => parseInt(p.hn.slice(2)));
+    const hns = yearPatients.map(p => parseInt(String(p.hn).slice(2)));
     const maxNum = Math.max(...hns);
     const nextNum = maxNum + 1;
     const paddedNum = nextNum.toString().padStart(3, '0');
@@ -157,11 +157,11 @@ export default function PatientRegister({
         // ค้นหาเรียลไทม์
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = 
-          (p.hn || '').toLowerCase().includes(query) ||
-          (p.firstname || '').toLowerCase().includes(query) ||
-          (p.lastname || '').toLowerCase().includes(query) ||
-          (p.phone || '').includes(query) ||
-          (p.nickname && p.nickname.toLowerCase().includes(query));
+          String(p.hn || '').toLowerCase().includes(query) ||
+          String(p.firstname || '').toLowerCase().includes(query) ||
+          String(p.lastname || '').toLowerCase().includes(query) ||
+          String(p.phone || '').includes(query) ||
+          (p.nickname && String(p.nickname).toLowerCase().includes(query));
           
         // กรองสถานะ
         const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
@@ -459,7 +459,7 @@ export default function PatientRegister({
 
           // Check or generate HN
           let hn = val('hn');
-          const exists = currentPatientsList.some(p => p.hn === hn);
+          const exists = currentPatientsList.some(p => p && String(p.hn) === String(hn));
 
           if (!hn || (!exists && isNaN(parseInt(hn)))) {
             const generateTempHn = (tempList) => {
@@ -467,11 +467,11 @@ export default function PatientRegister({
               const beYear = today.getFullYear() + 543;
               const yearSuffix = beYear.toString().slice(-2);
               
-              const yearPatients = tempList.filter(p => p.hn.startsWith(yearSuffix));
+              const yearPatients = tempList.filter(p => p && p.hn && String(p.hn).startsWith(yearSuffix));
               if (yearPatients.length === 0) {
                 return `${yearSuffix}001`;
               }
-              const hns = yearPatients.map(p => parseInt(p.hn.slice(2)));
+              const hns = yearPatients.map(p => parseInt(String(p.hn).slice(2)));
               const maxNum = Math.max(...hns);
               const nextNum = maxNum + 1;
               const paddedNum = nextNum.toString().padStart(3, '0');
