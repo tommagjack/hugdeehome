@@ -43,11 +43,27 @@ export const initDatabase = (forceReset = false) => {
 
 // ฟังก์ชันดึง/บันทึกทั่วไป
 const get = (key, defaultVal) => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : defaultVal;
+  try {
+    const data = localStorage.getItem(key);
+    if (!data || data === 'undefined' || data === 'null') {
+      return defaultVal;
+    }
+    const parsed = JSON.parse(data);
+    if (parsed === null || parsed === undefined) {
+      return defaultVal;
+    }
+    if (Array.isArray(defaultVal) && !Array.isArray(parsed)) {
+      return defaultVal;
+    }
+    return parsed;
+  } catch (e) {
+    console.error(`Error reading key ${key} from localStorage:`, e);
+    return defaultVal;
+  }
 };
 
 const set = (key, val) => {
+  if (val === undefined || val === null) return;
   localStorage.setItem(key, JSON.stringify(val));
 };
 
