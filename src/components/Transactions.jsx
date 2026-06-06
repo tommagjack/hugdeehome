@@ -113,6 +113,63 @@ export default function Transactions({
     setCurrentPage(1);
   }, [searchQuery, yearFilter, monthFilter, typeFilter]);
 
+  // ซิงค์บิลและรายจ่ายเงินเดือนพนักงานโดยอัตโนมัติ
+  useEffect(() => {
+    setTransactions(prev => {
+      const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
+      const validPayrolls = payrolls;
+      const existingRefIds = new Set(prev.map(t => t.refId).filter(Boolean));
+      const newSynced = [];
+
+      paidReceipts.forEach(r => {
+        if (!existingRefIds.has(r.id)) {
+          const patient = patients.find(p => p.hn === r.hn);
+          const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
+          newSynced.push({
+            id: `TX-RC-${r.id}`,
+            date: r.date,
+            type: 'income',
+            description: `อ้างอิงใบเสร็จ ${r.id} ของ ${patientName} (${r.hn})`,
+            category: 'ค่าเคส',
+            amount: r.totalAmount,
+            refId: r.id,
+            slipUrl: r.slipUrl || '',
+            created_at: new Date().toISOString()
+          });
+        }
+      });
+
+      validPayrolls.forEach(p => {
+        if (!existingRefIds.has(p.id)) {
+          let txDate;
+          if (p.created_at) {
+            txDate = p.created_at.split('T')[0];
+          } else {
+            const mNum = monthThaiToNum[p.month] || 5;
+            txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
+          }
+
+          newSynced.push({
+            id: `TX-PR-${p.id}`,
+            date: txDate,
+            type: 'expense',
+            description: `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`,
+            category: 'รายจ่ายคงที่',
+            amount: p.netPay,
+            refId: p.id,
+            slipUrl: '',
+            created_at: new Date().toISOString()
+          });
+        }
+      });
+
+      if (newSynced.length > 0) {
+        return [...prev, ...newSynced];
+      }
+      return prev;
+    });
+  }, [receipts, payrolls, patients, setTransactions]);
+
   // เปลี่ยนหมวดหมู่ตัวเลือกอัตโนมัติเมื่อเลือกประเภท
   const handleTypeChange = (typeVal) => {
     setTType(typeVal);
