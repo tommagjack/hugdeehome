@@ -20,6 +20,7 @@ export default function ReceiptHistory({
   receipts, 
   setReceipts,
   services,
+  bankAccounts = [],
   onVoidReceipt, 
   onEditDraftReceipt, 
   onPrintReceipt,
@@ -30,6 +31,129 @@ export default function ReceiptHistory({
   const [filterMonth, setFilterMonth] = useState('All'); // All, 01-12
   const [filterYear, setFilterYear] = useState('2026');   // All, 2026, ฯลฯ
   const [currentPage, setCurrentPage] = useState(1);
+
+  // สำหรับการแก้ไขบิล
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState(null);
+  
+  const [editDate, setEditDate] = useState('');
+  const [editHn, setEditHn] = useState('');
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  
+  const [editPaymentMethod, setEditPaymentMethod] = useState('เงินสด');
+  const [editBankAccountId, setEditBankAccountId] = useState('');
+  const [editStatus, setEditStatus] = useState('ชำระเงินแล้ว');
+  
+  const [editDiscountValue, setEditDiscountValue] = useState(0);
+  const [editDiscountType, setEditDiscountType] = useState('flat');
+  const [editDiscountReason, setEditDiscountReason] = useState('');
+  const [editItems, setEditItems] = useState([]);
+
+  // ซิงค์คำค้นตาม editHn
+  React.useEffect(() => {
+    if (editHn) {
+      const p = patients.find(item => item.hn === editHn);
+      if (p) {
+        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [editHn, patients]);
+
+  // กรองผู้ป่วยในขณะค้นหา
+  const filteredActivePatients = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return patients;
+    return patients.filter(p => 
+      String(p.hn).toLowerCase().includes(q) || 
+      String(p.nickname).toLowerCase().includes(q) || 
+      `${p.title}${p.firstname} ${p.lastname}`.toLowerCase().includes(q)
+    );
+  }, [patients, patientSearchText]);
+
+  const handleEditClick = (receipt) => {
+    setEditingReceipt(receipt);
+    setEditDate(receipt.date);
+    setEditHn(receipt.hn);
+    setEditPaymentMethod(receipt.paymentMethod || 'เงินสด');
+    setEditBankAccountId(receipt.bankAccountId || '');
+    setEditStatus(receipt.status || 'ชำระเงินแล้ว');
+    setEditDiscountValue(receipt.discountValue || 0);
+    setEditDiscountType(receipt.discountType || 'flat');
+    setEditDiscountReason(receipt.discountReason || '');
+    setEditItems(receipt.items ? receipt.items.map(it => ({ ...it })) : []);
+    setShowEditModal(true);
+  };
+
+  const handleAddItem = () => {
+    setEditItems([...editItems, { name: 'สินค้า/บริการใหม่', quantity: 1, price: 0, code: 'MANUAL_ADD', type: 'บริการ' }]);
+  };
+
+  const handleRemoveItem = (index) => {
+    setEditItems(editItems.filter((_, idx) => idx !== index));
+  };
+
+  const handleItemChange = (index, field, value) => {
+    setEditItems(editItems.map((it, idx) => {
+      if (idx === index) {
+        return {
+          ...it,
+          [field]: field === 'quantity' ? parseInt(value) || 0 : field === 'price' ? parseFloat(value) || 0 : value
+        };
+      }
+      return it;
+    }));
+  };
+
+  const handleSaveEditReceipt = (e) => {
+    e.preventDefault();
+    if (!editHn) {
+      Swal.fire('กรุณาเลือกผู้รับบริการ', 'กรุณาระบุตัวตนของผู้รับบริการสำหรับบิลนี้', 'error');
+      return;
+    }
+    if (editItems.length === 0) {
+      Swal.fire('ไม่มีรายการซื้อ', 'กรุณาเพิ่มรายการสินค้าหรือบริการอย่างน้อย 1 รายการ', 'error');
+      return;
+    }
+
+    const subtotal = editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+    let discount = 0;
+    if (editDiscountType === 'flat') {
+      discount = editDiscountValue;
+    } else {
+      discount = subtotal * (editDiscountValue / 100);
+    }
+    const finalTotal = Math.max(0, subtotal - discount);
+
+    const updatedReceipt = {
+      ...editingReceipt,
+      hn: editHn,
+      date: editDate,
+      paymentMethod: editPaymentMethod,
+      bankAccountId: editPaymentMethod === 'โอนเงิน' ? editBankAccountId : '',
+      status: editStatus,
+      discountValue: editDiscountValue,
+      discountType: editDiscountType,
+      discountReason: editDiscountReason,
+      items: editItems,
+      totalAmount: finalTotal
+    };
+
+    setReceipts(prev => prev.map(r => r.id === editingReceipt.id ? updatedReceipt : r));
+    setShowEditModal(false);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'แก้ไขเอกสารการเงินสำเร็จ',
+      text: `บันทึกการแก้ไขเลขที่ ${editingReceipt.id} เรียบร้อยแล้ว`,
+      timer: 1500,
+      showConfirmButton: false
+    });
+  };
 
   // รีเซ็ตหน้าเมื่อเปลี่ยนตัวกรองหรือคำค้นหา
   React.useEffect(() => {
@@ -520,16 +644,25 @@ export default function ReceiptHistory({
                             <Printer size={16} color="var(--info)" />
                           </button>
 
-                          {/* บิลดราฟท์แก้ไขได้ */}
+                          {/* บิลดราฟท์ดึงกลับไปจ่ายเงินต่อ */}
                           {isDraft && (
                             <button 
                               className="btn btn-light btn-icon-only" 
                               title="ดึงข้อมูลกลับไปจ่ายเงินต่อที่ POS"
                               onClick={() => handleEditDraft(r)}
                             >
-                              <Edit size={16} color="var(--secondary)" />
+                              <Coins size={16} color="var(--warning)" />
                             </button>
                           )}
+
+                          {/* แก้ไขบิลโดยตรงผ่าน Modal */}
+                          <button 
+                            className="btn btn-light btn-icon-only" 
+                            title="แก้ไขเอกสารการเงิน"
+                            onClick={() => handleEditClick(r)}
+                          >
+                            <Edit size={16} color="var(--secondary)" />
+                          </button>
 
                           {/* บิลชำระแล้วสั่งยกเลิก (Void) ได้ */}
                           {r.status === 'ชำระเงินแล้ว' && (
@@ -589,6 +722,278 @@ export default function ReceiptHistory({
           แสดง {filteredReceipts.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredReceipts.length)} จากทั้งหมด {filteredReceipts.length} รายการ (เรียงจากเลขบิลล่าสุด)
         </div>
       </div>
+
+      {/* Modal: แก้ไขเอกสารการเงิน (Edit Receipt Modal) */}
+      {showEditModal && editingReceipt && (
+        <div className="modal-overlay">
+          <div className="modal-content-wrapper" style={{ maxWidth: '750px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 style={{ fontWeight: 700 }}>แก้ไขเอกสารการเงิน [เลขที่: {editingReceipt.id}]</h3>
+              <button className="close-modal-btn" onClick={() => setShowEditModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSaveEditReceipt}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">วันที่ออกบิล <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input 
+                      type="date" 
+                      className="form-control" 
+                      value={editDate} 
+                      onChange={(e) => setEditDate(e.target.value)} 
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">ผู้รับบริการ <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="text"
+                        className="form-control"
+                        placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                        value={patientSearchText}
+                        onChange={(e) => {
+                          setPatientSearchText(e.target.value);
+                          setEditHn('');
+                          setShowPatientDropdown(true);
+                        }}
+                        onFocus={() => setShowPatientDropdown(true)}
+                        onBlur={() => {
+                          setTimeout(() => setShowPatientDropdown(false), 200);
+                        }}
+                        required
+                      />
+                      <input type="hidden" value={editHn} required />
+                      {showPatientDropdown && (
+                        <div 
+                          className="card-md"
+                          style={{ 
+                            position: 'absolute', 
+                            top: '100%', 
+                            left: 0, 
+                            right: 0, 
+                            maxHeight: '180px', 
+                            overflowY: 'auto', 
+                            zIndex: 1100,
+                            backgroundColor: 'white',
+                            border: '1px solid var(--border)',
+                            boxShadow: 'var(--shadow-lg)',
+                            borderRadius: 'var(--radius-md)',
+                            marginTop: '0.25rem',
+                            padding: '0.5rem 0'
+                          }}
+                        >
+                          {filteredActivePatients.length === 0 ? (
+                            <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                              ไม่พบข้อมูลผู้รับบริการ
+                            </div>
+                          ) : (
+                            filteredActivePatients.map(p => (
+                              <div 
+                                key={p.hn} 
+                                style={{ 
+                                  padding: '0.5rem 1rem', 
+                                  cursor: 'pointer',
+                                  fontSize: '0.9rem',
+                                  transition: 'background-color 0.2s',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                onClick={() => {
+                                  setEditHn(p.hn);
+                                  setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                  setShowPatientDropdown(false);
+                                }}
+                              >
+                                HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">วิธีชำระเงิน <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select 
+                      className="form-control" 
+                      value={editPaymentMethod} 
+                      onChange={(e) => setEditPaymentMethod(e.target.value)}
+                    >
+                      <option value="เงินสด">เงินสด</option>
+                      <option value="โอนเงิน">โอนเงิน (สแกน QR / บัญชี)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">โอนเข้าบัญชีธนาคาร</label>
+                    <select 
+                      className="form-control"
+                      value={editBankAccountId}
+                      onChange={(e) => setEditBankAccountId(e.target.value)}
+                      disabled={editPaymentMethod !== 'โอนเงิน'}
+                      required={editPaymentMethod === 'โอนเงิน'}
+                    >
+                      <option value="">-- เลือกบัญชีธนาคาร --</option>
+                      {bankAccounts.map(bank => (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.bankName} - {bank.accountNo} ({bank.accountName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">สถานะบิล <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select 
+                      className="form-control" 
+                      value={editStatus} 
+                      onChange={(e) => setEditStatus(e.target.value)}
+                    >
+                      <option value="ชำระเงินแล้ว">ชำระเงินแล้ว</option>
+                      <option value="รอชำระเงิน">รอชำระเงิน</option>
+                      <option value="ยกเลิก">ยกเลิก</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 2fr', gap: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">ส่วนลดเพิ่มเติม</label>
+                    <input 
+                      type="number" 
+                      className="form-control" 
+                      min="0"
+                      value={editDiscountValue} 
+                      onChange={(e) => setEditDiscountValue(parseFloat(e.target.value) || 0)} 
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">ประเภทส่วนลด</label>
+                    <select 
+                      className="form-control" 
+                      value={editDiscountType} 
+                      onChange={(e) => setEditDiscountType(e.target.value)}
+                    >
+                      <option value="flat">บาท (฿)</option>
+                      <option value="percent">เปอร์เซ็นต์ (%)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">เหตุผลส่วนลด / บันทึกเพิ่มเติม</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="ระบุเหตุผลส่วนลดหรือโปรโมชั่น..." 
+                      value={editDiscountReason} 
+                      onChange={(e) => setEditDiscountReason(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>รายการสินค้า/บริการในบิล</label>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={handleAddItem} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
+                      + เพิ่มรายการ
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {editItems.map((item, index) => (
+                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          style={{ flex: 3 }}
+                          placeholder="ชื่อสินค้าหรือบริการ" 
+                          value={item.name} 
+                          onChange={(e) => handleItemChange(index, 'name', e.target.value)}
+                          required
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>จำนวน:</span>
+                          <input 
+                            type="number" 
+                            className="form-control" 
+                            style={{ width: '70px' }}
+                            min="1" 
+                            value={item.quantity} 
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>ราคา (฿):</span>
+                          <input 
+                            type="number" 
+                            className="form-control" 
+                            style={{ width: '100px' }}
+                            min="0" 
+                            value={item.price} 
+                            onChange={(e) => handleItemChange(index, 'price', e.target.value)}
+                            required
+                          />
+                        </div>
+                        <button 
+                          type="button" 
+                          className="btn btn-light btn-icon-only" 
+                          onClick={() => handleRemoveItem(index)}
+                          style={{ padding: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="ลบรายการนี้"
+                        >
+                          <Trash2 size={14} color="var(--danger)" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ 
+                  backgroundColor: 'var(--light)', 
+                  padding: '1rem', 
+                  borderRadius: 'var(--radius-md)', 
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--dark-light)' }}>ยอดรวมสินค้า: </span>
+                    <strong style={{ fontSize: '1rem' }}>
+                      ฿{editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0).toLocaleString()}
+                    </strong>
+                    {editDiscountValue > 0 && (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '1rem' }}>
+                        ส่วนลด: -{editDiscountType === 'flat' ? `฿${editDiscountValue}` : `${editDiscountValue}%`}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>ยอดสุทธิที่จะบันทึก: </span>
+                    <strong style={{ fontSize: '1.4rem', color: 'var(--secondary)' }}>
+                      ฿{Math.max(0, editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) - (editDiscountType === 'flat' ? editDiscountValue : editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) * (editDiscountValue / 100))).toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '1rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn btn-light" onClick={() => setShowEditModal(false)}>ยกเลิก</button>
+                <button type="submit" className="btn btn-secondary">บันทึกการแก้ไข</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

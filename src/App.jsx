@@ -1010,6 +1010,7 @@ export default function App() {
             receipts={receipts}
             setReceipts={setReceipts}
             services={services}
+            bankAccounts={bankAccounts}
             onVoidReceipt={handleVoidReceipt}
             onEditDraftReceipt={handleEditDraftReceipt}
             onDeleteReceipt={handleDeleteReceipt}
