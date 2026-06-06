@@ -40,6 +40,35 @@ export default function OPD({
     setCurrentPage(1);
   }, [selectedHn, searchQuery]);
 
+  // สำหรับการค้นหาผู้รับบริการ
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+  // ซิงค์ป้อนคำค้นตาม selectedHn ของผู้รับบริการ
+  React.useEffect(() => {
+    if (selectedHn) {
+      const p = patients.find(item => item.hn === selectedHn);
+      if (p) {
+        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [selectedHn, patients]);
+
+  // กรองผู้ป่วยในขณะค้นหา
+  const filteredActivePatients = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return patients;
+    return patients.filter(p => 
+      String(p.hn).toLowerCase().includes(q) || 
+      String(p.nickname).toLowerCase().includes(q) || 
+      `${p.title}${p.firstname} ${p.lastname}`.toLowerCase().includes(q)
+    );
+  }, [patients, patientSearchText]);
+
   // ฟอร์มข้อมูลการฝึก
   const [formDate, setFormDate] = useState('2026-06-05'); // อิงเวลาของระบบ
   const [formTherapist, setFormTherapist] = useState('');
@@ -442,23 +471,74 @@ export default function OPD({
         <div className="card-2xl">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <label style={{ fontWeight: 600, fontSize: '0.95rem' }}>กรุณาเลือกผู้รับบริการเพื่อดูและบันทึกประวัติ:</label>
-            <select
-              className="form-control"
-              value={selectedHn}
-              onChange={(e) => {
-                setSelectedHn(e.target.value);
-                setCurrentPage(1);
-                setSearchQuery('');
-              }}
-              style={{ width: '100%', maxWidth: '500px' }}
-            >
-              <option value="">-- กรุณาเลือกผู้รับบริการ --</option>
-              {patients.map(p => (
-                <option key={p.hn} value={p.hn}>
-                  {p.hn} - {p.title}{p.firstname} {p.lastname} ({p.nickname}) [{p.status === 'Active' ? 'ปกติ' : 'ปิดประวัติ'}]
-                </option>
-              ))}
-            </select>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '500px' }}>
+              <input 
+                type="text"
+                className="form-control"
+                placeholder="-- ค้นหาและเลือกผู้รับบริการด้วย HN หรือชื่อเล่น --"
+                value={patientSearchText}
+                onChange={(e) => {
+                  setPatientSearchText(e.target.value);
+                  setSelectedHn('');
+                  setCurrentPage(1);
+                  setSearchQuery('');
+                  setShowPatientDropdown(true);
+                }}
+                onFocus={() => setShowPatientDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowPatientDropdown(false), 200);
+                }}
+              />
+              
+              {showPatientDropdown && (
+                <div 
+                  className="card-md"
+                  style={{ 
+                    position: 'absolute', 
+                    top: '100%', 
+                    left: 0, 
+                    right: 0, 
+                    maxHeight: '200px', 
+                    overflowY: 'auto', 
+                    zIndex: 1000,
+                    backgroundColor: 'white',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-lg)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '0.25rem',
+                    padding: '0.5rem 0'
+                  }}
+                >
+                  {filteredActivePatients.length === 0 ? (
+                    <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                      ไม่พบข้อมูลผู้รับบริการ
+                    </div>
+                  ) : (
+                    filteredActivePatients.map(p => (
+                      <div 
+                        key={p.hn} 
+                        style={{ 
+                          padding: '0.5rem 1rem', 
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          transition: 'background-color 0.2s',
+                          backgroundColor: 'transparent'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                        onClick={() => {
+                          setSelectedHn(p.hn);
+                          setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                          setShowPatientDropdown(false);
+                        }}
+                      >
+                        HN: {p.hn} | น้อง${p.nickname} ({p.title}{p.firstname} {p.lastname}) [{p.status === 'Active' ? 'ปกติ' : 'ปิดประวัติ'}]
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

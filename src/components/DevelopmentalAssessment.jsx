@@ -48,6 +48,8 @@ export default function DevelopmentalAssessment({
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [therapistId, setTherapistId] = useState('');
   const [evalDate, setEvalDate] = useState('2026-06-05'); // วันที่จำลองระบบ
   
@@ -131,6 +133,31 @@ export default function DevelopmentalAssessment({
       setMovement(0);
     }
   }, [isSensoryEnabled]);
+
+  // ซิงค์คำค้นตาม selectedHn
+  useEffect(() => {
+    if (selectedHn) {
+      const p = patients.find(item => item.hn === selectedHn);
+      if (p) {
+        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [selectedHn, patients]);
+
+  // กรองผู้ป่วยในขณะค้นหา
+  const filteredActivePatients = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return patients;
+    return patients.filter(p => 
+      String(p.hn).toLowerCase().includes(q) || 
+      String(p.nickname).toLowerCase().includes(q) || 
+      `${p.title}${p.firstname} ${p.lastname}`.toLowerCase().includes(q)
+    );
+  }, [patients, patientSearchText]);
 
   // คำนวณคะแนนรวม Sensory Test
   const sensoryTotal = useMemo(() => {
@@ -678,20 +705,75 @@ export default function DevelopmentalAssessment({
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">ผู้รับบริการ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <select 
-                      className="form-control"
-                      value={selectedHn}
-                      onChange={(e) => setSelectedHn(e.target.value)}
-                      required
-                      disabled={isEditing} // ไม่อนุญาตแก้ไขผู้ป่วยเพื่อรักษากฎความสมบูรณ์ของรหัสตรวจ
-                    >
-                      <option value="">-- เลือกผู้รับบริการ --</option>
-                      {patients.map(p => (
-                        <option key={p.hn} value={p.hn}>
-                          HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname})
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="text"
+                        className="form-control"
+                        placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                        value={patientSearchText}
+                        onChange={(e) => {
+                          setPatientSearchText(e.target.value);
+                          setSelectedHn('');
+                          setShowPatientDropdown(true);
+                        }}
+                        onFocus={() => setShowPatientDropdown(true)}
+                        onBlur={() => {
+                          setTimeout(() => setShowPatientDropdown(false), 200);
+                        }}
+                        disabled={isEditing}
+                        required
+                      />
+                      <input type="hidden" value={selectedHn} required />
+                      
+                      {showPatientDropdown && !isEditing && (
+                        <div 
+                          className="card-md"
+                          style={{ 
+                            position: 'absolute', 
+                            top: '100%', 
+                            left: 0, 
+                            right: 0, 
+                            maxHeight: '200px', 
+                            overflowY: 'auto', 
+                            zIndex: 1000,
+                            backgroundColor: 'white',
+                            border: '1px solid var(--border)',
+                            boxShadow: 'var(--shadow-lg)',
+                            borderRadius: 'var(--radius-md)',
+                            marginTop: '0.25rem',
+                            padding: '0.5rem 0'
+                          }}
+                        >
+                          {filteredActivePatients.length === 0 ? (
+                            <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                              ไม่พบข้อมูลผู้รับบริการ
+                            </div>
+                          ) : (
+                            filteredActivePatients.map(p => (
+                              <div 
+                                key={p.hn} 
+                                style={{ 
+                                  padding: '0.5rem 1rem', 
+                                  cursor: 'pointer',
+                                  fontSize: '0.9rem',
+                                  transition: 'background-color 0.2s',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                onClick={() => {
+                                  setSelectedHn(p.hn);
+                                  setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                  setShowPatientDropdown(false);
+                                }}
+                              >
+                                HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="form-group">

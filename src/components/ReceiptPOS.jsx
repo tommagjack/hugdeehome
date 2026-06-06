@@ -69,10 +69,10 @@ export default function ReceiptPOS({
     const q = patientSearchText.trim().toLowerCase();
     if (!q || q.startsWith('hn:')) return activePatients;
     return activePatients.filter(p => 
-      p.hn.toLowerCase().includes(q) || 
-      p.nickname.toLowerCase().includes(q) ||
-      p.firstname.toLowerCase().includes(q) ||
-      p.lastname.toLowerCase().includes(q)
+      String(p.hn || '').toLowerCase().includes(q) || 
+      String(p.nickname || '').toLowerCase().includes(q) ||
+      String(p.firstname || '').toLowerCase().includes(q) ||
+      String(p.lastname || '').toLowerCase().includes(q)
     );
   }, [activePatients, patientSearchText]);
 

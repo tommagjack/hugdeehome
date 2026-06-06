@@ -22,6 +22,14 @@ export default function CourseBalance({
 }) {
   const [selectedHn, setSelectedHn] = useState('');
   
+  // สำหรับการค้นหาผู้ป่วยหลัก
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+  // สำหรับการค้นหาผู้รับโอน
+  const [transfereeSearchText, setTransfereeSearchText] = useState('');
+  const [showTransfereeDropdown, setShowTransfereeDropdown] = useState(false);
+  
   // สถานะ Modal
   const [showManualModal, setShowManualModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -83,6 +91,57 @@ export default function CourseBalance({
     if (!selectedHn) return null;
     return patientCourseBalances.find(b => b.hn === selectedHn);
   }, [selectedHn, patientCourseBalances]);
+
+  // ซิงค์ป้อนคำค้นตาม selectedHn ของผู้ป่วยหลัก
+  React.useEffect(() => {
+    if (selectedHn) {
+      const b = patientCourseBalances.find(item => item.hn === selectedHn);
+      if (b) {
+        setPatientSearchText(`HN: ${b.hn} | น้อง${b.nickname} (เหลือ ${b.balance} ครั้ง)`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [selectedHn, patientCourseBalances]);
+
+  // ซิงค์ป้อนคำค้นของตัวเลือกผู้รับโอน
+  React.useEffect(() => {
+    if (transfereeHn) {
+      const p = patients.find(item => item.hn === transfereeHn);
+      if (p) {
+        setTransfereeSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setTransfereeSearchText('');
+      }
+    } else {
+      setTransfereeSearchText('');
+    }
+  }, [transfereeHn, patients]);
+
+  // ค้นหารายชื่อจากยอดคงเหลือผู้รับบริการ
+  const filteredSearchBalances = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return patientCourseBalances;
+    return patientCourseBalances.filter(b => 
+      String(b.hn).toLowerCase().includes(q) || 
+      String(b.nickname).toLowerCase().includes(q) || 
+      String(b.name).toLowerCase().includes(q)
+    );
+  }, [patientCourseBalances, patientSearchText]);
+
+  // ค้นหารายชื่อผู้รับโอนคอร์สปลายทาง
+  const filteredTransfereePatients = useMemo(() => {
+    const activeCandidates = patients.filter(p => p.hn !== selectedHn && p.status === 'Active');
+    const q = transfereeSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return activeCandidates;
+    return activeCandidates.filter(p => 
+      String(p.hn).toLowerCase().includes(q) || 
+      String(p.nickname).toLowerCase().includes(q) || 
+      `${p.title}${p.firstname} ${p.lastname}`.toLowerCase().includes(q)
+    );
+  }, [patients, selectedHn, transfereeSearchText]);
 
   // ประวัติการทำรายการแบบละเอียดของคนปัจจุบัน (เรียงตามวัน)
   const courseTransactionHistory = useMemo(() => {
@@ -226,18 +285,71 @@ export default function CourseBalance({
           
           <div className="form-group">
             <label className="form-label">ค้นหาและเลือกผู้รับบริการ</label>
-            <select 
-              className="form-control"
-              value={selectedHn}
-              onChange={(e) => setSelectedHn(e.target.value)}
-            >
-              <option value="">-- เลือกผู้รับบริการเพื่อดูประวัติ --</option>
-              {patientCourseBalances.map(b => (
-                <option key={b.hn} value={b.hn}>
-                  HN: {b.hn} | น้อง{b.nickname} (เหลือ {b.balance} ครั้ง)
-                </option>
-              ))}
-            </select>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text"
+                className="form-control"
+                placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                value={patientSearchText}
+                onChange={(e) => {
+                  setPatientSearchText(e.target.value);
+                  setSelectedHn('');
+                  setShowPatientDropdown(true);
+                }}
+                onFocus={() => setShowPatientDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowPatientDropdown(false), 200);
+                }}
+              />
+              {showPatientDropdown && (
+                <div 
+                  className="card-md"
+                  style={{ 
+                    position: 'absolute', 
+                    top: '100%', 
+                    left: 0, 
+                    right: 0, 
+                    maxHeight: '200px', 
+                    overflowY: 'auto', 
+                    zIndex: 1000,
+                    backgroundColor: 'white',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-lg)',
+                    borderRadius: 'var(--radius-md)',
+                    marginTop: '0.25rem',
+                    padding: '0.5rem 0'
+                  }}
+                >
+                  {filteredSearchBalances.length === 0 ? (
+                    <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                      ไม่พบข้อมูลผู้รับบริการ
+                    </div>
+                  ) : (
+                    filteredSearchBalances.map(b => (
+                      <div 
+                        key={b.hn} 
+                        style={{ 
+                          padding: '0.5rem 1rem', 
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          transition: 'background-color 0.2s',
+                          backgroundColor: 'transparent'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                        onClick={() => {
+                          setSelectedHn(b.hn);
+                          setPatientSearchText(`HN: ${b.hn} | น้อง${b.nickname} (เหลือ ${b.balance} ครั้ง)`);
+                          setShowPatientDropdown(false);
+                        }}
+                      >
+                        HN: {b.hn} | น้อง{b.nickname} ({b.name}) (เหลือ {b.balance} ครั้ง)
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {currentBalanceInfo ? (
@@ -410,19 +522,73 @@ export default function CourseBalance({
 
                 <div className="form-group">
                   <label className="form-label">ผู้รับโอนคอร์ส (ปลายทาง) <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <select 
-                    className="form-control"
-                    value={transfereeHn}
-                    onChange={(e) => setTransfereeHn(e.target.value)}
-                    required
-                  >
-                    <option value="">-- เลือกผู้รับโอน --</option>
-                    {patients
-                      .filter(p => p.hn !== selectedHn && p.status === 'Active')
-                      .map(p => (
-                        <option key={p.hn} value={p.hn}>HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname})</option>
-                      ))}
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text"
+                      className="form-control"
+                      placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                      value={transfereeSearchText}
+                      onChange={(e) => {
+                        setTransfereeSearchText(e.target.value);
+                        setTransfereeHn('');
+                        setShowTransfereeDropdown(true);
+                      }}
+                      onFocus={() => setShowTransfereeDropdown(true)}
+                      onBlur={() => {
+                        setTimeout(() => setShowTransfereeDropdown(false), 200);
+                      }}
+                      required
+                    />
+                    <input type="hidden" value={transfereeHn} required />
+                    {showTransfereeDropdown && (
+                      <div 
+                        className="card-md"
+                        style={{ 
+                          position: 'absolute', 
+                          top: '100%', 
+                          left: 0, 
+                          right: 0, 
+                          maxHeight: '180px', 
+                          overflowY: 'auto', 
+                          zIndex: 1100,
+                          backgroundColor: 'white',
+                          border: '1px solid var(--border)',
+                          boxShadow: 'var(--shadow-lg)',
+                          borderRadius: 'var(--radius-md)',
+                          marginTop: '0.25rem',
+                          padding: '0.5rem 0'
+                        }}
+                      >
+                        {filteredTransfereePatients.length === 0 ? (
+                          <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                            ไม่พบข้อมูลผู้รับโอน
+                          </div>
+                        ) : (
+                          filteredTransfereePatients.map(p => (
+                            <div 
+                              key={p.hn} 
+                              style={{ 
+                                padding: '0.5rem 1rem', 
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                transition: 'background-color 0.2s',
+                                backgroundColor: 'transparent'
+                              }}
+                              onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                              onClick={() => {
+                                setTransfereeHn(p.hn);
+                                setTransfereeSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                setShowTransfereeDropdown(false);
+                              }}
+                            >
+                              HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="form-group">
