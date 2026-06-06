@@ -113,21 +113,35 @@ export default function Transactions({
     setCurrentPage(1);
   }, [searchQuery, yearFilter, monthFilter, typeFilter]);
 
-  // ซิงค์บิลและรายจ่ายเงินเดือนพนักงานโดยอัตโนมัติ
+  // ซิงค์บิลและรายจ่ายเงินเดือนพนักงานโดยอัตโนมัติ และกำจัดตัวซ้ำ
   useEffect(() => {
     setTransactions(prev => {
+      // 1. กำจัดรายการซ้ำที่มีอยู่เดิมใน prev ก่อน (Self-Healing)
+      const uniquePrevMap = new Map();
+      prev.forEach(t => {
+        const key = t.refId || t.id;
+        if (!uniquePrevMap.has(key)) {
+          uniquePrevMap.set(key, t);
+        }
+      });
+      const cleanedPrev = Array.from(uniquePrevMap.values());
+
       const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
       const validPayrolls = payrolls;
-      const existingRefIds = new Set(prev.map(t => t.refId).filter(Boolean));
+      
+      const existingRefIds = new Set(cleanedPrev.map(t => t.refId).filter(Boolean));
+      const existingIds = new Set(cleanedPrev.map(t => t.id));
       const newSynced = [];
 
       paidReceipts.forEach(r => {
-        if (!existingRefIds.has(r.id)) {
+        const cleanDate = r.date.split('T')[0];
+        const txId = `TX-RC-${r.id}`;
+        if (!existingRefIds.has(r.id) && !existingIds.has(txId)) {
           const patient = patients.find(p => p.hn === r.hn);
           const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
           newSynced.push({
-            id: `TX-RC-${r.id}`,
-            date: r.date,
+            id: txId,
+            date: cleanDate,
             type: 'income',
             description: `อ้างอิงใบเสร็จ ${r.id} ของ ${patientName} (${r.hn})`,
             category: 'ค่าเคส',
@@ -136,11 +150,14 @@ export default function Transactions({
             slipUrl: r.slipUrl || '',
             created_at: new Date().toISOString()
           });
+          existingRefIds.add(r.id);
+          existingIds.add(txId);
         }
       });
 
       validPayrolls.forEach(p => {
-        if (!existingRefIds.has(p.id)) {
+        const txId = `TX-PR-${p.id}`;
+        if (!existingRefIds.has(p.id) && !existingIds.has(txId)) {
           let txDate;
           if (p.created_at) {
             txDate = p.created_at.split('T')[0];
@@ -150,7 +167,7 @@ export default function Transactions({
           }
 
           newSynced.push({
-            id: `TX-PR-${p.id}`,
+            id: txId,
             date: txDate,
             type: 'expense',
             description: `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`,
@@ -160,11 +177,13 @@ export default function Transactions({
             slipUrl: '',
             created_at: new Date().toISOString()
           });
+          existingRefIds.add(p.id);
+          existingIds.add(txId);
         }
       });
 
-      if (newSynced.length > 0) {
-        return [...prev, ...newSynced];
+      if (newSynced.length > 0 || cleanedPrev.length !== prev.length) {
+        return [...cleanedPrev, ...newSynced];
       }
       return prev;
     });
@@ -334,19 +353,22 @@ export default function Transactions({
     let syncCount = 0;
     const newSyncedTransactions = [];
 
-    // ดึงรหัสอ้างอิงที่มีอยู่แล้ว
+    // ดึงรหัสอ้างอิงและ ID ที่มีอยู่แล้ว
     const existingRefIds = new Set(transactions.map(t => t.refId).filter(Boolean));
+    const existingIds = new Set(transactions.map(t => t.id));
 
     // ซิงค์บิล POS -> รายรับ
     paidReceipts.forEach(r => {
-      if (!existingRefIds.has(r.id)) {
+      const cleanDate = r.date.split('T')[0];
+      const txId = `TX-RC-${r.id}`;
+      if (!existingRefIds.has(r.id) && !existingIds.has(txId)) {
         // หาชื่อคนไข้
         const patient = patients.find(p => p.hn === r.hn);
         const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
         
         newSyncedTransactions.push({
-          id: `TX-RC-${r.id}`,
-          date: r.date,
+          id: txId,
+          date: cleanDate,
           type: 'income',
           description: `อ้างอิงใบเสร็จ ${r.id} ของ ${patientName} (${r.hn})`,
           category: 'ค่าเคส',
@@ -355,13 +377,16 @@ export default function Transactions({
           slipUrl: r.slipUrl || '',
           created_at: new Date().toISOString()
         });
+        existingRefIds.add(r.id);
+        existingIds.add(txId);
         syncCount++;
       }
     });
 
     // ซิงค์บัญชีเงินเดือน -> รายจ่าย
     validPayrolls.forEach(p => {
-      if (!existingRefIds.has(p.id)) {
+      const txId = `TX-PR-${p.id}`;
+      if (!existingRefIds.has(p.id) && !existingIds.has(txId)) {
         // หาวันที่ (จาก created_at หรือสร้างวันที่จ่าย 28 ของเดือนนั้น)
         let txDate;
         if (p.created_at) {
@@ -372,7 +397,7 @@ export default function Transactions({
         }
 
         newSyncedTransactions.push({
-          id: `TX-PR-${p.id}`,
+          id: txId,
           date: txDate,
           type: 'expense',
           description: `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`,
@@ -382,6 +407,8 @@ export default function Transactions({
           slipUrl: '',
           created_at: new Date().toISOString()
         });
+        existingRefIds.add(p.id);
+        existingIds.add(txId);
         syncCount++;
       }
     });
