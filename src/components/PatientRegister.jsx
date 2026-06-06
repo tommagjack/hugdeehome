@@ -120,7 +120,7 @@ export default function PatientRegister({
     const beYear = today.getFullYear() + 543; // แปลง ค.ศ. เป็น พ.ศ.
     const yearSuffix = beYear.toString().slice(-2); // ได้ "69"
     
-    const yearPatients = patients.filter(p => p.hn.startsWith(yearSuffix));
+    const yearPatients = (patients || []).filter(p => p && p.hn && p.hn.startsWith(yearSuffix));
     if (yearPatients.length === 0) {
       return `${yearSuffix}001`;
     }
@@ -151,15 +151,16 @@ export default function PatientRegister({
 
   // 5. ค้นหาและกรองผู้ป่วย
   const filteredPatients = useMemo(() => {
-    return patients
+    return (patients || [])
       .filter(p => {
+        if (!p) return false;
         // ค้นหาเรียลไทม์
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = 
-          p.hn.toLowerCase().includes(query) ||
-          p.firstname.toLowerCase().includes(query) ||
-          p.lastname.toLowerCase().includes(query) ||
-          p.phone.includes(query) ||
+          (p.hn || '').toLowerCase().includes(query) ||
+          (p.firstname || '').toLowerCase().includes(query) ||
+          (p.lastname || '').toLowerCase().includes(query) ||
+          (p.phone || '').includes(query) ||
           (p.nickname && p.nickname.toLowerCase().includes(query));
           
         // กรองสถานะ
@@ -225,9 +226,9 @@ export default function PatientRegister({
       channels: selectedChannels,
       channelsOtherDetails: selectedChannels.includes('อื่นๆ') ? channelsOtherDetails : '',
       worries,
-      created_at: isEditing ? (patients.find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+      created_at: isEditing ? ((patients || []).find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString(),
       createdBy: isEditing 
-        ? (patients.find(p => p.hn === formHn)?.createdBy || '')
+        ? ((patients || []).find(p => p.hn === formHn)?.createdBy || '')
         : (currentUser?.fullname || 'ผู้ดูแลระบบ')
     };
 
