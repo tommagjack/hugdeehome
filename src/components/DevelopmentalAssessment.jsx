@@ -39,11 +39,14 @@ const headersMap = {
 export default function DevelopmentalAssessment({ 
   patients, 
   assessments, 
+  setAssessments,
   therapists = [],
   onAddAssessment, 
   onDeleteAssessment,
-  onPrintAssessment 
+  onPrintAssessment,
+  currentUser
 }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
   const [therapistId, setTherapistId] = useState('');
   const [evalDate, setEvalDate] = useState('2026-06-05'); // วันที่จำลองระบบ
@@ -375,100 +378,100 @@ export default function DevelopmentalAssessment({
       let invalidHnCount = 0;
       let errorCount = 0;
 
-      let currentAssessmentsList = [...assessments];
+      setAssessments(prev => {
+        let currentAssessmentsList = [...prev];
 
-      rows.forEach(row => {
-        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+        rows.forEach(row => {
+          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-        const val = (key) => {
-          const idx = indexMap[key];
-          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-        };
+          const val = (key) => {
+            const idx = indexMap[key];
+            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+          };
 
-        const hn = val('hn');
-        const date = val('date');
+          const hn = val('hn');
+          const date = val('date');
 
-        if (!hn || !date) {
-          errorCount++;
-          return;
-        }
+          if (!hn || !date) {
+            errorCount++;
+            return;
+          }
 
-        const patientExists = patients.some(p => p.hn === hn);
-        if (!patientExists) {
-          invalidHnCount++;
-          return;
-        }
+          const patientExists = patients.some(p => p.hn === hn);
+          if (!patientExists) {
+            invalidHnCount++;
+            return;
+          }
 
-        const gm = val('gm') || 'สมวัย';
-        const fm = val('fm') || 'สมวัย';
-        const language = val('language') || 'สมวัย';
-        const social = val('social') || 'สมวัย';
+          const gm = val('gm') || 'สมวัย';
+          const fm = val('fm') || 'สมวัย';
+          const language = val('language') || 'สมวัย';
+          const social = val('social') || 'สมวัย';
 
-        const tactile = Number(val('tactile')) || 0;
-        const vestibular = Number(val('vestibular')) || 0;
-        const proprioceptive = Number(val('proprioceptive')) || 0;
-        const visual = Number(val('visual')) || 0;
-        const auditory = Number(val('auditory')) || 0;
-        const movement = Number(val('movement')) || 0;
-        const sensoryTotal = tactile + vestibular + proprioceptive + visual + auditory + movement;
+          const tactile = Number(val('tactile')) || 0;
+          const vestibular = Number(val('vestibular')) || 0;
+          const proprioceptive = Number(val('proprioceptive')) || 0;
+          const visual = Number(val('visual')) || 0;
+          const auditory = Number(val('auditory')) || 0;
+          const movement = Number(val('movement')) || 0;
+          const sensoryTotal = tactile + vestibular + proprioceptive + visual + auditory + movement;
 
-        const snapInattention = Number(val('snapInattention')) || 0;
-        const snapHyperactivity = Number(val('snapHyperactivity')) || 0;
-        const snapOppositional = Number(val('snapOppositional')) || 0;
+          const snapInattention = Number(val('snapInattention')) || 0;
+          const snapHyperactivity = Number(val('snapHyperactivity')) || 0;
+          const snapOppositional = Number(val('snapOppositional')) || 0;
 
-        const inattentionStatus = snapInattention >= 16 ? 'เสี่ยง' : 'ปกติ';
-        const hyperactivityStatus = snapHyperactivity >= 13 ? 'เสี่ยง' : 'ปกติ';
-        const oppositionalStatus = snapOppositional >= 15 ? 'เสี่ยง' : 'ปกติ';
+          const inattentionStatus = snapInattention >= 16 ? 'เสี่ยง' : 'ปกติ';
+          const hyperactivityStatus = snapHyperactivity >= 13 ? 'เสี่ยง' : 'ปกติ';
+          const oppositionalStatus = snapOppositional >= 15 ? 'เสี่ยง' : 'ปกติ';
 
-        let id = val('id');
-        const exists = currentAssessmentsList.some(a => a.id === id);
+          let id = val('id');
+          const exists = currentAssessmentsList.some(a => a.id === id);
 
-        if (!id || !exists) {
-          const beYear = new Date(date).getFullYear() + 543;
-          const year2Digits = beYear.toString().slice(-2);
-          id = `HDA${year2Digits}-${hn}`;
-        }
+          if (!id || !exists) {
+            const beYear = new Date(date).getFullYear() + 543;
+            const year2Digits = beYear.toString().slice(-2);
+            id = `HDA${year2Digits}-${hn}`;
+          }
 
-        const assessmentData = {
-          id,
-          hn,
-          date,
-          gm,
-          fm,
-          language,
-          social,
-          sensoryScores: {
-            tactile,
-            vestibular,
-            proprioceptive,
-            visual,
-            auditory,
-            movement,
-            total: sensoryTotal
-          },
-          snapIV: {
-            inattention: snapInattention,
-            hyperactivity: snapHyperactivity,
-            oppositional: snapOppositional,
-            inattentionStatus,
-            hyperactivityStatus,
-            oppositionalStatus
-          },
-          created_at: new Date().toISOString()
-        };
+          const assessmentData = {
+            id,
+            hn,
+            date,
+            gm,
+            fm,
+            language,
+            social,
+            sensoryScores: {
+              tactile,
+              vestibular,
+              proprioceptive,
+              visual,
+              auditory,
+              movement,
+              total: sensoryTotal
+            },
+            snapIV: {
+              inattention: snapInattention,
+              hyperactivity: snapHyperactivity,
+              oppositional: snapOppositional,
+              inattentionStatus,
+              hyperactivityStatus,
+              oppositionalStatus
+            },
+            created_at: new Date().toISOString()
+          };
 
-        const existingAssessment = currentAssessmentsList.find(a => a.id === id);
-        if (existingAssessment) {
-          onDeleteAssessment(id);
-          onAddAssessment(assessmentData);
-          currentAssessmentsList = currentAssessmentsList.filter(a => a.id !== id);
-          currentAssessmentsList.push(assessmentData);
-          updatedCount++;
-        } else {
-          onAddAssessment(assessmentData);
-          currentAssessmentsList.push(assessmentData);
-          addedCount++;
-        }
+          const existingAssessmentIndex = currentAssessmentsList.findIndex(a => a.id === id);
+          if (existingAssessmentIndex !== -1) {
+            currentAssessmentsList[existingAssessmentIndex] = assessmentData;
+            updatedCount++;
+          } else {
+            currentAssessmentsList.push(assessmentData);
+            addedCount++;
+          }
+        });
+
+        return currentAssessmentsList;
       });
 
       Swal.fire({
@@ -594,13 +597,15 @@ export default function DevelopmentalAssessment({
                           <Printer size={16} color="var(--info)" />
                         </button>
                         
-                        <button 
-                          className="btn btn-light btn-icon-only" 
-                          title="ลบใบประเมิน"
-                          onClick={() => handleDelete(item.id)}
-                        >
-                          <Trash2 size={16} color="var(--danger)" />
-                        </button>
+                        {isAdmin && (
+                          <button 
+                            className="btn btn-light btn-icon-only" 
+                            title="ลบใบประเมิน"
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            <Trash2 size={16} color="var(--danger)" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

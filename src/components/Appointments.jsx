@@ -24,27 +24,36 @@ const headersMap = {
   therapistId: ['therapistid', 'รหัสนักบำบัด', 'รหัสผู้สอน', 'รหัสครู'],
   date: ['date', 'วันที่นัดหมาย', 'วันที่', 'วันที่นัดหมาย (yyyy-mm-dd)'],
   timeSlot: ['timeslot', 'เวลาเรียน', 'เวลา', 'ช่วงเวลา'],
+  type: ['type', 'ประเภทนัดหมาย', 'ประเภท', 'ประเภทการนัดหมาย'],
   status: ['status', 'สถานะ']
 };
 
 export default function Appointments({ 
   patients, 
   appointments, 
+  setAppointments,
   therapists, 
   holidays, 
   onAddAppointment, 
   onUpdateAppointmentStatus,
   onDeleteAppointment,
-  onUpdateAppointment
+  onUpdateAppointment,
+  currentUser
 }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
   const [bookingDate, setBookingDate] = useState('2026-06-05'); // ค่าเริ่มต้นวันที่ระบบ
   const [selectedTherapistId, setSelectedTherapistId] = useState('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
+  const [appointmentType, setAppointmentType] = useState('ฝึกกระตุ้นพัฒนาการ');
   
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Search states for custom patient dropdown
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
   // ตัวกรองสำหรับตารางด้านขวา
   const [statusFilter, setStatusFilter] = useState('All'); // All, จองแล้ว, ยืนยันแล้ว, รับบริการแล้ว, ยกเลิก
@@ -53,6 +62,31 @@ export default function Appointments({
   const activePatients = useMemo(() => {
     return patients.filter(p => p.status === 'Active');
   }, [patients]);
+
+  // Sync patientSearchText when selectedHn updates
+  useEffect(() => {
+    if (selectedHn) {
+      const p = activePatients.find(item => item.hn === selectedHn);
+      if (p) {
+        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [selectedHn, activePatients]);
+
+  const filteredActivePatients = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return activePatients;
+    return activePatients.filter(p => 
+      p.hn.toLowerCase().includes(q) || 
+      p.nickname.toLowerCase().includes(q) ||
+      p.firstname.toLowerCase().includes(q) ||
+      p.lastname.toLowerCase().includes(q)
+    );
+  }, [activePatients, patientSearchText]);
 
   // ตั้งค่ารหัสครูผู้สอนเริ่มต้นเมื่อเปิดหน้า
   useEffect(() => {
@@ -154,6 +188,7 @@ export default function Appointments({
         therapistId: selectedTherapistId,
         date: bookingDate,
         timeSlot: selectedTimeSlot,
+        type: appointmentType,
         status: origApp ? origApp.status : 'จองแล้ว',
         created_at: origApp ? origApp.created_at : new Date().toISOString()
       };
@@ -182,6 +217,7 @@ export default function Appointments({
         therapistId: selectedTherapistId,
         date: bookingDate,
         timeSlot: selectedTimeSlot,
+        type: appointmentType,
         status: 'จองแล้ว',
         created_at: new Date().toISOString()
       };
@@ -253,6 +289,7 @@ export default function Appointments({
     setBookingDate(app.date);
     setSelectedTherapistId(app.therapistId);
     setSelectedTimeSlot(app.timeSlot);
+    setAppointmentType(app.type || 'ฝึกกระตุ้นพัฒนาการ');
     
     setShowBookingModal(true);
   };
@@ -289,12 +326,16 @@ export default function Appointments({
       .map(app => {
         const patient = patients.find(p => p.hn === app.hn);
         const therapist = therapists.find(t => t.id === app.therapistId);
+        let tNickname = 'ไม่ระบุชื่อครู';
+        if (therapist) {
+          tNickname = therapist.nickname.startsWith('ครู') ? therapist.nickname : `ครู${therapist.nickname}`;
+        }
         return {
           ...app,
           patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูลผู้ป่วย',
           patientNickname: patient ? patient.nickname : '',
           patientFirstname: patient ? patient.firstname : '',
-          therapistNickname: therapist ? therapist.nickname : 'ไม่ระบุชื่อครู'
+          therapistNickname: tNickname
         };
       })
       .filter(app => {
@@ -314,14 +355,14 @@ export default function Appointments({
 
   const handleExportCSV = () => {
     const headers = [
-      'รหัสนัดหมาย', 'รหัส HN', 'รหัสนักบำบัด', 'วันที่นัดหมาย (YYYY-MM-DD)', 'เวลาเรียน', 'สถานะ'
+      'รหัสนัดหมาย', 'รหัส HN', 'รหัสนักบำบัด', 'วันที่นัดหมาย (YYYY-MM-DD)', 'เวลาเรียน', 'ประเภทนัดหมาย', 'สถานะ'
     ];
 
     let rows = [];
     if (appointments.length === 0) {
       // Export template
       rows = [
-        ['A1', '69001', 'T1', '2026-06-05', '10:00 - 11:00', 'จองแล้ว']
+        ['A1', '69001', 'T1', '2026-06-05', '10:00 - 11:00', 'ฝึกกระตุ้นพัฒนาการ', 'จองแล้ว']
       ];
       Swal.fire({
         title: 'ส่งออกไฟล์เทมเพลต',
@@ -336,6 +377,7 @@ export default function Appointments({
         app.therapistId,
         app.date,
         app.timeSlot,
+        app.type || 'ฝึกกระตุ้นพัฒนาการ',
         app.status
       ]);
     }
@@ -390,69 +432,73 @@ export default function Appointments({
       let invalidTherapistCount = 0;
       let errorCount = 0;
 
-      let currentAppointmentsList = [...appointments];
+      setAppointments(prev => {
+        let currentAppointmentsList = [...prev];
 
-      rows.forEach(row => {
-        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+        rows.forEach(row => {
+          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-        const val = (key) => {
-          const idx = indexMap[key];
-          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-        };
+          const val = (key) => {
+            const idx = indexMap[key];
+            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+          };
 
-        const hn = val('hn');
-        const therapistId = val('therapistId');
-        const date = val('date');
-        const timeSlot = val('timeSlot');
+          const hn = val('hn');
+          const therapistId = val('therapistId');
+          const date = val('date');
+          const timeSlot = val('timeSlot');
 
-        if (!hn || !therapistId || !date || !timeSlot) {
-          errorCount++;
-          return;
-        }
+          if (!hn || !therapistId || !date || !timeSlot) {
+            errorCount++;
+            return;
+          }
 
-        const patientExists = patients.some(p => p.hn === hn);
-        if (!patientExists) {
-          invalidHnCount++;
-          return;
-        }
+          const patientExists = patients.some(p => p.hn === hn);
+          if (!patientExists) {
+            invalidHnCount++;
+            return;
+          }
 
-        const therapistExists = therapists.some(t => t.id === therapistId);
-        if (!therapistExists) {
-          invalidTherapistCount++;
-          return;
-        }
+          const therapistExists = therapists.some(t => t.id === therapistId);
+          if (!therapistExists) {
+            invalidTherapistCount++;
+            return;
+          }
 
-        let id = val('id');
-        const exists = currentAppointmentsList.some(app => app.id === id);
+          let id = val('id');
+          const exists = currentAppointmentsList.some(app => app.id === id);
 
-        if (!id || !exists) {
-          id = 'A' + (currentAppointmentsList.length + 1) + Math.floor(Math.random() * 1000);
-        }
+          if (!id || !exists) {
+            id = 'A' + (currentAppointmentsList.length + 1) + Math.floor(Math.random() * 1000);
+          }
 
-        const appData = {
-          id,
-          hn,
-          therapistId,
-          date,
-          timeSlot,
-          status: val('status') || 'จองแล้ว',
-          created_at: new Date().toISOString()
-        };
+          const appData = {
+            id,
+            hn,
+            therapistId,
+            date,
+            timeSlot,
+            type: val('type') || 'ฝึกกระตุ้นพัฒนาการ',
+            status: val('status') || 'จองแล้ว',
+            created_at: new Date().toISOString()
+          };
 
-        const existingApp = currentAppointmentsList.find(app => app.id === id);
-        if (existingApp) {
-          onUpdateAppointment({
-            ...existingApp,
-            ...appData,
-            created_at: existingApp.created_at
-          });
-          currentAppointmentsList = currentAppointmentsList.map(app => app.id === id ? { ...app, ...appData } : app);
-          updatedCount++;
-        } else {
-          onAddAppointment(appData);
-          currentAppointmentsList.push(appData);
-          addedCount++;
-        }
+          const existingAppIndex = currentAppointmentsList.findIndex(app => app.id === id);
+          if (existingAppIndex !== -1) {
+            const existingApp = currentAppointmentsList[existingAppIndex];
+            currentAppointmentsList[existingAppIndex] = {
+              ...existingApp,
+              ...appData,
+              created_at: existingApp.created_at
+            };
+            updatedCount++;
+          } else {
+            currentAppointmentsList.push(appData);
+            addedCount++;
+          }
+        });
+
+        return currentAppointmentsList;
       });
 
       Swal.fire({
@@ -484,7 +530,7 @@ export default function Appointments({
           ตารางนัดหมายและการตรวจสอบคิว
         </h1>
         <div className="page-actions">
-          <button className="btn btn-primary" onClick={() => { setEditingAppointmentId(null); setSelectedHn(''); setSelectedTimeSlot(''); setShowBookingModal(true); }}>
+          <button className="btn btn-primary" onClick={() => { setEditingAppointmentId(null); setSelectedHn(''); setSelectedTimeSlot(''); setAppointmentType('ฝึกกระตุ้นพัฒนาการ'); setShowBookingModal(true); }}>
             <Plus size={16} /> จองคิวใหม่
           </button>
           <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกตารางนัดหมายเป็นไฟล์ CSV">
@@ -511,18 +557,86 @@ export default function Appointments({
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">ผู้รับบริการ (เฉพาะสถานะ Active) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text"
+                      className="form-control"
+                      placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                      value={patientSearchText}
+                      onChange={(e) => {
+                        setPatientSearchText(e.target.value);
+                        setSelectedHn('');
+                        setShowPatientDropdown(true);
+                      }}
+                      onFocus={() => setShowPatientDropdown(true)}
+                      onBlur={() => {
+                        setTimeout(() => setShowPatientDropdown(false), 200);
+                      }}
+                      required
+                    />
+                    <input type="hidden" value={selectedHn} required />
+                    
+                    {showPatientDropdown && (
+                      <div 
+                        className="card-md"
+                        style={{ 
+                          position: 'absolute', 
+                          top: '100%', 
+                          left: 0, 
+                          right: 0, 
+                          maxHeight: '200px', 
+                          overflowY: 'auto', 
+                          zIndex: 1000,
+                          backgroundColor: 'white',
+                          border: '1px solid var(--border)',
+                          boxShadow: 'var(--shadow-lg)',
+                          borderRadius: 'var(--radius-md)',
+                          marginTop: '0.25rem',
+                          padding: '0.5rem 0'
+                        }}
+                      >
+                        {filteredActivePatients.length === 0 ? (
+                          <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                            ไม่พบข้อมูลผู้ป่วย
+                          </div>
+                        ) : (
+                          filteredActivePatients.map(p => (
+                            <div 
+                              key={p.hn} 
+                              style={{ 
+                                padding: '0.5rem 1rem', 
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                transition: 'background-color 0.2s',
+                                backgroundColor: 'transparent'
+                              }}
+                              onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                              onClick={() => {
+                                setSelectedHn(p.hn);
+                                setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                setShowPatientDropdown(false);
+                              }}
+                            >
+                              HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">ประเภทนัดหมาย <span style={{ color: 'var(--danger)' }}>*</span></label>
                   <select 
                     className="form-control" 
-                    value={selectedHn} 
-                    onChange={(e) => setSelectedHn(e.target.value)}
+                    value={appointmentType} 
+                    onChange={(e) => setAppointmentType(e.target.value)}
                     required
                   >
-                    <option value="">-- เลือกผู้ป่วย --</option>
-                    {activePatients.map(p => (
-                      <option key={p.hn} value={p.hn}>
-                        HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
-                      </option>
-                    ))}
+                    <option value="ฝึกกระตุ้นพัฒนาการ">ฝึกกระตุ้นพัฒนาการ</option>
+                    <option value="ประเมินพัฒนาการครั้งแรก">ประเมินพัฒนาการครั้งแรก</option>
                   </select>
                 </div>
 
@@ -536,7 +650,9 @@ export default function Appointments({
                       required
                     >
                       {therapists.map(t => (
-                        <option key={t.id} value={t.id}>{t.nickname} ({t.fullname})</option>
+                        <option key={t.id} value={t.id}>
+                          {t.nickname.startsWith('ครู') ? t.nickname : `ครู${t.nickname}`} ({t.fullname})
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -719,6 +835,11 @@ export default function Appointments({
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
                           HN: {app.hn} (น้อง{app.patientNickname})
                         </div>
+                        {app.type && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 500, marginTop: '2px' }}>
+                            {app.type}
+                          </div>
+                        )}
                       </td>
                       <td>{app.therapistNickname}</td>
                       <td>
@@ -761,14 +882,16 @@ export default function Appointments({
                           >
                             <Edit2 size={14} color="var(--secondary)" />
                           </button>
-                          <button 
-                            className="btn btn-light btn-icon-only" 
-                            onClick={() => handleDeleteClick(app.id)}
-                            title="ลบ"
-                            type="button"
-                          >
-                            <Trash2 size={14} color="var(--danger)" />
-                          </button>
+                          {isAdmin && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              onClick={() => handleDeleteClick(app.id)}
+                              title="ลบ"
+                              type="button"
+                            >
+                              <Trash2 size={14} color="var(--danger)" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

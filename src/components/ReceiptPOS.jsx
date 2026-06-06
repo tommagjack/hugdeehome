@@ -48,6 +48,34 @@ export default function ReceiptPOS({
     return patients.filter(p => p.status === 'Active');
   }, [patients]);
 
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+  // Sync patientSearchText when selectedHn updates
+  useEffect(() => {
+    if (selectedHn) {
+      const p = activePatients.find(item => item.hn === selectedHn);
+      if (p) {
+        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+      } else {
+        setPatientSearchText('');
+      }
+    } else {
+      setPatientSearchText('');
+    }
+  }, [selectedHn, activePatients]);
+
+  const filteredActivePatients = useMemo(() => {
+    const q = patientSearchText.trim().toLowerCase();
+    if (!q || q.startsWith('hn:')) return activePatients;
+    return activePatients.filter(p => 
+      p.hn.toLowerCase().includes(q) || 
+      p.nickname.toLowerCase().includes(q) ||
+      p.firstname.toLowerCase().includes(q) ||
+      p.lastname.toLowerCase().includes(q)
+    );
+  }, [activePatients, patientSearchText]);
+
   // กรองสินค้า/บริการที่ Active จากวันที่ปัจจุบัน (5 มิ.ย. 2026)
   const activeServices = useMemo(() => {
     const todayStr = '2026-06-05';
@@ -64,23 +92,28 @@ export default function ReceiptPOS({
     return promotions.filter(p => {
       const start = p.startDate || '1970-01-01';
       const end = p.endDate || '2999-12-31';
-      return todayStr >= start && todayStr <= end;
+      const usedCount = receipts ? receipts.filter(r => r.promotionId === p.code && r.status !== 'ยกเลิก').length : 0;
+      return todayStr >= start && todayStr <= end && usedCount < p.maxUses;
     });
-  }, [promotions]);
+  }, [promotions, receipts]);
 
-  // คำนวณรหัสบิลใบเสร็จลำดับถัดไป (HDR69XXXX)
+  // คำนวณรหัสบิลใบเสร็จลำดับถัดไป (HDRYYYYMM-XXXX)
   const generateNextBillId = () => {
-    const today = new Date('2026-06-05');
-    const beYear = today.getFullYear() + 543;
-    const yearSuffix = beYear.toString().slice(-2); // "69"
-    const prefix = `HDR${yearSuffix}`;
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const prefix = `HDR${yyyy}${mm}-`;
 
-    const currentYearReceipts = receipts.filter(r => r.id.startsWith(prefix));
-    if (currentYearReceipts.length === 0) {
+    const matchingReceipts = receipts.filter(r => r.id && r.id.startsWith(prefix));
+    if (matchingReceipts.length === 0) {
       return `${prefix}0001`;
     }
 
-    const serials = currentYearReceipts.map(r => parseInt(r.id.replace(prefix, '')));
+    const serials = matchingReceipts.map(r => {
+      const parts = r.id.split('-');
+      const serialPart = parts[parts.length - 1];
+      return parseInt(serialPart, 10) || 0;
+    });
     const maxSerial = Math.max(...serials);
     const nextSerial = maxSerial + 1;
     const padded = nextSerial.toString().padStart(4, '0');
@@ -178,8 +211,18 @@ export default function ReceiptPOS({
   // แนบไฟล์สลิปปลอม
   const handleSlipUpload = (e) => {
     if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const origName = file.name;
+      const ext = origName.includes('.') ? origName.slice(origName.lastIndexOf('.')) : '.jpg';
+      
+      const today = new Date();
+      const yy = String(today.getFullYear()).slice(-2);
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      
+      const formattedName = `${selectedHn || 'UNKNOWN'}-${yy}${mm}${dd}${ext}`;
       setSlipAttached(true);
-      setSlipName(e.target.files[0].name);
+      setSlipName(formattedName);
     }
   };
 
@@ -213,17 +256,25 @@ export default function ReceiptPOS({
       }
     }
 
+    const today = new Date();
+    const yy = String(today.getFullYear()).slice(-2);
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const ext = slipName.includes('.') ? slipName.slice(slipName.lastIndexOf('.')) : '.jpg';
+    const finalSlipName = slipAttached ? `${selectedHn}-${yy}${mm}${dd}${ext}` : '';
+
     const billId = generateNextBillId();
     const newInvoice = {
       id: billId,
       hn: selectedHn,
-      date: '2026-06-05', // วันที่ออกเอกสารตามวันที่ระบบ
+      date: `${today.getFullYear()}-${mm}-${dd}`, // วันที่ออกเอกสารจริง
       items: cart.map(item => ({
         code: item.code,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        type: item.category
+        type: item.category,
+        sessionsPerUnit: item.sessionsPerUnit || 1
       })),
       discountType,
       discountValue: Number(discountValue),
@@ -231,11 +282,11 @@ export default function ReceiptPOS({
       promotionId: selectedPromoCode,
       paymentMethod,
       bankAccountId: paymentMethod === 'โอนเงิน' ? selectedBankId : '',
-      slipUrl: paymentMethod === 'โอนเงิน' ? slipName : '',
+      slipUrl: paymentMethod === 'โอนเงิน' ? finalSlipName : '',
       status: statusType, // 'ชำระเงินแล้ว' หรือ 'รอชำระเงิน'
       totalAmount: cartTotal,
       created_at: new Date().toISOString(),
-      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ สุดหล่อ'
+      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
     };
 
     onSaveReceipt(newInvoice);
@@ -294,18 +345,73 @@ export default function ReceiptPOS({
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>ข้อมูลผู้รับบริการ</h2>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">เลือกผู้รับบริการ (ลูกค้า Active)</label>
-              <select 
-                className="form-control"
-                value={selectedHn}
-                onChange={(e) => setSelectedHn(e.target.value)}
-              >
-                <option value="">-- ค้นหา/เลือกผู้ลงทะเบียน --</option>
-                {activePatients.map(p => (
-                  <option key={p.hn} value={p.hn}>
-                    HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
-                  </option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="text"
+                  className="form-control"
+                  placeholder="-- ค้นหาด้วย HN หรือชื่อเล่น --"
+                  value={patientSearchText}
+                  onChange={(e) => {
+                    setPatientSearchText(e.target.value);
+                    setSelectedHn('');
+                    setShowPatientDropdown(true);
+                  }}
+                  onFocus={() => setShowPatientDropdown(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowPatientDropdown(false), 200);
+                  }}
+                  required
+                />
+                
+                {showPatientDropdown && (
+                  <div 
+                    className="card-md"
+                    style={{ 
+                      position: 'absolute', 
+                      top: '100%', 
+                      left: 0, 
+                      right: 0, 
+                      maxHeight: '200px', 
+                      overflowY: 'auto', 
+                      zIndex: 1000,
+                      backgroundColor: 'white',
+                      border: '1px solid var(--border)',
+                      boxShadow: 'var(--shadow-lg)',
+                      borderRadius: 'var(--radius-md)',
+                      marginTop: '0.25rem',
+                      padding: '0.5rem 0'
+                    }}
+                  >
+                    {filteredActivePatients.length === 0 ? (
+                      <div style={{ padding: '0.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.85rem' }}>
+                        ไม่พบข้อมูลผู้ป่วย
+                      </div>
+                    ) : (
+                      filteredActivePatients.map(p => (
+                        <div 
+                          key={p.hn} 
+                          style={{ 
+                            padding: '0.5rem 1rem', 
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            transition: 'background-color 0.2s',
+                            backgroundColor: 'transparent'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                          onClick={() => {
+                            setSelectedHn(p.hn);
+                            setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                            setShowPatientDropdown(false);
+                          }}
+                        >
+                          HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

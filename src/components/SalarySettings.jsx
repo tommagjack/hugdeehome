@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Coins, 
   Plus, 
@@ -7,6 +7,14 @@ import {
 import Swal from 'sweetalert2';
 
 export default function SalarySettings({ salaryRules, setSalaryRules }) {
+  const [localEarnings, setLocalEarnings] = useState(() => salaryRules.earnings || []);
+  const [localDeductions, setLocalDeductions] = useState(() => salaryRules.deductions || []);
+
+  useEffect(() => {
+    setLocalEarnings(salaryRules.earnings || []);
+    setLocalDeductions(salaryRules.deductions || []);
+  }, [salaryRules]);
+
   // ฟังก์ชันเพิ่มรายการรับใหม่
   const handleAddEarning = () => {
     const newEarn = {
@@ -15,10 +23,7 @@ export default function SalarySettings({ salaryRules, setSalaryRules }) {
       type: 'คงที่',
       value: 0
     };
-    setSalaryRules({
-      ...salaryRules,
-      earnings: [...(salaryRules.earnings || []), newEarn]
-    });
+    setLocalEarnings([...localEarnings, newEarn]);
   };
 
   // ฟังก์ชันเพิ่มรายการหักใหม่
@@ -30,48 +35,52 @@ export default function SalarySettings({ salaryRules, setSalaryRules }) {
       value: 0,
       maxLimit: ''
     };
-    setSalaryRules({
-      ...salaryRules,
-      deductions: [...(salaryRules.deductions || []), newDed]
-    });
+    setLocalDeductions([...localDeductions, newDed]);
   };
 
   // ลบรายการรับ
   const handleDeleteEarning = (id) => {
-    setSalaryRules({
-      ...salaryRules,
-      earnings: salaryRules.earnings.filter(item => item.id !== id)
-    });
+    setLocalEarnings(localEarnings.filter(item => item.id !== id));
   };
 
   // ลบรายการหัก
   const handleDeleteDeduction = (id) => {
-    setSalaryRules({
-      ...salaryRules,
-      deductions: salaryRules.deductions.filter(item => item.id !== id)
-    });
+    setLocalDeductions(localDeductions.filter(item => item.id !== id));
   };
 
   // อัปเดตฟิลด์ในรายการรับ
   const handleUpdateEarning = (id, field, val) => {
-    const updated = salaryRules.earnings.map(item => {
+    const updated = localEarnings.map(item => {
       if (item.id === id) {
         return { ...item, [field]: val };
       }
       return item;
     });
-    setSalaryRules({ ...salaryRules, earnings: updated });
+    setLocalEarnings(updated);
   };
 
   // อัปเดตฟิลด์ในรายการหัก
   const handleUpdateDeduction = (id, field, val) => {
-    const updated = salaryRules.deductions.map(item => {
+    const updated = localDeductions.map(item => {
       if (item.id === id) {
         return { ...item, [field]: val };
       }
       return item;
     });
-    setSalaryRules({ ...salaryRules, deductions: updated });
+    setLocalDeductions(updated);
+  };
+
+  const handleSave = () => {
+    setSalaryRules({
+      earnings: localEarnings,
+      deductions: localDeductions
+    });
+    Swal.fire({
+      icon: 'success',
+      title: 'บันทึกการตั้งค่าสำเร็จ!',
+      text: 'ระบบได้บันทึกการตั้งค่ารายการรับและหักเงินเดือนเรียบร้อยแล้ว',
+      confirmButtonColor: 'var(--secondary)'
+    });
   };
 
   return (
@@ -99,12 +108,12 @@ export default function SalarySettings({ salaryRules, setSalaryRules }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {(!salaryRules.earnings || salaryRules.earnings.length === 0) ? (
+            {(!localEarnings || localEarnings.length === 0) ? (
               <div style={{ fontStyle: 'italic', color: 'var(--dark-light)', fontSize: '0.9rem', padding: '1rem', textAlign: 'center' }}>
                 ไม่มีรายการรับมาตรฐาน (กรุณากดเพิ่มรายการรับ)
               </div>
             ) : (
-              salaryRules.earnings.map((item) => (
+              localEarnings.map((item) => (
                 <div key={item.id} className="salary-rule-row">
                   <div style={{ flex: 3 }}>
                     <input 
@@ -164,12 +173,12 @@ export default function SalarySettings({ salaryRules, setSalaryRules }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {(!salaryRules.deductions || salaryRules.deductions.length === 0) ? (
+            {(!localDeductions || localDeductions.length === 0) ? (
               <div style={{ fontStyle: 'italic', color: 'var(--dark-light)', fontSize: '0.9rem', padding: '1rem', textAlign: 'center' }}>
                 ไม่มีรายการหักมาตรฐาน (กรุณากดเพิ่มรายการหัก)
               </div>
             ) : (
-              salaryRules.deductions.map((item) => (
+              localDeductions.map((item) => (
                 <div key={item.id} className="salary-rule-row">
                   <div style={{ flex: 3 }}>
                     <input 
@@ -226,8 +235,19 @@ export default function SalarySettings({ salaryRules, setSalaryRules }) {
         </div>
 
       </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+        <button 
+          type="button" 
+          className="btn btn-secondary" 
+          onClick={handleSave}
+          style={{ padding: '0.75rem 2.5rem', fontSize: '1rem', fontWeight: 700 }}
+        >
+          บันทึกข้อมูลการตั้งค่า (Save Settings)
+        </button>
+      </div>
       
-      <div style={{ backgroundColor: 'var(--light)', border: '1px solid var(--border-light)', padding: '1rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+      <div style={{ backgroundColor: 'var(--light)', border: '1px solid var(--border-light)', padding: '1rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', color: 'var(--dark-light)', marginTop: '1rem' }}>
         ℹ️ <strong>คำแนะนำ:</strong> ค่าตั้งต้นของรายการรับและหักจะถูกใช้เป็นฐานในการคำนวณเงินเดือนโดยอัตโนมัติเมื่อสร้างรายการคำนวณเงินเดือนในรอบถัดไป
       </div>
     </div>

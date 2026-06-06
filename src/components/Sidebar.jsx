@@ -41,6 +41,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'transactions', label: 'ข้อมูลรายรับ-รายจ่าย', icon: CircleDollarSign, roles: ['Admin'] },
     { id: 'users', label: 'บัญชีผู้ใช้งานระบบ', icon: UsersIcon, roles: ['Admin'] },
     { id: 'salary', label: 'เงินเดือน', icon: CoinsIcon, roles: ['Admin', 'OT', 'Staff'] },
+    { id: 'profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'settings', label: 'ตั้งค่าระบบ', icon: SettingsIcon, roles: ['Admin'] },
     { id: 'salarySettings', label: 'ตั้งค่าเงินเดือน', icon: SlidersIcon, roles: ['Admin'] }
   ];
@@ -64,7 +65,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'hr',
       title: 'การบริหารจัดการบุคคล',
-      items: ['users', 'salary']
+      items: ['users', 'salary', 'profile']
     },
     {
       id: 'admin',

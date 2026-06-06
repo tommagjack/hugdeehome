@@ -49,14 +49,13 @@ export default function CourseBalance({
       patientReceipts.forEach(r => {
         r.items.forEach(item => {
           if (item.type === 'บริการ') {
-            if (item.code === 'SV03') {
-              purchased += item.quantity * 10;
-            } else if (item.code === 'TRANSFER_OUT') {
+            if (item.code === 'TRANSFER_OUT') {
               purchased -= item.quantity; // โอนออก ลดยอด
             } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
               purchased += item.quantity; // โอนเข้า/แมนนวล เพิ่มยอด
             } else {
-              purchased += item.quantity;
+              const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+              purchased += item.quantity * sessionsPerUnit;
             }
           }
         });
@@ -100,17 +99,21 @@ export default function CourseBalance({
           let typeLabel = 'ซื้อคอร์สบริการ';
           let direction = 'in';
 
-          if (item.code === 'SV03') {
-            sessions = item.quantity * 10;
-          } else if (item.code === 'TRANSFER_OUT') {
+          if (item.code === 'TRANSFER_OUT') {
             typeLabel = 'โอนคอร์สออก';
             direction = 'out';
+            sessions = item.quantity;
           } else if (item.code === 'TRANSFER_IN') {
             typeLabel = 'โอนคอร์สเข้า';
             direction = 'in';
+            sessions = item.quantity;
           } else if (item.code === 'MANUAL_ADD') {
             typeLabel = 'ปรับปรุงคอร์สแมนนวล';
             direction = 'in';
+            sessions = item.quantity;
+          } else {
+            const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+            sessions = item.quantity * sessionsPerUnit;
           }
 
           list.push({

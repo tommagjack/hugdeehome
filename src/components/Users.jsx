@@ -11,7 +11,7 @@ import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
 
 const headersMap = {
-  username: ['username', 'ชื่อผู้ใช้', 'ชื่อบัญชีผู้ใช้ (username)', 'ชื่อบัญชี', 'ชื่อบัญชีผู้ใช้'],
+  username: ['username', 'ชื่อผู้ใช้', 'ชื่อบัญชีผู้ใช้ (username)', 'ชื่อบัญชี', 'ชื่อบัญชีผู้ใช้', 'ชื่อผู้ใช้ (username)'],
   password: ['password', 'รหัสผ่าน', 'รหัสผ่าน (password)'],
   employeeId: ['employeeid', 'รหัสพนักงาน', 'รหัส'],
   title: ['title', 'คำนำหน้า', 'คำนำหน้าชื่อ'],
@@ -27,10 +27,10 @@ const headersMap = {
   phone: ['phone', 'เบอร์โทร', 'เบอร์โทรศัพท์', 'เบอร์ติดต่อ', 'โทรศัพท์'],
   email: ['email', 'อีเมล', 'e-mail'],
   basicSalary: ['basicsalary', 'เงินเดือน', 'เงินเดือนพื้นฐาน', 'ฐานเงินเดือน'],
-  status: ['status', 'สถานะ', 'สถานะการใช้งาน'],
+  status: ['status', 'สถานะ', 'สถานะการใช้งาน', 'สถานะ (active/inactive)'],
   bankName: ['bankname', 'ชื่อธนาคาร', 'ธนาคาร'],
   bankAccountNo: ['bankaccountno', 'เลขบัญชี', 'เลขบัญชีธนาคาร', 'เลขที่บัญชี'],
-  avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url']
+  avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url', 'รูปโปรไฟล์ (profile url)']
 };
 
 const getNextEmployeeId = (userList) => {
@@ -234,11 +234,15 @@ export default function Users({ users, setUsers }) {
     };
 
     if (editingUsername) {
+      if (uUsername !== editingUsername && (users.some(u => u.username === uUsername) || uUsername.toLowerCase() === 'admin')) {
+        Swal.fire('ชื่อผู้ใช้ซ้ำ', 'มีชื่อล็อกอินนี้ในระบบหรือถูกสงวนไว้แล้ว', 'error');
+        return;
+      }
       setUsers(users.map(u => u.username === editingUsername ? newUser : u));
       Swal.fire({ icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
     } else {
-      if (users.find(u => u.username === uUsername)) {
-        Swal.fire('ชื่อผู้ใช้ซ้ำ', 'มีชื่อล็อกอินนี้ในระบบแล้ว', 'error');
+      if (users.find(u => u.username === uUsername) || uUsername.toLowerCase() === 'admin') {
+        Swal.fire('ชื่อผู้ใช้ซ้ำ', 'มีชื่อล็อกอินนี้ในระบบหรือถูกสงวนไว้แล้ว', 'error');
         return;
       }
       setUsers([...users, newUser]);
@@ -361,87 +365,89 @@ export default function Users({ users, setUsers }) {
       let addedCount = 0;
       let updatedCount = 0;
       let errorCount = 0;
-      
-      let currentUsersList = [...users];
 
-      rows.forEach(row => {
-        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      setUsers(prev => {
+        let currentUsersList = [...prev];
 
-        const val = (key) => {
-          const idx = indexMap[key];
-          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-        };
+        rows.forEach(row => {
+          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-        const username = val('username');
-        const password = val('password');
-        const fullname = val('fullname');
-        let role = val('role');
-
-        if (!username || !password || !fullname || !role) {
-          errorCount++;
-          return;
-        }
-
-        let standardizedRole = 'Staff';
-        const roleLower = role.toLowerCase();
-        if (roleLower.includes('admin') || roleLower.includes('ผู้ดูแล')) {
-          standardizedRole = 'Admin';
-        } else if (roleLower.includes('ot') || roleLower.includes('บำบัด')) {
-          standardizedRole = 'OT';
-        }
-
-        let status = 'Active';
-        const statusLower = val('status').toLowerCase();
-        if (statusLower.includes('inactive') || statusLower === 'ระงับ' || statusLower === 'ปิดการใช้งาน') {
-          status = 'Inactive';
-        }
-
-        let employeeId = val('employeeId');
-        if (!employeeId || employeeId === 'HDH-Auto') {
-          employeeId = getNextEmployeeId(currentUsersList);
-        }
-
-        const userData = {
-          username,
-          password,
-          fullname,
-          role: standardizedRole,
-          employeeId,
-          employeeType: val('employeeType') || 'พนักงานประจำ',
-          title: val('title') || 'นาย',
-          nickname: val('nickname'),
-          citizenId: val('citizenId'),
-          gender: val('gender') || 'ชาย',
-          dob: val('dob'),
-          position: val('position') || 'ไม่ระบุ',
-          startDate: val('startDate') || new Date().toISOString().split('T')[0],
-          phone: val('phone'),
-          email: val('email'),
-          basicSalary: Number(val('basicSalary')) || 0,
-          status,
-          bankName: val('bankName') || 'กสิกรไทย',
-          bankAccountNo: val('bankAccountNo'),
-          avatarUrl: val('avatarUrl') || ''
-        };
-
-        const existingUserIndex = currentUsersList.findIndex(u => u.username === username);
-        if (existingUserIndex !== -1) {
-          const existingUser = currentUsersList[existingUserIndex];
-          if (existingUser.employeeId && existingUser.employeeId !== 'HDH-Auto') {
-            userData.employeeId = existingUser.employeeId;
-          }
-          currentUsersList[existingUserIndex] = {
-            ...existingUser,
-            ...userData
+          const val = (key) => {
+            const idx = indexMap[key];
+            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
           };
-          updatedCount++;
-        } else {
-          currentUsersList.push(userData);
-          addedCount++;
-        }
-      });
 
-      setUsers(currentUsersList);
+          const username = val('username');
+          const password = val('password');
+          const fullname = val('fullname');
+          let role = val('role');
+
+          if (!username || !password || !fullname || !role) {
+            errorCount++;
+            return;
+          }
+
+          let standardizedRole = 'Staff';
+          const roleLower = role.toLowerCase();
+          if (roleLower.includes('admin') || roleLower.includes('ผู้ดูแล')) {
+            standardizedRole = 'Admin';
+          } else if (roleLower.includes('ot') || roleLower.includes('บำบัด')) {
+            standardizedRole = 'OT';
+          }
+
+          let status = 'Active';
+          const statusLower = val('status').toLowerCase();
+          if (statusLower.includes('inactive') || statusLower === 'ระงับ' || statusLower === 'ปิดการใช้งาน') {
+            status = 'Inactive';
+          }
+
+          let employeeId = val('employeeId');
+          if (!employeeId || employeeId === 'HDH-Auto') {
+            employeeId = getNextEmployeeId(currentUsersList);
+          }
+
+          const userData = {
+            username,
+            password,
+            fullname,
+            role: standardizedRole,
+            employeeId,
+            employeeType: val('employeeType') || 'พนักงานประจำ',
+            title: val('title') || 'นาย',
+            nickname: val('nickname'),
+            citizenId: val('citizenId'),
+            gender: val('gender') || 'ชาย',
+            dob: val('dob'),
+            position: val('position') || 'ไม่ระบุ',
+            startDate: val('startDate') || new Date().toISOString().split('T')[0],
+            phone: val('phone'),
+            email: val('email'),
+            basicSalary: Number(val('basicSalary')) || 0,
+            status,
+            bankName: val('bankName') || 'กสิกรไทย',
+            bankAccountNo: val('bankAccountNo'),
+            avatarUrl: val('avatarUrl') || ''
+          };
+
+          const existingUserIndex = currentUsersList.findIndex(u => u.username === username);
+          if (existingUserIndex !== -1) {
+            const existingUser = currentUsersList[existingUserIndex];
+            if (existingUser.employeeId && existingUser.employeeId !== 'HDH-Auto') {
+              userData.employeeId = existingUser.employeeId;
+            }
+            currentUsersList[existingUserIndex] = {
+              ...existingUser,
+              ...userData
+            };
+            updatedCount++;
+          } else {
+            currentUsersList.push(userData);
+            addedCount++;
+          }
+        });
+
+        return currentUsersList;
+      });
 
       Swal.fire({
         icon: 'success',
@@ -464,6 +470,7 @@ export default function Users({ users, setUsers }) {
 
   // ค้นหาพนักงาน
   const filteredUsers = users.filter(u => {
+    if (u.username.toLowerCase() === 'admin') return false;
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return (
@@ -556,7 +563,7 @@ export default function Users({ users, setUsers }) {
                   <tr key={u.username}>
                     <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{u.employeeId || '-'}</td>
                     <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{u.username}</td>
-                    <td>{u.fullname} {u.nickname ? `(น้อง${u.nickname})` : ''}</td>
+                    <td>{u.fullname} {u.nickname ? `(${u.nickname})` : ''}</td>
                     <td>{u.position || 'ไม่ระบุ'}</td>
                     <td>
                       <span className={`badge ${
@@ -616,7 +623,6 @@ export default function Users({ users, setUsers }) {
                       placeholder="ภาษาอังกฤษไม่มีช่องว่าง" 
                       value={uUsername} 
                       onChange={(e) => setUUsername(e.target.value)} 
-                      disabled={!!editingUsername}
                       required 
                     />
                   </div>

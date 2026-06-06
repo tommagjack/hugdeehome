@@ -37,7 +37,7 @@ const monthThaiToNum = {
 };
 
 const trHeadersMap = {
-  date: ['date', 'วันที่', 'วันที่ (yyyy-mm-dd)', 'วันที่ (dd/mm/yyyy)', 'วันที่ (dd/mm/bbbb)', 'วันที่ทำรายการ'],
+  date: ['date', 'วันที่', 'วันที่ (yyyy-mm-dd)', 'วันที่ (dd/mm/yyyy)', 'วันที่ (dd/mm/bbbb)', 'วันที่ทำรายการ', 'วันที่ทำรายการ (yyyy-mm-dd)', 'วันที่ทำรายการ (yyyy_mm_dd)'],
   type: ['type', 'ประเภท', 'ประเภท (รายรับ/รายจ่าย)', 'ประเภทรายการ'],
   description: ['description', 'รายการ', 'รายละเอียด', 'คำอธิบาย', 'ชื่อรายการ'],
   category: ['category', 'หมวดหมู่', 'ประเภทรายการ', 'กลุ่มงาน'],
@@ -473,7 +473,7 @@ export default function Transactions({
       });
 
       if (importedTransactions.length > 0) {
-        setTransactions([...transactions, ...importedTransactions]);
+        setTransactions(prev => [...prev, ...importedTransactions]);
         Swal.fire({
           icon: 'success',
           title: 'นำเข้าข้อมูลธุรกรรมสำเร็จ',

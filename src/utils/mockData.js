@@ -14,30 +14,7 @@ export const INITIAL_CLINIC_INFO = {
   folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J"
 };
 
-export const INITIAL_USERS = [
-  {
-    username: "admin",
-    password: "123",
-    fullname: "ผู้ดูแลระบบ",
-    role: "Admin",
-    employeeId: "HDH001",
-    employeeType: "พนักงานประจำ",
-    title: "นาย",
-    nickname: "แอดมิน",
-    citizenId: "1234567890123",
-    gender: "ชาย",
-    dob: "1990-05-15",
-    position: "ผู้ดูแลระบบสูงสุด",
-    startDate: "2026-01-01",
-    phone: "089-111-2222",
-    email: "admin@hugdeehome.com",
-    basicSalary: 25000,
-    status: "Active",
-    bankName: "กสิกรไทย",
-    bankAccountNo: "123-4-56789-0",
-    avatarUrl: ""
-  }
-];
+export const INITIAL_USERS = [];
 
 export const INITIAL_THERAPISTS = [];
 

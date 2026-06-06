@@ -27,6 +27,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
   const [calcYear, setCalcYear] = useState('2026');
   const [calcMonth, setCalcMonth] = useState('มิถุนายน');
   const [selectedUsername, setSelectedUsername] = useState('');
+  const [calcPaymentDate, setCalcPaymentDate] = useState('2026-06-05');
   
   // ยอดรายรับคำนวณตามจำนวนคูณ
   const [earningCounts, setEarningCounts] = useState({}); // { 'earn-ot': 2 }
@@ -44,7 +45,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
   // รายชื่อพนักงานที่เป็น Active เท่านั้นสำหรับคำนวณเงินเดือน
   const activeEmployees = useMemo(() => {
-    return users.filter(u => u.status === 'Active');
+    return users.filter(u => u.status === 'Active' && u.username.toLowerCase() !== 'admin');
   }, [users]);
 
   // พนักงานที่เลือกอยู่ในขณะคำนวณ
@@ -176,6 +177,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     setCalcYear('2026');
     setCalcMonth('มิถุนายน');
     setSelectedUsername('');
+    setCalcPaymentDate('2026-06-05');
     setEarningCounts({});
     // ติ๊กถูกเริ่มต้นสำหรับรายการหักเปอร์เซ็นต์ทั้งหมด
     const initialApplied = {};
@@ -193,6 +195,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     setCalcYear(p.year);
     setCalcMonth(p.month);
     setSelectedUsername(p.employeeUsername);
+    setCalcPaymentDate(p.paymentDate || (p.created_at ? p.created_at.split('T')[0] : '2026-06-05'));
     
     // ตั้งค่า Counts
     const counts = {};
@@ -263,6 +266,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
       totalEarnings,
       totalDeductions,
       netPay,
+      paymentDate: calcPaymentDate,
       created_at: new Date().toISOString()
     };
 
@@ -579,7 +583,10 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                       ))}
                     </select>
                   </div>
-                  <div className="form-group">
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1.5 }}>
                     <label className="form-label">เลือกพนักงาน (Employee)</label>
                     <select 
                       className="form-control" 
@@ -595,6 +602,16 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">วันที่ทำรายการจ่าย (Payment Date)</label>
+                    <input 
+                      type="date"
+                      className="form-control"
+                      value={calcPaymentDate}
+                      onChange={(e) => setCalcPaymentDate(e.target.value)}
+                      required
+                    />
                   </div>
                 </div>
 
@@ -845,7 +862,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                 <div>
                   <div><strong>ธนาคาร:</strong> {users.find(u => u.username === selectedSlip.employeeUsername)?.bankName || '-'}</div>
                   <div><strong>เลขที่บัญชี:</strong> {users.find(u => u.username === selectedSlip.employeeUsername)?.bankAccountNo || '-'}</div>
-                  <div><strong>วันที่ทำรายการจ่าย:</strong> {new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
+                  <div><strong>วันที่ทำรายการจ่าย:</strong> {selectedSlip.paymentDate ? new Date(selectedSlip.paymentDate).toLocaleDateString('th-TH') : new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
                 </div>
               </div>
 
@@ -922,8 +939,9 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{ width: '150px', borderBottom: '1px solid #333', height: '35px', marginBottom: '5px' }}></div>
+                  <div style={{ fontWeight: 600, fontSize: '11px', marginBottom: '2px' }}>(นางสาวสุทธิพร สมเนตร)</div>
                   <div>ผู้อนุมัติจ่าย / Employer Signature</div>
-                  <div style={{ color: '#555', fontSize: '10px' }}>วันที่: ______/______/______</div>
+                  <div style={{ color: '#333', fontSize: '10px' }}>วันที่: {selectedSlip.paymentDate ? new Date(selectedSlip.paymentDate).toLocaleDateString('th-TH') : new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
                 </div>
               </div>
             </div>

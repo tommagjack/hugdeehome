@@ -97,3 +97,59 @@ export const db = {
   getOpdRecords: () => get(KEYS.OPD_RECORDS, mock.INITIAL_OPD_RECORDS),
   setOpdRecords: (data) => set(KEYS.OPD_RECORDS, data),
 };
+
+// --- ฟังก์ชันซิงค์ข้อมูลกับ Google Sheets (ใช้ชื่อเดิมเพื่อป้องกันการกระทบโค้ดอื่น) ---
+export const syncFromSupabase = async () => {
+  const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
+  if (!gasUrl) return false;
+
+  try {
+    const response = await fetch(gasUrl + (gasUrl.includes('?') ? '&' : '?') + 'action=get_all');
+    if (!response.ok) {
+      console.error('Error fetching from Google Sheets:', response.statusText);
+      return false;
+    }
+
+    const result = await response.json();
+    if (result.status === 'success' && result.data) {
+      // อัปเดตข้อมูลลง LocalStorage
+      Object.keys(result.data).forEach(key => {
+        localStorage.setItem(key, JSON.stringify(result.data[key]));
+      });
+      return true;
+    }
+  } catch (e) {
+    console.error('Exception during Google Sheets sync load:', e);
+  }
+  return false;
+};
+
+export const syncToSupabase = async (key, value) => {
+  const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
+  if (!gasUrl) return false;
+
+  try {
+    const response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8' // ป้องกันการทำ preflight request (CORS) ในเบราว์เซอร์
+      },
+      body: JSON.stringify({
+        action: 'sync_table',
+        key: key,
+        value: value
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`Error saving ${key} to Google Sheets:`, response.statusText);
+      return false;
+    }
+
+    const result = await response.json();
+    return result.status === 'success';
+  } catch (e) {
+    console.error(`Exception saving ${key} to Google Sheets:`, e);
+  }
+  return false;
+};

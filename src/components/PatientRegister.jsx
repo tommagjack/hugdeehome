@@ -37,11 +37,14 @@ const headersMap = {
 
 export default function PatientRegister({ 
   patients, 
+  setPatients,
   onAddPatient, 
   onUpdatePatient, 
   onDeletePatient,
-  onPrintPatient
+  onPrintPatient,
+  currentUser
 }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All'); // All, Active, Pending, Inactive
   
@@ -222,7 +225,10 @@ export default function PatientRegister({
       channels: selectedChannels,
       channelsOtherDetails: selectedChannels.includes('อื่นๆ') ? channelsOtherDetails : '',
       worries,
-      created_at: isEditing ? (patients.find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString()
+      created_at: isEditing ? (patients.find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+      createdBy: isEditing 
+        ? (patients.find(p => p.hn === formHn)?.createdBy || '')
+        : (currentUser?.fullname || 'ผู้ดูแลระบบ')
     };
 
     if (isEditing) {
@@ -422,92 +428,98 @@ export default function PatientRegister({
       let addedCount = 0;
       let updatedCount = 0;
       let errorCount = 0;
-      
-      // Temporary list of HN to generate sequential HNs
-      let currentPatientsList = [...patients];
 
-      rows.forEach(row => {
-        // Skip empty rows
-        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      setPatients(prev => {
+        let currentPatientsList = [...prev];
 
-        const val = (key) => {
-          const idx = indexMap[key];
-          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-        };
+        rows.forEach(row => {
+          // Skip empty rows
+          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-        const firstname = val('firstname');
-        const lastname = val('lastname');
-        const phone = val('phone');
-        const dob = val('dob');
-
-        // Validation
-        if (!firstname || !lastname || !dob || !phone) {
-          errorCount++;
-          return;
-        }
-
-        // Channels are split by | or comma
-        const channelsRaw = val('channels');
-        const channels = channelsRaw ? channelsRaw.split(/[|,]+/).map(c => c.trim()).filter(Boolean) : [];
-
-        // Check or generate HN
-        let hn = val('hn');
-        const exists = currentPatientsList.some(p => p.hn === hn);
-
-        if (!hn || (!exists && isNaN(parseInt(hn)))) {
-          const generateTempHn = (tempList) => {
-            const today = new Date('2026-06-05');
-            const beYear = today.getFullYear() + 543;
-            const yearSuffix = beYear.toString().slice(-2);
-            
-            const yearPatients = tempList.filter(p => p.hn.startsWith(yearSuffix));
-            if (yearPatients.length === 0) {
-              return `${yearSuffix}001`;
-            }
-            const hns = yearPatients.map(p => parseInt(p.hn.slice(2)));
-            const maxNum = Math.max(...hns);
-            const nextNum = maxNum + 1;
-            const paddedNum = nextNum.toString().padStart(3, '0');
-            return `${yearSuffix}${paddedNum}`;
+          const val = (key) => {
+            const idx = indexMap[key];
+            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
           };
-          hn = generateTempHn(currentPatientsList);
-        }
 
-        const patientData = {
-          hn,
-          status: val('status') || 'Active',
-          gender: val('gender') || 'ชาย',
-          title: val('title') || (val('gender') === 'หญิง' ? 'เด็กหญิง' : 'เด็กชาย'),
-          firstname,
-          lastname,
-          nickname: val('nickname'),
-          dob,
-          guardian: val('guardian'),
-          phone,
-          allergies: val('allergies') || 'ปฏิเสธการแพ้ยา',
-          allergiesDetails: val('allergiesDetails'),
-          conditions: val('conditions') || 'ไม่มี',
-          conditionsDetails: val('conditionsDetails'),
-          channels,
-          channelsOtherDetails: val('channelsOtherDetails'),
-          worries: val('worries'),
-          created_at: new Date().toISOString()
-        };
+          const firstname = val('firstname');
+          const lastname = val('lastname');
+          const phone = val('phone');
+          const dob = val('dob');
 
-        const existingPatient = currentPatientsList.find(p => p.hn === hn);
-        if (existingPatient) {
-          onUpdatePatient({
-            ...existingPatient,
-            ...patientData,
-            created_at: existingPatient.created_at
-          });
-          currentPatientsList = currentPatientsList.map(p => p.hn === hn ? { ...p, ...patientData } : p);
-          updatedCount++;
-        } else {
-          onAddPatient(patientData);
-          currentPatientsList.push(patientData);
-          addedCount++;
-        }
+          // Validation
+          if (!firstname || !lastname || !dob || !phone) {
+            errorCount++;
+            return;
+          }
+
+          // Channels are split by | or comma
+          const channelsRaw = val('channels');
+          const channels = channelsRaw ? channelsRaw.split(/[|,]+/).map(c => c.trim()).filter(Boolean) : [];
+
+          // Check or generate HN
+          let hn = val('hn');
+          const exists = currentPatientsList.some(p => p.hn === hn);
+
+          if (!hn || (!exists && isNaN(parseInt(hn)))) {
+            const generateTempHn = (tempList) => {
+              const today = new Date('2026-06-05');
+              const beYear = today.getFullYear() + 543;
+              const yearSuffix = beYear.toString().slice(-2);
+              
+              const yearPatients = tempList.filter(p => p.hn.startsWith(yearSuffix));
+              if (yearPatients.length === 0) {
+                return `${yearSuffix}001`;
+              }
+              const hns = yearPatients.map(p => parseInt(p.hn.slice(2)));
+              const maxNum = Math.max(...hns);
+              const nextNum = maxNum + 1;
+              const paddedNum = nextNum.toString().padStart(3, '0');
+              return `${yearSuffix}${paddedNum}`;
+            };
+            hn = generateTempHn(currentPatientsList);
+          }
+
+          const patientData = {
+            hn,
+            status: val('status') || 'Active',
+            gender: val('gender') || 'ชาย',
+            title: val('title') || (val('gender') === 'หญิง' ? 'เด็กหญิง' : 'เด็กชาย'),
+            firstname,
+            lastname,
+            nickname: val('nickname'),
+            dob,
+            guardian: val('guardian'),
+            phone,
+            allergies: val('allergies') || 'ปฏิเสธการแพ้ยา',
+            allergiesDetails: val('allergiesDetails'),
+            conditions: val('conditions') || 'ไม่มี',
+            conditionsDetails: val('conditionsDetails'),
+            channels,
+            channelsOtherDetails: val('channelsOtherDetails'),
+            worries: val('worries'),
+            created_at: new Date().toISOString()
+          };
+
+          const existingPatientIndex = currentPatientsList.findIndex(p => p.hn === hn);
+          if (existingPatientIndex !== -1) {
+            const existingPatient = currentPatientsList[existingPatientIndex];
+            currentPatientsList[existingPatientIndex] = {
+              ...existingPatient,
+              ...patientData,
+              created_at: existingPatient.created_at,
+              createdBy: existingPatient.createdBy || currentUser?.fullname || 'ผู้ดูแลระบบ'
+            };
+            updatedCount++;
+          } else {
+            currentPatientsList.push({
+              ...patientData,
+              createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
+            });
+            addedCount++;
+          }
+        });
+
+        return currentPatientsList;
       });
 
       Swal.fire({
@@ -851,13 +863,15 @@ export default function PatientRegister({
                             <Printer size={16} color="var(--info)" />
                           </button>
                           
-                          <button 
-                            className="btn btn-light btn-icon-only" 
-                            title="ลบผู้ป่วย"
-                            onClick={() => handleDeleteClick(p.hn)}
-                          >
-                            <Trash2 size={16} color="var(--danger)" />
-                          </button>
+                          {isAdmin && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title="ลบผู้ป่วย"
+                              onClick={() => handleDeleteClick(p.hn)}
+                            >
+                              <Trash2 size={16} color="var(--danger)" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -10,20 +10,24 @@ import {
   EyeOff, 
   FileText, 
   Upload, 
+  Download,
   X,
   Check,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { exportToCSV, parseCSV } from '../utils/csvHelper';
 
 export default function OPD({
   patients,
   therapists,
   opdRecords,
   setOpdRecords,
-  onPrintOPD // ฟังก์ชันสั่งพรีวิวจัดพิมพ์ที่จะถูกส่งผ่าน App.jsx
+  onPrintOPD,
+  currentUser
 }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -235,6 +239,174 @@ export default function OPD({
     }
   };
 
+  const handleExportCSV = () => {
+    const recordsToExport = selectedHn 
+      ? opdRecords.filter(r => r.hn === selectedHn)
+      : opdRecords;
+    
+    if (recordsToExport.length === 0) {
+      Swal.fire({
+        title: 'ไม่มีข้อมูลส่งออก',
+        text: 'ไม่พบข้อมูลบันทึกผลการฝึกในระบบ',
+        icon: 'info',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const headers = [
+      'รหัสบันทึก', 'รหัส HN', 'วันที่ฝึก', 'ครูผู้ให้บริการ', 'รายละเอียดผลการฝึก', 'ไฟล์แนบ', 'แสดงต่อผู้ปกครอง'
+    ];
+
+    const rows = recordsToExport.map(r => [
+      r.id,
+      r.hn,
+      r.date,
+      r.therapist,
+      r.details,
+      r.fileUrl || '',
+      r.isVisible ? 'ใช่' : 'ไม่ใช่'
+    ]);
+
+    const filename = selectedHn ? `opd_records_${selectedHn}.csv` : 'all_opd_records.csv';
+    exportToCSV(filename, headers, rows);
+  };
+
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const parsed = parseCSV(text);
+
+      if (parsed.length < 2) {
+        Swal.fire({
+          icon: 'error',
+          title: 'ไฟล์ว่างเปล่า',
+          text: 'ไม่พบข้อมูลในไฟล์ CSV ที่อัปโหลด',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+
+      const csvHeaders = parsed[0].map(h => h.trim().toLowerCase());
+      const rows = parsed.slice(1);
+
+      const indexMap = {};
+      const headersMap = {
+        id: ['id', 'รหัสบันทึก', 'รหัส opd', 'บันทึก id'],
+        hn: ['hn', 'รหัส hn', 'รหัสผู้ป่วย', 'hn ผู้ป่วย'],
+        date: ['date', 'วันที่ฝึก', 'วันที่', 'วันที่บันทึก'],
+        therapist: ['therapist', 'ครูผู้ฝึก', 'ครูผู้ให้บริการ', 'ครูผู้สอน', 'ครู'],
+        details: ['details', 'รายละเอียดการฝึก', 'รายละเอียดผลการฝึก', 'พฤติกรรม', 'รายละเอียด'],
+        fileUrl: ['fileurl', 'ไฟล์แนบ', 'ลิงก์ไฟล์', 'รูปภาพ'],
+        isVisible: ['isvisible', 'ผู้ปกครองเห็น', 'แสดงต่อผู้ปกครอง', 'สถานะผู้ปกครองเห็น']
+      };
+
+      Object.keys(headersMap).forEach(key => {
+        const matchingHeaders = headersMap[key];
+        const idx = csvHeaders.findIndex(h => matchingHeaders.includes(h));
+        if (idx !== -1) {
+          indexMap[key] = idx;
+        }
+      });
+
+      if (indexMap.hn === undefined || indexMap.date === undefined || indexMap.details === undefined) {
+        Swal.fire({
+          icon: 'error',
+          title: 'รูปแบบคอลัมน์ไม่ถูกต้อง',
+          text: 'กรุณาตรวจสอบว่ามีคอลัมน์ รหัส HN, วันที่ฝึก และ รายละเอียดการฝึก อย่างน้อยที่สุด',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+
+      let addedCount = 0;
+      let updatedCount = 0;
+      let invalidHnCount = 0;
+      let errorCount = 0;
+
+      setOpdRecords(prev => {
+        let currentRecords = [...prev];
+
+        rows.forEach((row, index) => {
+          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+
+          const val = (key) => {
+            const idx = indexMap[key];
+            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+          };
+
+          const hn = val('hn');
+          const date = val('date');
+          const details = val('details');
+
+          if (!hn || !date || !details) {
+            errorCount++;
+            return;
+          }
+
+          const patientExists = patients.some(p => p.hn === hn);
+          if (!patientExists) {
+            invalidHnCount++;
+            return;
+          }
+
+          let id = val('id');
+          if (!id) {
+            id = `OPD-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`;
+          }
+
+          const isVisibleRaw = val('isVisible').toLowerCase();
+          const isVisible = isVisibleRaw === 'ใช่' || isVisibleRaw === 'true' || isVisibleRaw === '1' || isVisibleRaw === 'yes' || isVisibleRaw === '';
+
+          const recordData = {
+            id,
+            hn,
+            date,
+            therapist: val('therapist') || (therapists[0] ? therapists[0].nickname : 'ครูผู้ดูแล'),
+            details,
+            fileUrl: val('fileUrl'),
+            isVisible
+          };
+
+          const existingIdx = currentRecords.findIndex(r => r.id === id);
+          if (existingIdx !== -1) {
+            currentRecords[existingIdx] = recordData;
+            updatedCount++;
+          } else {
+            currentRecords.push(recordData);
+            addedCount++;
+          }
+        });
+
+        return currentRecords;
+      });
+
+      setCurrentPage(1);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'นำเข้าข้อมูลสำเร็จ',
+        html: `
+          <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.6;">
+            นำเข้าใหม่: <strong>${addedCount}</strong> รายการ<br/>
+            อัปเดตข้อมูลเดิม: <strong>${updatedCount}</strong> รายการ<br/>
+            ข้ามเนื่องจาก HN ไม่มีในระบบ: <strong style="color:var(--warning)">${invalidHnCount}</strong> รายการ<br/>
+            ข้ามเนื่องจากข้อมูลไม่ครบถ้วน: <strong style="color:var(--danger)">${errorCount}</strong> รายการ
+          </div>
+        `,
+        confirmButtonColor: 'var(--secondary)'
+      });
+
+      e.target.value = '';
+    };
+
+    reader.readAsText(file);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
@@ -243,6 +415,13 @@ export default function OPD({
           บันทึกผลการฝึก (OPD Card)
         </h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการฝึกเป็นไฟล์ CSV">
+            <Download size={16} /> Export CSV
+          </button>
+          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการฝึกผ่านไฟล์ CSV">
+            <Upload size={16} /> Import CSV
+            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+          </label>
           <button 
             className="btn btn-secondary" 
             onClick={() => onPrintOPD('opd_blank', null)}
@@ -582,13 +761,15 @@ export default function OPD({
                                   >
                                     <Edit2 size={14} color="var(--dark)" />
                                   </button>
-                                  <button 
-                                    className="btn btn-light btn-icon-only" 
-                                    onClick={() => handleDeleteRecord(row.id)}
-                                    title="ลบบันทึกแถวนี้"
-                                  >
-                                    <Trash2 size={14} color="var(--danger)" />
-                                  </button>
+                                  {isAdmin && (
+                                    <button 
+                                      className="btn btn-light btn-icon-only" 
+                                      onClick={() => handleDeleteRecord(row.id)}
+                                      title="ลบบันทึกแถวนี้"
+                                    >
+                                      <Trash2 size={14} color="var(--danger)" />
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </>

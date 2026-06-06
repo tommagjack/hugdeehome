@@ -7,20 +7,277 @@ import {
   Printer, 
   XOctagon, 
   Coins, 
-  Calendar
+  Calendar,
+  Trash2,
+  Download,
+  Upload
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { exportToCSV, parseCSV } from '../utils/csvHelper';
 
 export default function ReceiptHistory({ 
   patients, 
   receipts, 
+  setReceipts,
+  services,
   onVoidReceipt, 
   onEditDraftReceipt, 
-  onPrintReceipt 
+  onPrintReceipt,
+  onDeleteReceipt,
+  currentUser
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMonth, setFilterMonth] = useState('All'); // All, 01-12
   const [filterYear, setFilterYear] = useState('2026');   // All, 2026, ฯลฯ
+
+  // ตรวจสอบบทบาทของบัญชีผู้ใช้
+  const isAdmin = currentUser?.role === 'Admin';
+
+  const handleExportCSV = () => {
+    const headers = [
+      'เลขที่เอกสาร', 'รหัส HN', 'วันที่ออกบิล', 'รายการซื้อ',
+      'ส่วนลด', 'ประเภทส่วนลด', 'เหตุผลส่วนลด', 'รหัสโปรโมชั่น',
+      'ชำระโดย', 'บัญชีธนาคาร', 'ลิงก์สลิป', 'ยอดสุทธิ',
+      'สถานะ', 'ผู้ทำรายการ', 'วันเวลาที่สร้าง'
+    ];
+
+    const rows = receipts.map(r => [
+      r.id,
+      r.hn,
+      r.date,
+      r.items.map(it => `${it.name}:${it.quantity}:${it.price}:${it.code || ''}:${it.type || ''}`).join('|'),
+      r.discountValue || 0,
+      r.discountType || 'flat',
+      r.discountReason || '',
+      r.promotionId || '',
+      r.paymentMethod || 'เงินสด',
+      r.bankAccountId || '',
+      r.slipUrl || '',
+      r.totalAmount || 0,
+      r.status || 'ชำระเงินแล้ว',
+      r.createdBy || '',
+      r.created_at || ''
+    ]);
+
+    exportToCSV('receipt_history.csv', headers, rows);
+  };
+
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const parsed = parseCSV(text);
+
+      if (parsed.length < 2) {
+        Swal.fire({
+          icon: 'error',
+          title: 'ไฟล์ว่างเปล่า',
+          text: 'ไม่พบข้อมูลในไฟล์ CSV ที่อัปโหลด',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+
+      const csvHeaders = parsed[0].map(h => h.trim().toLowerCase());
+      const rows = parsed.slice(1);
+
+      const indexMap = {};
+      const headersMap = {
+        id: ['id', 'เลขที่เอกสาร', 'เลขที่บิล', 'รหัสเอกสาร', 'เลขที่'],
+        hn: ['hn', 'รหัส hn', 'รหัสผู้ป่วย', 'hn ผู้ป่วย'],
+        date: ['date', 'วันที่ออกบิล', 'วันที่', 'วันที่บิล'],
+        items: ['items', 'รายการซื้อ', 'รายการสินค้า', 'สินค้า'],
+        discountValue: ['discountvalue', 'ส่วนลด'],
+        discountType: ['discounttype', 'ประเภทส่วนลด'],
+        discountReason: ['discountreason', 'เหตุผลส่วนลด'],
+        promotionId: ['promotionid', 'รหัสโปรโมชั่น', 'โปรโมชั่น'],
+        paymentMethod: ['paymentmethod', 'ชำระโดย', 'วิธีชำระเงิน'],
+        bankAccountId: ['bankaccountid', 'บัญชีธนาคาร', 'ธนาคาร'],
+        slipUrl: ['slipurl', 'ลิงก์สลิป', 'รูปสลิป'],
+        totalAmount: ['totalamount', 'ยอดสุทธิ', 'ยอดรวม', 'จำนวนเงิน'],
+        status: ['status', 'สถานะ'],
+        createdBy: ['createdby', 'ผู้ทำรายการ', 'ผู้สร้าง'],
+        created_at: ['created_at', 'วันเวลาที่สร้าง', 'วันที่บันทึก']
+      };
+
+      Object.keys(headersMap).forEach(key => {
+        const matchingHeaders = headersMap[key];
+        const idx = csvHeaders.findIndex(h => matchingHeaders.includes(h));
+        if (idx !== -1) {
+          indexMap[key] = idx;
+        }
+      });
+
+      if (indexMap.id === undefined || indexMap.hn === undefined || indexMap.date === undefined || indexMap.items === undefined) {
+        Swal.fire({
+          icon: 'error',
+          title: 'รูปแบบคอลัมน์ไม่ถูกต้อง',
+          text: 'กรุณาตรวจสอบว่ามีคอลัมน์ เลขที่เอกสาร, รหัส HN, วันที่ออกบิล และ รายการซื้อ อย่างน้อยที่สุด',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+
+      let addedCount = 0;
+      let updatedCount = 0;
+      let invalidHnCount = 0;
+      let errorCount = 0;
+
+      if (setReceipts) {
+        setReceipts(prev => {
+          let currentReceipts = [...prev];
+
+          rows.forEach(row => {
+            if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+
+            const val = (key) => {
+              const idx = indexMap[key];
+              return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+            };
+
+            const id = val('id');
+            const hn = val('hn');
+            const date = val('date');
+            const rawItems = val('items');
+
+            if (!id || !hn || !date || !rawItems) {
+              errorCount++;
+              return;
+            }
+
+            const patientExists = patients.some(p => p.hn === hn);
+            if (!patientExists) {
+              invalidHnCount++;
+              return;
+            }
+
+            const parsedItems = parseItems(rawItems, services || []);
+
+            const receiptData = {
+              id,
+              hn,
+              date,
+              items: parsedItems,
+              discountValue: parseFloat(val('discountValue')) || 0,
+              discountType: val('discountType') || 'flat',
+              discountReason: val('discountReason') || '',
+              promotionId: val('promotionId') || '',
+              paymentMethod: val('paymentMethod') || 'เงินสด',
+              bankAccountId: val('bankAccountId') || '',
+              slipUrl: val('slipUrl') || '',
+              totalAmount: parseFloat(val('totalAmount')) || 0,
+              status: val('status') || 'ชำระเงินแล้ว',
+              createdBy: val('createdBy') || currentUser?.fullname || 'ผู้ดูแลระบบ',
+              created_at: val('created_at') || new Date().toISOString()
+            };
+
+            const existingIdx = currentReceipts.findIndex(r => r.id === id);
+            if (existingIdx !== -1) {
+              currentReceipts[existingIdx] = receiptData;
+              updatedCount++;
+            } else {
+              currentReceipts.push(receiptData);
+              addedCount++;
+            }
+          });
+
+          return currentReceipts;
+        });
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'นำเข้าข้อมูลสำเร็จ',
+        html: `
+          <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.6;">
+            นำเข้าใหม่: <strong>${addedCount}</strong> รายการ<br/>
+            อัปเดตข้อมูลเดิม: <strong>${updatedCount}</strong> รายการ<br/>
+            ข้ามเนื่องจาก HN ไม่มีในระบบ: <strong style="color:var(--warning)">${invalidHnCount}</strong> รายการ<br/>
+            ข้ามเนื่องจากข้อมูลไม่ครบถ้วน: <strong style="color:var(--danger)">${errorCount}</strong> รายการ
+          </div>
+        `,
+        confirmButtonColor: 'var(--secondary)'
+      });
+
+      e.target.value = '';
+    };
+
+    reader.readAsText(file);
+  };
+
+  const parseItems = (rawStr, servicesList) => {
+    if (!rawStr) return [];
+    const parts = rawStr.split('|');
+    return parts.map(part => {
+      const trimmed = part.trim();
+      if (trimmed.includes(':')) {
+        const [name, qtyStr, priceStr, code, type] = trimmed.split(':');
+        return {
+          name: name || 'สินค้า/บริการ',
+          quantity: parseInt(qtyStr) || 1,
+          price: parseFloat(priceStr) || 0,
+          code: code || 'MANUAL_ADD',
+          type: type || 'บริการ'
+        };
+      } else {
+        let name = trimmed;
+        let quantity = 1;
+        
+        const qtyMatch = trimmed.match(/(.+)\s+[xX*]\s*(\d+)$/) || trimmed.match(/(.+)\s*(\d+)\s*$/);
+        if (qtyMatch) {
+          name = qtyMatch[1].trim();
+          quantity = parseInt(qtyMatch[2]) || 1;
+        }
+        
+        const orig = servicesList.find(s => s.code.toLowerCase() === name.toLowerCase() || s.name.toLowerCase() === name.toLowerCase());
+        if (orig) {
+          return {
+            code: orig.code,
+            name: orig.name,
+            price: orig.price,
+            quantity,
+            type: orig.category || 'บริการ'
+          };
+        } else {
+          return {
+            code: 'MANUAL_ADD',
+            name,
+            price: 0,
+            quantity,
+            type: 'บริการ'
+          };
+        }
+      }
+    });
+  };
+
+  const handleDeleteClick = (id) => {
+    Swal.fire({
+      title: `ลบใบเสร็จ/ใบแจ้งหนี้ถาวร? [เลขที่: ${id}]`,
+      text: "การลบนี้จะลบข้อมูลออกจากระบบอย่างถาวรและไม่สามารถเรียกคืนได้!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: 'var(--danger)',
+      cancelButtonColor: 'var(--dark-light)',
+      confirmButtonText: 'ยืนยันการลบถาวร',
+      cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        if (onDeleteReceipt) {
+          onDeleteReceipt(id);
+          Swal.fire({
+            title: 'ลบข้อมูลสำเร็จ',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false
+          });
+        }
+      }
+    });
+  };
 
   // ตัวเลือกเดือน
   const thaiMonths = [
@@ -107,6 +364,15 @@ export default function ReceiptHistory({
           <History size={28} />
           ประวัติใบเสร็จและใบแจ้งหนี้ (Receipt History)
         </h1>
+        <div className="page-actions">
+          <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการเงินเป็นไฟล์ CSV">
+            <Download size={16} /> Export CSV
+          </button>
+          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการเงินผ่านไฟล์ CSV">
+            <Upload size={16} /> Import CSV
+            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+          </label>
+        </div>
       </div>
 
       <div className="card-3xl">
@@ -259,6 +525,17 @@ export default function ReceiptHistory({
                               onClick={() => handleVoidClick(r.id)}
                             >
                               <XOctagon size={16} color="var(--danger)" />
+                            </button>
+                          )}
+
+                          {/* ปุ่มลบใบเสร็จถาวรสำหรับบทบาท Admin เท่านั้นตามสเปก */}
+                          {isAdmin && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title="ลบใบเสร็จนี้ถาวร"
+                              onClick={() => handleDeleteClick(r.id)}
+                            >
+                              <Trash2 size={16} color="var(--danger)" />
                             </button>
                           )}
 

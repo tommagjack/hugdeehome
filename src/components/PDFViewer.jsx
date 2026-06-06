@@ -8,6 +8,7 @@ export default function PDFViewer({
   clinicInfo, 
   patients, 
   therapists,
+  bankAccounts = [],
   onClose 
 }) {
   const documentRef = useRef();
@@ -33,12 +34,16 @@ export default function PDFViewer({
   // ค้นหารายละเอียดผู้ป่วย
   const getPatientInfo = (hn) => {
     const p = patients.find(item => item.hn === hn);
-    return p ? {
-      fullname: `${p.title}${p.firstname} ${p.lastname}`,
-      nickname: p.nickname,
+    if (!p) return { fullname: `HN ${hn}`, nickname: '' };
+    const cleanTitle = (p.title || '').replace(/\$/g, '');
+    const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
+    const cleanLastname = (p.lastname || '').replace(/\$/g, '');
+    return {
+      fullname: `${cleanTitle}${cleanFirstname} ${cleanLastname}`,
+      nickname: (p.nickname || '').replace(/\$/g, ''),
       gender: p.gender,
       dob: p.dob,
-      guardian: p.guardian,
+      guardian: (p.guardian || '').replace(/\$/g, ''),
       phone: p.phone,
       allergies: p.allergies,
       allergiesDetails: p.allergiesDetails,
@@ -47,7 +52,7 @@ export default function PDFViewer({
       worries: p.worries,
       channels: p.channels,
       channelsOtherDetails: p.channelsOtherDetails
-    } : { fullname: 'ไม่ระบุตัวตน', nickname: '', gender: '', dob: '', guardian: '', phone: '' };
+    };
   };
 
   const renderClinicHeaderLeftText = (titleSize = '1.35rem', subSize = '0.9rem') => {
@@ -90,6 +95,10 @@ export default function PDFViewer({
       months--;
     }
     if (months < 0) months = 11;
+
+    const cleanTitle = (p.title || '').replace(/\$/g, '');
+    const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
+    const cleanLastname = (p.lastname || '').replace(/\$/g, '');
     
     return (
       <div className="a4-document" ref={documentRef} id="printable-a4-area">
@@ -121,7 +130,7 @@ export default function PDFViewer({
         {/* ข้อมูลทั่วไป */}
         <h3 className="a4-table-title">ข้อมูลประวัติทั่วไป (General Info)</h3>
         <div className="a4-patient-section">
-          <div className="a4-data-item"><span className="a4-data-label">ชื่อ-นามสกุล:</span><span className="a4-data-value">{p.title}${p.firstname} ${p.lastname}</span></div>
+          <div className="a4-data-item"><span className="a4-data-label">ชื่อ-นามสกุล:</span><span className="a4-data-value">{cleanTitle}{cleanFirstname} {cleanLastname}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">ชื่อเล่น:</span><span className="a4-data-value">น้อง{p.nickname || '-'}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">เพศ:</span><span className="a4-data-value">{p.gender}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">วัน/เดือน/ปีเกิด:</span><span className="a4-data-value">{formatDateTh(p.dob)} (พ.ศ.)</span></div>
@@ -173,9 +182,17 @@ export default function PDFViewer({
 
         <div className="a4-receipt-signatures" style={{ marginTop: '80px' }}>
           <div className="a4-sig-line-container">
-            <div className="a4-sig-line"></div>
-            <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้บันทึกประวัติ</span>
-            <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>(เจ้าหน้าที่ทะเบียนประวัติคลินิก Hug Dee Home)</span>
+            <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600 }}>
+              {p.createdBy || ''}
+            </div>
+            {p.createdBy ? (
+              <span className="a4-sig-label">ผู้บันทึกประวัติ</span>
+            ) : (
+              <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้บันทึกประวัติ</span>
+            )}
+            <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>
+              {p.createdBy ? `( ${p.createdBy} )` : ''}
+            </span>
           </div>
           <div className="a4-sig-line-container">
             <div className="a4-sig-line"></div>
@@ -376,27 +393,27 @@ export default function PDFViewer({
 
         {/* หัวกระดาษมาตรฐาน */}
         <div className="a4-header">
-          <div className="a4-header-left" style={{ width: '55%' }}>
+          <div className="a4-header-left" style={{ width: '60%' }}>
             <div className="a4-logo-circle">
               {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" /> : <span>HUG</span>}
             </div>
             <div className="a4-clinic-details">
               {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
               {clinicInfo.licenseNo && <span className="a4-clinic-subtext">ใบอนุญาตเลขที่: {clinicInfo.licenseNo}</span>}
-              <span className="a4-clinic-subtext">ที่อยู่: {clinicInfo.address}</span>
+              <span className="a4-clinic-subtext" style={{ whiteSpace: 'nowrap', display: 'block' }}>ที่อยู่: {clinicInfo.address}</span>
               <span className="a4-clinic-subtext">โทร: {clinicInfo.phone} | อีเมล: {clinicInfo.email}</span>
             </div>
           </div>
-          <div className="a4-header-right" style={{ width: '45%' }}>
+          <div className="a4-header-right" style={{ width: '40%' }}>
             {/* บังคับ: หากบิลรอชำระเงินให้ขึ้นชื่อเอกสารว่า "ใบแจ้งหนี้" */}
             <span className="a4-doc-type-th" style={{ 
               color: isDraft ? 'var(--dark)' : isVoided ? 'var(--danger)' : 'var(--secondary)',
               whiteSpace: 'nowrap',
               display: 'block'
             }}>
-              {isDraft ? 'ใบแจ้งหนี้ / ใบเรียกเก็บเงิน' : 'ใบเสร็จรับเงิน / ใบเสร็จย่อ'}
+              {isDraft ? 'ใบแจ้งหนี้ / ใบเรียกเก็บเงิน' : 'ใบเสร็จรับเงิน'}
             </span>
-            <span className="a4-doc-type-en" style={{ whiteSpace: 'nowrap', display: 'block' }}>{isDraft ? 'INVOICE / BILLING' : 'OFFICIAL RECEIPT'}</span>
+            <span className="a4-doc-type-en" style={{ whiteSpace: 'nowrap', display: 'block' }}>{isDraft ? 'INVOICE / BILLING' : 'RECEIPT'}</span>
             
             <div className="a4-doc-meta" style={{ marginTop: '10px' }}>
               <span className="a4-doc-meta-label">เลขที่เอกสาร:</span>
@@ -447,10 +464,18 @@ export default function PDFViewer({
         <div className="a4-receipt-summary">
           <div className="a4-receipt-summary-left">
             <strong>วิธีชำระเงิน:</strong> {bill.paymentMethod}<br/>
-            {bill.bankAccountId && <span><strong>โอนเข้าธนาคาร:</strong> {bill.bankAccountId}<br/></span>}
+            {bill.bankAccountId && (() => {
+              const bank = bankAccounts.find(b => b.id === bill.bankAccountId);
+              return (
+                <span>
+                  <strong>โอนเข้าธนาคาร:</strong> {bank ? `${bank.bankName} เลขที่ ${bank.accountNo}` : bill.bankAccountId}
+                  <br/>
+                </span>
+              );
+            })()}
             {bill.slipUrl && <span><strong>ไฟล์สลิปอ้างอิง:</strong> {bill.slipUrl}<br/></span>}
             <div style={{ borderTop: '1px solid #ddd', marginTop: '10px', paddingTop: '5px' }}>
-              <strong>คำชี้แจง:</strong> ใบแจ้งหนี้/ใบเสร็จนี้ออกโดยระบบจัดส่งข้อมูลอัตโนมัติคลินิก Hug Dee Home หากมีข้อสงสัยหรือต้องการปรับแก้ไขข้อมูล สามารถติดต่อเจ้าหน้าที่การเงินคลินิกได้ทันที
+              <strong>คำชี้แจง:</strong> ใบแจ้งหนี้/ใบเสร็จนี้ออกโดยระบบจัดส่งข้อมูลอัตโนมัติคลินิก บ้านฮักดี หากมีข้อสงสัยหรือต้องการปรับแก้ไขข้อมูล สามารถติดต่อเจ้าหน้าที่การเงินคลินิกได้ทันที
             </div>
           </div>
 
@@ -511,7 +536,14 @@ export default function PDFViewer({
   // --- 4. บันทึกผลการฝึก (OPD Card) ทั้ง 3 รูปแบบ ---
   const renderOPDCard = () => {
     const isBlank = documentType === 'opd_blank';
-    const patient = documentData?.patient;
+    const patientRaw = documentData?.patient;
+    const patient = patientRaw ? {
+      ...patientRaw,
+      title: (patientRaw.title || '').replace(/\$/g, ''),
+      firstname: (patientRaw.firstname || '').replace(/\$/g, ''),
+      lastname: (patientRaw.lastname || '').replace(/\$/g, ''),
+      nickname: (patientRaw.nickname || '').replace(/\$/g, '')
+    } : null;
     const history = documentData?.history || [];
 
     const FIRST_PAGE_LIMIT = 8;

@@ -12,7 +12,8 @@ import {
   Download, 
   Upload,
   Eye,
-  Printer
+  Printer,
+  Database
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -31,12 +32,242 @@ export default function Settings({
   setHolidays,
   users,
   setUsers,
-  onPrintAnnualHolidays
+  onPrintAnnualHolidays,
+  receipts
 }) {
-  const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users
+  const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users, integration
   const fileInputRef = useRef(null);
 
   const todayStr = '2026-06-05'; // วันที่จำลองระบบ
+
+  // integration states
+  const [sheetId, setSheetId] = useState(localStorage.getItem('hdh_sheet_id') || import.meta.env.VITE_SHEET_ID || '');
+  const [gasUrl, setGasUrl] = useState(localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '');
+  const [isTestingBackup, setIsTestingBackup] = useState(false);
+
+  const handleSaveIntegration = (e) => {
+    e.preventDefault();
+    localStorage.setItem('hdh_sheet_id', sheetId.trim());
+    localStorage.setItem('hdh_gas_url', gasUrl.trim());
+    Swal.fire({
+      icon: 'success',
+      title: 'บันทึกการเชื่อมต่อสำเร็จ',
+      text: 'ระบบตั้งค่าฐานข้อมูล Google Sheets เรียบร้อยแล้ว',
+      confirmButtonText: 'ตกลง'
+    });
+  };
+
+  const handleTriggerBackup = async () => {
+    if (!gasUrl) {
+      Swal.fire('ข้อผิดพลาด', 'กรุณาระบุ URL ของ Google Apps Script Web App ก่อน', 'error');
+      return;
+    }
+    
+    setIsTestingBackup(true);
+    Swal.fire({
+      title: 'กำลังซิงค์ข้อมูล...',
+      text: 'ระบบกำลังดึงข้อมูลล่าสุดจาก Google Sheets มาอัปเดตบนเบราว์เซอร์',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      // ดึงฟังก์ชันนำเข้าจาก utils/db.js แบบไดนามิกเพื่อหลีกเลี่ยงการวนลูป dependency
+      const { syncFromSupabase } = await import('../utils/db');
+      const success = await syncFromSupabase();
+      if (success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'ซิงค์ข้อมูลสำเร็จ',
+          text: 'ดาวน์โหลดข้อมูลจาก Google Sheets ลงระบบเรียบร้อยแล้ว ระบบจะทำการรีโหลดหน้าจอใหม่เพื่อแสดงผล',
+          timer: 2000,
+          showConfirmButton: false
+        }).then(() => {
+          window.location.reload();
+        });
+      } else {
+        Swal.fire('ไม่สำเร็จ', 'ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบสิทธิ์และ URL ของ GAS', 'error');
+      }
+    } catch (error) {
+      Swal.fire('ข้อผิดพลาด', 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + error.message, 'error');
+    } finally {
+      setIsTestingBackup(false);
+    }
+  };
+
+  const getGasCode = () => {
+    return `// Google Apps Script (GAS) - สำหรับใช้งานเป็นฐานข้อมูลของคลินิกผ่าน Google Sheets
+// คัดลอกโค้ดนี้ไปวางใน Extensions > Apps Script ใน Google Sheet ของคุณ
+
+function doGet(e) {
+  try {
+    const action = e.parameter.action || 'get_all';
+    
+    if (action === 'get_all') {
+      const data = getAllDataFromSheets();
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "ไม่พบการทำงานที่ระบุ" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+    const action = payload.action;
+    
+    if (action === 'sync_table') {
+      const key = payload.key;
+      const value = payload.value;
+      
+      const result = saveTableToSheet(key, value);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: result }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } else if (action === 'get_all') {
+      const data = getAllDataFromSheets();
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "ไม่พบการทำงานที่ระบุ" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ฟังก์ชันสำหรับอ่านข้อมูลจากทุกแผ่นชีทส่งกลับแอปพลิเคชัน
+function getAllDataFromSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  const result = {};
+  
+  sheets.forEach(sheet => {
+    const sheetName = sheet.getName();
+    const range = sheet.getDataRange();
+    const values = range.getValues();
+    
+    if (values.length < 1) return;
+    
+    const headers = values[0];
+    const rows = values.slice(1);
+    
+    const dataList = rows.map(row => {
+      const item = {};
+      headers.forEach((header, index) => {
+        if (!header) return;
+        let val = row[index];
+        
+        // ลองถอดรูป JSON string (เช่น อาร์เรย์รายการสินค้า หรืออ็อบเจกต์ชั่วโมงทำงาน)
+        if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+          try {
+            val = JSON.parse(val);
+          } catch(err) {
+            // ทำตัวเป็นข้อความปกติหากแปลงไม่สำเร็จ
+          }
+        }
+        item[header] = val;
+      });
+      return item;
+    });
+    
+    // ตั้งคีย์ในรูปแบบ hdh_xxx
+    let keyName = 'hdh_' + sheetName.toLowerCase();
+    // กรณีข้อยกเว้นพิเศษเกี่ยวกับตัวอักษรพิมพ์ใหญ่/เล็กของบางตาราง
+    if (sheetName.toLowerCase() === 'clinicinfo') {
+      keyName = 'hdh_clinic_info';
+    } else if (sheetName.toLowerCase() === 'bankaccounts') {
+      keyName = 'hdh_bank_accounts';
+    } else if (sheetName.toLowerCase() === 'salaryrules') {
+      keyName = 'hdh_salary_rules';
+    } else if (sheetName.toLowerCase() === 'opdrecords') {
+      keyName = 'hdh_opd_records';
+    }
+    
+    result[keyName] = dataList;
+  });
+  
+  return result;
+}
+
+// ฟังก์ชันสำหรับเขียนทับข้อมูลลงในตารางชีททีละส่วน
+function saveTableToSheet(key, list) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // แปลงชื่อคีย์ให้เป็นชื่อชีท
+  let tabName = key.replace('hdh_', '');
+  
+  if (tabName.toLowerCase() === 'clinic_info') {
+    tabName = 'ClinicInfo';
+  } else if (tabName.toLowerCase() === 'bank_accounts') {
+    tabName = 'BankAccounts';
+  } else if (tabName.toLowerCase() === 'salary_rules') {
+    tabName = 'SalaryRules';
+  } else if (tabName.toLowerCase() === 'opd_records') {
+    tabName = 'OpdRecords';
+  } else {
+    tabName = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+  }
+  
+  let sheet = ss.getSheetByName(tabName);
+  if (!sheet) {
+    sheet = ss.insertSheet(tabName);
+  } else {
+    sheet.clear(); 
+  }
+  
+  if (!Array.isArray(list) || list.length === 0) {
+    return 'แผ่นงาน ' + tabName + ' เคลียร์ค่าว่างสำเร็จ (ไม่มีข้อมูลบันทึก)';
+  }
+  
+  // ค้นหา Headers ทั้งหมด
+  const headers = [];
+  list.forEach(item => {
+    Object.keys(item).forEach(k => {
+      if (!headers.includes(k)) {
+        headers.push(k);
+      }
+    });
+  });
+  
+  // เขียนหัวตาราง
+  sheet.appendRow(headers);
+  
+  // แปลงข้อมูลแถว
+  const rows = list.map(item => {
+    return headers.map(header => {
+      const val = item[header];
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val); 
+      }
+      return val !== undefined && val !== null ? val : '';
+    });
+  });
+  
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+  
+  // ตกแต่งหัวตารางด้วยสีน้ำตาลทองตามดีไซน์คลินิก
+  sheet.getRange(1, 1, 1, headers.length)
+    .setBackground("#A67C52") 
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold");
+  
+  sheet.autoResizeColumns(1, headers.length);
+  
+  return 'บันทึกข้อมูลลง ' + tabName + ' จำนวน ' + rows.length + ' แถวสำเร็จ';
+}`;
+  };
 
   // 1. ฟอร์มเพิ่ม/แก้ไข สินค้า/บริการ
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -48,6 +279,7 @@ export default function Settings({
   const [serviceEnd, setServiceEnd] = useState('2026-12-31');
   const [serviceCategory, setServiceCategory] = useState('บริการ');
   const [servicePrice, setServicePrice] = useState(0);
+  const [serviceSessionsPerUnit, setServiceSessionsPerUnit] = useState(1);
 
   // 2. ฟอร์มเพิ่ม/แก้ไข โปรโมชั่น
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -118,10 +350,15 @@ export default function Settings({
       startDate: serviceStart,
       endDate: serviceEnd,
       category: serviceCategory,
-      price: Number(servicePrice)
+      price: Number(servicePrice),
+      sessionsPerUnit: Number(serviceSessionsPerUnit || 1)
     };
 
     if (editingServiceCode) {
+      if (serviceCode !== editingServiceCode && services.some(s => s.code === serviceCode)) {
+        Swal.fire('รหัสซ้ำ', 'รหัสบริการนี้มีอยู่ในระบบแล้ว', 'error');
+        return;
+      }
       setServices(services.map(s => s.code === editingServiceCode ? newService : s));
     } else {
       if (services.find(s => s.code === serviceCode)) {
@@ -143,6 +380,7 @@ export default function Settings({
     setServiceEnd('2026-12-31');
     setServiceCategory('บริการ');
     setServicePrice(0);
+    setServiceSessionsPerUnit(1);
   };
 
   const handleEditService = (s) => {
@@ -154,6 +392,7 @@ export default function Settings({
     setServiceEnd(s.endDate);
     setServiceCategory(s.category);
     setServicePrice(s.price);
+    setServiceSessionsPerUnit(s.sessionsPerUnit || 1);
     setShowServiceModal(true);
   };
 
@@ -186,6 +425,10 @@ export default function Settings({
     };
 
     if (editingPromoCode) {
+      if (promoCode !== editingPromoCode && promotions.some(p => p.code === promoCode)) {
+        Swal.fire('รหัสโปรโมชั่นซ้ำ', 'รหัสโปรโมชั่นนี้มีอยู่ในระบบแล้ว', 'error');
+        return;
+      }
       setPromotions(promotions.map(p => p.code === editingPromoCode ? newPromo : p));
     } else {
       if (promotions.find(p => p.code === promoCode)) {
@@ -351,7 +594,7 @@ export default function Settings({
       
       // วันธรรมดา (Monday - Friday) จะมีเวลาช่วงค่ำเพิ่มเติม (18:00 - 19:00, 19:00 - 20:00)
       const isWeekday = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
-      const defaultSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00"];
+      const defaultSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00"];
       if (isWeekday) {
         defaultSlots.push("18:00 - 19:00", "19:00 - 20:00");
       }
@@ -558,6 +801,9 @@ export default function Settings({
             <a className={`settings-link ${activeSubMenu === 'holidays' ? 'active' : ''}`} onClick={() => setActiveSubMenu('holidays')}>
               <CalendarDays size={16} /> วันหยุดคลินิก
             </a>
+            <a className={`settings-link ${activeSubMenu === 'integration' ? 'active' : ''}`} onClick={() => setActiveSubMenu('integration')}>
+              <Database size={16} /> ตั้งค่าคลาวด์และชีท
+            </a>
           </div>
         </div>
 
@@ -671,6 +917,7 @@ export default function Settings({
                       <th>ชื่อรายการ</th>
                       <th>หมวดหมู่</th>
                       <th>ราคาต่อหน่วย</th>
+                      <th>จำนวนครั้งคอร์ส</th>
                       <th>ระยะเวลาจัดโปร</th>
                       <th>สถานะ</th>
                       <th>การดำเนินการ</th>
@@ -686,6 +933,7 @@ export default function Settings({
                         </td>
                         <td>{s.category}</td>
                         <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>฿{s.price.toLocaleString()}</td>
+                        <td>{s.category === 'บริการ' ? `${s.sessionsPerUnit || 1} ครั้ง` : '-'}</td>
                         <td style={{ fontSize: '0.8rem' }}>{s.startDate} ถึง {s.endDate}</td>
                         <td>
                           <span className={`badge ${checkServiceStatus(s) === 'Active' ? 'badge-success' : 'badge-secondary'}`}>
@@ -736,7 +984,10 @@ export default function Settings({
                   </thead>
                   <tbody>
                     {promotions.map(p => {
-                      const isActive = (todayStr >= p.startDate && todayStr <= p.endDate);
+                      const usedCount = receipts ? receipts.filter(r => r.promotionId === p.code && r.status !== 'ยกเลิก').length : 0;
+                      const remaining = Math.max(0, p.maxUses - usedCount);
+                      const isExpired = !(todayStr >= p.startDate && todayStr <= p.endDate);
+                      const isActive = !isExpired && remaining > 0;
                       return (
                         <tr key={p.code}>
                           <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{p.code}</td>
@@ -748,7 +999,7 @@ export default function Settings({
                           <td style={{ fontWeight: 700, color: 'var(--danger)' }}>
                             {p.type === 'flat' ? `฿${p.value}` : `${p.value}%`}
                           </td>
-                          <td>{p.maxUses} สิทธิ์</td>
+                          <td>คงเหลือ {remaining} / {p.maxUses} สิทธิ์ (ใช้ไป {usedCount})</td>
                           <td style={{ fontSize: '0.8rem' }}>{p.startDate} ถึง {p.endDate}</td>
                           <td>
                             <span className={`badge ${isActive ? 'badge-success' : 'badge-secondary'}`}>
@@ -1005,6 +1256,121 @@ export default function Settings({
             </div>
           )}
 
+          {/* 7. ตั้งค่าคลาวด์และชีท (Cloud & Sheets Integration) */}
+          {activeSubMenu === 'integration' && (
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Database size={20} color="var(--secondary)" />
+                เชื่อมต่อฐานข้อมูลระบบผ่าน Google Sheets
+              </h2>
+              
+              <form onSubmit={handleSaveIntegration} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* ส่วนที่ 1: Google Sheets Configuration */}
+                <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '1rem' }}>
+                    ตั้งค่า Google Sheets Cloud Database
+                  </h3>
+                  <div className="form-row">
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Google Sheet ID</label>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        placeholder="ระบุรหัสแผ่นชีท (จาก URL ของ Google Sheets)" 
+                        value={sheetId} 
+                        onChange={(e) => setSheetId(e.target.value)} 
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: 1.5 }}>
+                      <label className="form-label">Google Apps Script Web App URL (GAS URL)</label>
+                      <input 
+                        type="url" 
+                        className="form-control" 
+                        placeholder="https://script.google.com/macros/s/xxxx/exec" 
+                        value={gasUrl} 
+                        onChange={(e) => setGasUrl(e.target.value)} 
+                        required
+                      />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginTop: '0.5rem' }}>
+                    * ข้อมูลแอปพลิเคชันจะจัดเก็บลง Google Sheets แบบเรียลไทม์ และหากระบบออฟไลน์จะสลับไปใช้ LocalStorage ในเครื่องอัตโนมัติ
+                  </p>
+                </div>
+
+                {/* ปุ่มบันทึกการตั้งค่าทั้งหมด */}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                  <button type="submit" className="btn btn-secondary" style={{ padding: '0.6rem 1.5rem' }}>
+                    บันทึกการเชื่อมต่อ
+                  </button>
+                  {gasUrl && (
+                    <button 
+                      type="button" 
+                      className="btn btn-light" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.5rem' }}
+                      onClick={handleTriggerBackup}
+                      disabled={isTestingBackup}
+                    >
+                      <Download size={16} />
+                      {isTestingBackup ? 'กำลังซิงค์ข้อมูล...' : 'ดาวน์โหลดข้อมูลจาก Google Sheets ทันที'}
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* ส่วนที่ 3: โค้ด Google Apps Script */}
+              <div style={{ marginTop: '2rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '0.75rem' }}>
+                  3. รหัสโปรแกรม Google Apps Script (GAS Script)
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginBottom: '0.75rem' }}>
+                  นำรหัสโปรแกรมนี้ไปใส่ใน Google Sheet ของคุณ โดยคลิกเมนู <strong>Extensions (ส่วนขยาย) &gt; Apps Script</strong> วางรหัสลงไปแล้วเลือก <strong>Deploy (การใช้งานได้จริง) &gt; New deployment &gt; Web app</strong> และอนุญาตสิทธิ์การเข้าถึงให้เรียบร้อย
+                </p>
+                <div style={{ position: 'relative' }}>
+                  <textarea 
+                    className="form-control" 
+                    readOnly 
+                    rows="12" 
+                    value={getGasCode()} 
+                    style={{ 
+                      fontFamily: 'monospace', 
+                      fontSize: '0.8rem', 
+                      backgroundColor: 'var(--light)', 
+                      whiteSpace: 'pre', 
+                      overflowX: 'auto',
+                      padding: '1rem'
+                    }}
+                  />
+                  <button 
+                    className="btn btn-light" 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '0.5rem', 
+                      right: '0.5rem', 
+                      padding: '0.3rem 0.6rem',
+                      fontSize: '0.75rem',
+                      border: '1px solid var(--border)'
+                    }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(getGasCode());
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'คัดลอกรหัสโปรแกรมแล้ว',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 1500
+                      });
+                    }}
+                  >
+                    คัดลอกโค้ด
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
 
       </div>
@@ -1028,7 +1394,6 @@ export default function Settings({
                       placeholder="เช่น SV01, PD02" 
                       value={serviceCode} 
                       onChange={(e) => setServiceCode(e.target.value)} 
-                      disabled={!!editingServiceCode}
                       required 
                     />
                   </div>
@@ -1062,9 +1427,17 @@ export default function Settings({
                   </div>
                 </div>
 
-                <div className="form-group" style={{ maxWidth: '200px' }}>
-                  <label className="form-label">ราคาขายต่อหน่วย <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <input type="number" className="form-control" min="0" value={servicePrice} onChange={(e) => setServicePrice(e.target.value)} required />
+                <div className="form-row">
+                  <div className="form-group" style={{ maxWidth: '200px' }}>
+                    <label className="form-label">ราคาขายต่อหน่วย <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="number" className="form-control" min="0" value={servicePrice} onChange={(e) => setServicePrice(e.target.value)} required />
+                  </div>
+                  {serviceCategory === 'บริการ' && (
+                    <div className="form-group" style={{ maxWidth: '200px' }}>
+                      <label className="form-label">จำนวนครั้งในคอร์ส (Sessions/Unit) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input type="number" className="form-control" min="1" value={serviceSessionsPerUnit} onChange={(e) => setServiceSessionsPerUnit(Number(e.target.value) || 1)} required />
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -1096,7 +1469,6 @@ export default function Settings({
                       placeholder="เช่น PM-SUMMER" 
                       value={promoCode} 
                       onChange={(e) => setPromoCode(e.target.value)} 
-                      disabled={!!editingPromoCode}
                       required 
                     />
                   </div>
@@ -1273,7 +1645,8 @@ export default function Settings({
                           "13:00 - 14:00",
                           "14:00 - 15:00",
                           "15:00 - 16:00",
-                          "16:00 - 17:00"
+                          "16:00 - 17:00",
+                          "17:00 - 18:00"
                         ];
                         if (isWeekday) {
                           slotsOptions.push("18:00 - 19:00", "19:00 - 20:00");
@@ -1327,174 +1700,6 @@ export default function Settings({
         </div>
       )}
 
-      {false && (
-        <div className="modal-overlay">
-          <div className="modal-content-wrapper" style={{ maxWidth: '750px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontWeight: 700 }}>{editingUsername ? 'แก้ไขข้อมูลพนักงาน/ผู้ใช้งาน' : 'เพิ่มพนักงาน'}</h3>
-              <button className="close-modal-btn" onClick={() => setShowUserModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleSaveUser}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                
-                {/* ข้อมูลการเข้าสู่ระบบบัญชี */}
-                <h4 style={{ color: '#b0895a', fontWeight: 700, marginBottom: '0.25rem', fontSize: '0.95rem' }}>ข้อมูลเข้าสู่ระบบ</h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">ชื่อบัญชีผู้ใช้งาน (Username) <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      placeholder="ภาษาอังกฤษไม่มีช่องว่าง" 
-                      value={uUsername} 
-                      onChange={(e) => setUUsername(e.target.value)} 
-                      disabled={!!editingUsername}
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">รหัสผ่าน (Password) <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" value={uPassword} onChange={(e) => setUPassword(e.target.value)} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">สิทธิ์การเข้าใช้งานระบบ</label>
-                    <select className="form-control" value={uRole} onChange={(e) => setURole(e.target.value)}>
-                      <option value="Staff">Staff (พนักงานทั่วไป)</option>
-                      <option value="OT">OT (นักกิจกรรมบำบัด)</option>
-                      <option value="Admin">Admin (ผู้ดูแลระบบสูงสุด)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ height: '1px', background: 'var(--border-light)', margin: '0.5rem 0' }}></div>
-
-                {/* ข้อมูลโปรไฟล์พนักงาน */}
-                <h4 style={{ color: '#b0895a', fontWeight: 700, marginBottom: '0.25rem', fontSize: '0.95rem' }}>ข้อมูลส่วนตัวและตำแหน่งงาน</h4>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">รหัสพนักงาน</label>
-                    <input type="text" className="form-control" value={uEmployeeId} onChange={(e) => setUEmployeeId(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">ประเภทพนักงาน</label>
-                    <select className="form-control" value={uEmployeeType} onChange={(e) => setUEmployeeType(e.target.value)}>
-                      <option value="พนักงานประจำ">พนักงานประจำ</option>
-                      <option value="พนักงานชั่วคราว">พนักงานชั่วคราว</option>
-                      <option value="นักบำบัดอิสระ (Freelance)">นักบำบัดอิสระ (Freelance)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">คำนำหน้า</label>
-                    <select className="form-control" value={uTitle} onChange={(e) => setUTitle(e.target.value)}>
-                      <option value="นาย">นาย</option>
-                      <option value="นาง">นาง</option>
-                      <option value="นางสาว">นางสาว</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">ชื่อ-สกุล <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="text" className="form-control" value={uFullname} onChange={(e) => setUFullname(e.target.value)} required />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">ชื่อเล่น</label>
-                    <input type="text" className="form-control" placeholder="ระบุชื่อเล่น" value={uNickname} onChange={(e) => setUNickname(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">เลขบัตรประชาชน</label>
-                    <input type="text" className="form-control" placeholder="เลข 13 หลัก" value={uCitizenId} onChange={(e) => setUCitizenId(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">เพศ</label>
-                    <select className="form-control" value={uGender} onChange={(e) => setUGender(e.target.value)}>
-                      <option value="ชาย">ชาย</option>
-                      <option value="หญิง">หญิง</option>
-                      <option value="อื่นๆ">อื่นๆ</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">วันเกิด</label>
-                    <input type="date" className="form-control" value={uDob} onChange={(e) => setUDob(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">ตำแหน่ง</label>
-                    <input type="text" className="form-control" placeholder="เช่น ธุรการ, นักกิจกรรมบำบัด" value={uPosition} onChange={(e) => setUPosition(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">วันที่เริ่มงาน</label>
-                    <input type="date" className="form-control" value={uStartDate} onChange={(e) => setUStartDate(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">เบอร์โทรศัพท์ (OXXXXXXXXX)</label>
-                    <input type="tel" className="form-control" placeholder="08xxxxxxxx" value={uPhone} onChange={(e) => setUPhone(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">อีเมล</label>
-                    <input type="email" className="form-control" placeholder="name@email.com" value={uEmail} onChange={(e) => setUEmail(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">เงินเดือนพื้นฐาน</label>
-                    <input type="number" className="form-control" placeholder="ระบุจำนวนเงิน" value={uBasicSalary} onChange={(e) => setUBasicSalary(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">สถานะ</label>
-                    <select className="form-control" value={uStatus} onChange={(e) => setUStatus(e.target.value)}>
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* ข้อมูลธนาคาร */}
-                <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-                  <h4 style={{ color: '#b0895a', fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem' }}>Banking Info</h4>
-                  <div className="form-row">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">ชื่อธนาคาร</label>
-                      <select className="form-control" value={uBankName} onChange={(e) => setUBankName(e.target.value)}>
-                        <option value="กสิกรไทย">กสิกรไทย (KBANK)</option>
-                        <option value="ไทยพาณิชย์">ไทยพาณิชย์ (SCB)</option>
-                        <option value="กรุงไทย">กรุงไทย (KTB)</option>
-                        <option value="กรุงเทพ">กรุงเทพ (BBL)</option>
-                        <option value="ทหารไทยธนชาต">ทหารไทยธนชาต (TTB)</option>
-                        <option value="ออมสิน">ออมสิน (GSB)</option>
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">เลขบัญชี</label>
-                      <input type="text" className="form-control" placeholder="ระบุเลขบัญชีธนาคาร" value={uBankAccountNo} onChange={(e) => setUBankAccountNo(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-              
-              <div className="modal-footer">
-                <button type="button" className="btn btn-light" onClick={() => setShowUserModal(false)}>ยกเลิก</button>
-                <button type="submit" className="btn btn-secondary">บันทึก</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       {/* CUSTOM PRINT HOLIDAY MODAL */}
       {showPrintHolidayModal && (
         <div className="modal-overlay">

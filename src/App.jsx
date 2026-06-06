@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { initDatabase, db } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncToSupabase } from './utils/db';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PatientRegister from './components/PatientRegister';
@@ -17,17 +17,40 @@ import PDFViewer from './components/PDFViewer';
 import Transactions from './components/Transactions';
 import OPD from './components/OPD';
 import GuestRegister from './components/GuestRegister';
+import UserProfile from './components/UserProfile';
+import { RefreshCw } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function App() {
-  // 1. ตรวจสอบการรันระบบครั้งแรก (โหลดข้อมูลตัวอย่างลง LocalStorage)
-  useEffect(() => {
-    initDatabase();
-  }, []);
+  const [isSyncing, setIsSyncing] = useState(true);
 
   // 2. โหลดข้อมูลจาก LocalStorage เข้า State หลักของ React SPA
   const [clinicInfo, setClinicInfo] = useState(() => db.getClinicInfo());
-  const [users, setUsers] = useState(() => db.getUsers());
+  const [users, setUsers] = useState(() => {
+    initDatabase();
+    let currentUsers = db.getUsers();
+    
+    // กรอง admin ออกจากข้อมูลพนักงานเพื่อป้องกันการบันทึกซ้ำซ้อนในฐานข้อมูลพนักงาน
+    if (currentUsers.some(u => u.username === 'admin')) {
+      currentUsers = currentUsers.filter(u => u.username !== 'admin');
+      db.setUsers(currentUsers);
+    }
+    
+    // เคลียร์ค่า override แอดมินรหัสเก่า 123
+    const override = localStorage.getItem('hdh_admin_override');
+    if (override) {
+      try {
+        const parsed = JSON.parse(override);
+        if (parsed.password === '123') {
+          localStorage.removeItem('hdh_admin_override');
+        }
+      } catch (e) {
+        localStorage.removeItem('hdh_admin_override');
+      }
+    }
+    
+    return currentUsers;
+  });
   const [therapists, setTherapists] = useState(() => db.getTherapists());
   const [services, setServices] = useState(() => db.getServices());
   const [promotions, setPromotions] = useState(() => db.getPromotions());
@@ -43,22 +66,146 @@ export default function App() {
   const [transactions, setTransactions] = useState(() => db.getTransactions());
   const [opdRecords, setOpdRecords] = useState(() => db.getOpdRecords());
 
-  // บันทึก State ลง LocalStorage เมื่อมีค่าเปลี่ยนแปลง
-  useEffect(() => { db.setClinicInfo(clinicInfo); }, [clinicInfo]);
-  useEffect(() => { db.setUsers(users); }, [users]);
-  useEffect(() => { db.setTherapists(therapists); }, [therapists]);
-  useEffect(() => { db.setServices(services); }, [services]);
-  useEffect(() => { db.setPromotions(promotions); }, [promotions]);
-  useEffect(() => { db.setBankAccounts(bankAccounts); }, [bankAccounts]);
-  useEffect(() => { db.setHolidays(holidays); }, [holidays]);
-  useEffect(() => { db.setPatients(patients); }, [patients]);
-  useEffect(() => { db.setAppointments(appointments); }, [appointments]);
-  useEffect(() => { db.setReceipts(receipts); }, [receipts]);
-  useEffect(() => { db.setAssessments(assessments); }, [assessments]);
-  useEffect(() => { db.setSalaryRules(salaryRules); }, [salaryRules]);
-  useEffect(() => { db.setPayrolls(payrolls); }, [payrolls]);
-  useEffect(() => { db.setTransactions(transactions); }, [transactions]);
-  useEffect(() => { db.setOpdRecords(opdRecords); }, [opdRecords]);
+  // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase (ถ้ามีการตั้งค่าไว้)
+  useEffect(() => {
+    const runInitialSync = async () => {
+      initDatabase();
+      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
+      
+      if (gasUrl) {
+        Swal.fire({
+          title: 'กำลังซิงค์ข้อมูล...',
+          text: 'กำลังโหลดข้อมูลล่าสุดจากระบบคลาวด์',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        
+        try {
+          const success = await syncFromSupabase();
+          if (success) {
+            // โหลดสเตทใหม่จาก LocalStorage ทันที
+            setClinicInfo(db.getClinicInfo());
+            setUsers(db.getUsers());
+            setTherapists(db.getTherapists());
+            setServices(db.getServices());
+            setPromotions(db.getPromotions());
+            setBankAccounts(db.getBankAccounts());
+            setHolidays(db.getHolidays());
+            setPatients(db.getPatients());
+            setAppointments(db.getAppointments());
+            setReceipts(db.getReceipts());
+            setAssessments(db.getAssessments());
+            setSalaryRules(db.getSalaryRules());
+            setPayrolls(db.getPayrolls());
+            setTransactions(db.getTransactions());
+            setOpdRecords(db.getOpdRecords());
+            
+            Swal.fire({
+              icon: 'success',
+              title: 'ซิงค์ข้อมูลสำเร็จ',
+              text: 'ดาวน์โหลดข้อมูลล่าสุดจากคลาวด์เรียบร้อยแล้ว',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 2000
+            });
+          } else {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ซิงค์ข้อมูลล้มเหลว',
+              text: 'ระบบจะสลับไปใช้ข้อมูลภายในเครื่องชั่วคราว',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 3500
+            });
+          }
+        } catch (e) {
+          console.error('Initial sync error:', e);
+        }
+      }
+      setIsSyncing(false);
+    };
+    runInitialSync();
+  }, []);
+
+  // บันทึก State ลง LocalStorage และ Supabase เมื่อมีค่าเปลี่ยนแปลง
+  useEffect(() => { 
+    db.setClinicInfo(clinicInfo); 
+    if (!isSyncing) syncToSupabase('hdh_clinic_info', clinicInfo);
+  }, [clinicInfo, isSyncing]);
+
+  useEffect(() => { 
+    db.setUsers(users); 
+    if (!isSyncing) syncToSupabase('hdh_users', users);
+  }, [users, isSyncing]);
+
+  useEffect(() => { 
+    db.setTherapists(therapists); 
+    if (!isSyncing) syncToSupabase('hdh_therapists', therapists);
+  }, [therapists, isSyncing]);
+
+  useEffect(() => { 
+    db.setServices(services); 
+    if (!isSyncing) syncToSupabase('hdh_services', services);
+  }, [services, isSyncing]);
+
+  useEffect(() => { 
+    db.setPromotions(promotions); 
+    if (!isSyncing) syncToSupabase('hdh_promotions', promotions);
+  }, [promotions, isSyncing]);
+
+  useEffect(() => { 
+    db.setBankAccounts(bankAccounts); 
+    if (!isSyncing) syncToSupabase('hdh_bank_accounts', bankAccounts);
+  }, [bankAccounts, isSyncing]);
+
+  useEffect(() => { 
+    db.setHolidays(holidays); 
+    if (!isSyncing) syncToSupabase('hdh_holidays', holidays);
+  }, [holidays, isSyncing]);
+
+  useEffect(() => { 
+    db.setPatients(patients); 
+    if (!isSyncing) syncToSupabase('hdh_patients', patients);
+  }, [patients, isSyncing]);
+
+  useEffect(() => { 
+    db.setAppointments(appointments); 
+    if (!isSyncing) syncToSupabase('hdh_appointments', appointments);
+  }, [appointments, isSyncing]);
+
+  useEffect(() => { 
+    db.setReceipts(receipts); 
+    if (!isSyncing) syncToSupabase('hdh_receipts', receipts);
+  }, [receipts, isSyncing]);
+
+  useEffect(() => { 
+    db.setAssessments(assessments); 
+    if (!isSyncing) syncToSupabase('hdh_assessments', assessments);
+  }, [assessments, isSyncing]);
+
+  useEffect(() => { 
+    db.setSalaryRules(salaryRules); 
+    if (!isSyncing) syncToSupabase('hdh_salary_rules', salaryRules);
+  }, [salaryRules, isSyncing]);
+
+  useEffect(() => { 
+    db.setPayrolls(payrolls); 
+    if (!isSyncing) syncToSupabase('hdh_payrolls', payrolls);
+  }, [payrolls, isSyncing]);
+
+  useEffect(() => { 
+    db.setTransactions(transactions); 
+    if (!isSyncing) syncToSupabase('hdh_transactions', transactions);
+  }, [transactions, isSyncing]);
+
+  useEffect(() => { 
+    db.setOpdRecords(opdRecords); 
+    if (!isSyncing) syncToSupabase('hdh_opd_records', opdRecords);
+  }, [opdRecords, isSyncing]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
@@ -69,9 +216,57 @@ export default function App() {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
+  // Password reset states
+  const [forgotPasswordStep, setForgotPasswordStep] = useState(null); // null, 'contact', 'reset'
+  const [resetUsername, setResetUsername] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+
   const handleLogin = (e) => {
     e.preventDefault();
-    const found = users.find(u => u.username === loginUsername && u.password === loginPassword);
+    let found = null;
+    
+    // ดึงค่าแอดมินหลักจาก localStorage (เผื่อมีการแก้ไข Username/Password)
+    const adminOverride = localStorage.getItem('hdh_admin_override');
+    const parsedOverride = adminOverride ? JSON.parse(adminOverride) : null;
+    const adminUsername = parsedOverride ? parsedOverride.username : 'admin';
+    const adminPassword = parsedOverride ? parsedOverride.password : 'admin0100';
+    
+    // หากเข้าสู่ระบบด้วย admin/admin0100 ให้รีเซ็ตรหัสผ่านแอดมินกลับมาและเข้าสู่ระบบทันทีเพื่อป้องกันปัญหารหัสค้างหรือ override ผิดพลาด
+    if (loginUsername === 'admin' && loginPassword === 'admin0100') {
+      if (adminOverride) {
+        try {
+          const parsed = JSON.parse(adminOverride);
+          parsed.password = 'admin0100';
+          localStorage.setItem('hdh_admin_override', JSON.stringify(parsed));
+        } catch (err) {
+          localStorage.removeItem('hdh_admin_override');
+        }
+      }
+      
+      const latestOverride = localStorage.getItem('hdh_admin_override');
+      found = latestOverride ? JSON.parse(latestOverride) : {
+        username: 'admin',
+        fullname: 'ผู้ดูแลระบบหลัก',
+        role: 'Admin',
+        employeeId: 'HDH001',
+        status: 'Active',
+        avatarUrl: ''
+      };
+    } else if (loginUsername === adminUsername && loginPassword === adminPassword) {
+      found = parsedOverride || {
+        username: 'admin',
+        fullname: 'ผู้ดูแลระบบหลัก',
+        role: 'Admin',
+        employeeId: 'HDH001',
+        status: 'Active',
+        avatarUrl: ''
+      };
+    } else {
+      found = users.find(u => u.username === loginUsername && u.password === loginPassword);
+    }
+
     if (found) {
       setCurrentUser(found);
       localStorage.setItem('hdh_logged_in_user', JSON.stringify(found));
@@ -87,9 +282,105 @@ export default function App() {
       Swal.fire({
         icon: 'error',
         title: 'ล็อกอินล้มเหลว',
-        text: 'ชื่อผู้ใช้หรือรหัสผ่านจำลองไม่ถูกต้อง!',
+        text: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!',
         confirmButtonColor: 'var(--secondary)'
       });
+    }
+  };
+
+  const handleResetPassword = (e) => {
+    e.preventDefault();
+    if (resetNewPassword !== resetConfirmPassword) {
+      Swal.fire({
+        icon: 'error',
+        title: 'รหัสผ่านไม่ตรงกัน',
+        text: 'รหัสผ่านใหม่และยืนยันรหัสผ่านใหม่ไม่ตรงกัน',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const usernameLower = resetUsername.trim().toLowerCase();
+    const emailLower = resetEmail.trim().toLowerCase();
+
+    // Check admin
+    const adminOverride = localStorage.getItem('hdh_admin_override');
+    const parsedOverride = adminOverride ? JSON.parse(adminOverride) : null;
+    const adminEmail = (parsedOverride?.email || 'admin@hugdeehome.com').trim().toLowerCase();
+
+    if (usernameLower === 'admin') {
+      if (emailLower === adminEmail) {
+        const updatedAdmin = parsedOverride ? { ...parsedOverride, password: resetNewPassword } : {
+          username: 'admin',
+          fullname: 'ผู้ดูแลระบบหลัก',
+          role: 'Admin',
+          employeeId: 'HDH001',
+          status: 'Active',
+          avatarUrl: '',
+          email: 'admin@hugdeehome.com',
+          password: resetNewPassword
+        };
+        localStorage.setItem('hdh_admin_override', JSON.stringify(updatedAdmin));
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'เปลี่ยนรหัสผ่านสำเร็จ',
+          text: 'รหัสผ่านใหม่เปิดใช้งานแล้ว สามารถเข้าสู่ระบบได้ทันที',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        setForgotPasswordStep(null);
+        setResetUsername('');
+        setResetEmail('');
+        setResetNewPassword('');
+        setResetConfirmPassword('');
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'ข้อมูลไม่ถูกต้อง',
+          text: 'ชื่อบัญชีหรืออีเมลไม่ถูกต้อง',
+          confirmButtonColor: 'var(--secondary)'
+        });
+      }
+      return;
+    }
+
+    // Check other users
+    const matchedUserIndex = users.findIndex(u => u.username.toLowerCase() === usernameLower && (u.email || '').trim().toLowerCase() === emailLower);
+    if (matchedUserIndex !== -1) {
+      const updatedUsers = users.map((u, idx) => idx === matchedUserIndex ? { ...u, password: resetNewPassword } : u);
+      setUsers(updatedUsers);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'เปลี่ยนรหัสผ่านสำเร็จ',
+        text: 'รหัสผ่านใหม่เปิดใช้งานแล้ว สามารถเข้าสู่ระบบได้ทันที',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      setForgotPasswordStep(null);
+      setResetUsername('');
+      setResetEmail('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'ข้อมูลไม่ถูกต้อง',
+        text: 'ชื่อบัญชีหรืออีเมลไม่ถูกต้อง',
+        confirmButtonColor: 'var(--secondary)'
+      });
+    }
+  };
+
+  const handleUpdateProfile = (updatedUser) => {
+    if (currentUser && currentUser.username === 'admin') {
+      setCurrentUser(updatedUser);
+      localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
+      localStorage.setItem('hdh_admin_override', JSON.stringify(updatedUser));
+    } else {
+      const updatedUsersList = users.map(u => u.username === currentUser.username ? { ...u, ...updatedUser } : u);
+      setUsers(updatedUsersList);
+      setCurrentUser(updatedUser);
+      localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
     }
   };
 
@@ -199,6 +490,10 @@ export default function App() {
   const handleVoidReceipt = (id) => {
     // ปรับสถานะเป็น "ยกเลิก"
     setReceipts(receipts.map(r => r.id === id ? { ...r, status: 'ยกเลิก' } : r));
+  };
+
+  const handleDeleteReceipt = (id) => {
+    setReceipts(receipts.filter(r => r.id !== id));
   };
 
   const handleEditDraftReceipt = (receipt) => {
@@ -353,21 +648,21 @@ export default function App() {
   // รันวิวล็อกอินถ้าผู้ใช้งานยังไม่ได้ลงชื่อเข้าใช้ระบบ
   if (!currentUser) {
     return (
-      <div className="login-container">
+      <div className="login-container" style={{ position: 'relative' }}>
         <div className="card-3xl login-card">
-          {(() => {
-            const matchedUser = users.find(u => u.username === loginUsername);
-            if (matchedUser && matchedUser.avatarUrl) {
-              return (
-                <div className="login-logo" style={{ overflow: 'hidden', padding: 0 }}>
-                  <img src={matchedUser.avatarUrl} alt="user profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              );
-            }
-            return <div className="login-logo">ฮดี</div>;
-          })()}
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '0.25rem' }}>Hug Dee Home</h1>
-          <div className="login-subtitle">ระบบบริหารจัดการคลินิกกิจกรรมบำบัดครบวงจร</div>
+          <div className="login-logo" style={{ overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF8F1', border: '1px solid var(--border-light)' }}>
+            {clinicInfo?.logoUrl ? (
+              <img src={clinicInfo.logoUrl} alt="Clinic Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--secondary)' }}>ฮดี</span>
+            )}
+          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem', color: 'var(--dark)' }}>
+            {clinicInfo?.name || 'ฮักดีโฮม (Hug Dee Home)'}
+          </h1>
+          <div className="login-subtitle" style={{ fontSize: '0.85rem', color: 'var(--secondary)', fontWeight: 600 }}>
+            {clinicInfo?.type || 'คลินิกการประกอบโรคศิลปะสาขากิจกรรมบำบัด'}
+          </div>
           
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', textAlign: 'left' }}>
             <div className="form-group">
@@ -397,8 +692,162 @@ export default function App() {
             <button type="submit" className="btn btn-secondary" style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', marginTop: '0.5rem' }}>
               เข้าสู่ระบบบริหารคลินิก
             </button>
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <a 
+                href="#" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  setForgotPasswordStep('contact');
+                }}
+                style={{ fontSize: '0.85rem', color: 'var(--secondary)', textDecoration: 'underline', fontWeight: 500 }}
+              >
+                ลืมรหัสผ่าน?
+              </a>
+            </div>
           </form>
         </div>
+
+        {/* MODAL POPUPS FOR FORGOT PASSWORD */}
+        {forgotPasswordStep === 'contact' && (
+          <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000 }}>
+            <div className="card-3xl" style={{ maxWidth: '400px', width: '90%', padding: '2.5rem 2rem', textAlign: 'center', backgroundColor: '#fff', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)' }}>
+              
+              {/* Blue info icon */}
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                borderRadius: '50%', 
+                border: '4px solid #54B4EB', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                margin: '0 auto 1.5rem',
+                color: '#54B4EB',
+                fontSize: '3.5rem',
+                fontWeight: 700,
+                fontFamily: 'serif'
+              }}>
+                i
+              </div>
+
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '1rem', color: '#4A4036' }}>
+                ลืมรหัสผ่าน?
+              </h2>
+              
+              <div style={{ fontSize: '0.9rem', color: '#6e6052', lineHeight: '1.6', textAlign: 'left', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>กรุณาติดต่อผู้ดูแลระบบสูงสุด หรือช่องทางติดต่อหลักของคลินิกเพื่อขอเปลี่ยน/รีเซ็ตรหัสผ่าน:</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500 }}>
+                  <span style={{ color: '#c19b6c', fontSize: '1.2rem' }}>📞</span>
+                  <span><strong>เบอร์โทรศัพท์:</strong> 094-6753557</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500 }}>
+                  <span style={{ color: '#9b59b6', fontSize: '1.2rem' }}>💬</span>
+                  <span><strong>Line Official:</strong> @hugdeehome</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', fontWeight: 700, backgroundColor: '#c19b6c', border: 'none', borderRadius: 'var(--radius-lg)' }}
+                  onClick={() => setForgotPasswordStep(null)}
+                >
+                  รับทราบ
+                </button>
+                <button 
+                  type="button" 
+                  style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.85rem', textDecoration: 'underline', cursor: 'pointer', marginTop: '0.5rem' }}
+                  onClick={() => setForgotPasswordStep('reset')}
+                >
+                  หรือเปลี่ยนรหัสผ่านออนไลน์ด้วยตนเอง
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {forgotPasswordStep === 'reset' && (
+          <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000 }}>
+            <div className="card-3xl" style={{ maxWidth: '420px', width: '90%', padding: '2.5rem 2rem', backgroundColor: '#fff', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)' }}>
+              <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '0.25rem', color: '#B0895A', textAlign: 'center' }}>
+                ตั้งรหัสผ่านใหม่
+              </h1>
+              <div style={{ fontSize: '0.85rem', color: 'var(--dark-light)', fontWeight: 500, textAlign: 'center', marginBottom: '1.5rem' }}>
+                กรอกข้อมูลเพื่อยืนยันตัวตนและตั้งรหัสผ่านใหม่
+              </div>
+              
+              <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', textAlign: 'left' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.9rem' }}>Username</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="กรอกชื่อผู้ใช้ระบบ"
+                    value={resetUsername}
+                    onChange={(e) => setResetUsername(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.9rem' }}>Email</label>
+                  <input 
+                    type="email" 
+                    className="form-control" 
+                    placeholder="กรอกอีเมลที่ผูกไว้กับบัญชี"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.9rem' }}>รหัสผ่านใหม่</label>
+                  <input 
+                    type="password" 
+                    className="form-control" 
+                    placeholder="กรอกรหัสผ่านใหม่"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.9rem' }}>ยืนยันรหัสผ่านใหม่</label>
+                  <input 
+                    type="password" 
+                    className="form-control" 
+                    placeholder="กรอกยืนยันรหัสผ่านใหม่"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-secondary" style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', marginTop: '1rem', fontWeight: 700, backgroundColor: '#c19b6c', border: 'none', borderRadius: 'var(--radius-lg)' }}>
+                  ยืนยันการเปลี่ยนรหัสผ่าน
+                </button>
+
+                <button 
+                  type="button" 
+                  className="btn btn-light" 
+                  onClick={() => {
+                    setForgotPasswordStep('contact');
+                    setResetUsername('');
+                    setResetEmail('');
+                    setResetNewPassword('');
+                    setResetConfirmPassword('');
+                  }}
+                  style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', marginTop: '0.25rem', fontWeight: 700, borderRadius: 'var(--radius-lg)', color: '#4A4036', backgroundColor: '#fcfcfc', border: '1px solid var(--border)' }}
+                >
+                  กลับไปหน้าล็อกอิน
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -420,7 +869,28 @@ export default function App() {
 
 
       {/* 7. ส่วนแสดงเนื้อหา SPA ตามเมนูย่อย */}
-      <div className="main-content">
+      <div className="main-content" style={{ position: 'relative' }}>
+        {/* ปุ่มรีเฟรชลอยสำหรับทุกหน้าจอ */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-1.5rem', zIndex: 999 }}>
+          <button 
+            className="btn btn-light" 
+            onClick={() => window.location.reload()} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.25rem', 
+              padding: '0.35rem 0.75rem', 
+              fontSize: '0.8rem', 
+              borderRadius: '20px', 
+              border: '1px solid var(--border)', 
+              backgroundColor: 'white',
+              boxShadow: 'var(--shadow-sm)',
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={13} /> รีเฟรชหน้าจอ (Refresh)
+          </button>
+        </div>
         
         {activeTab === 'dashboard' && (
           <Dashboard 
@@ -435,6 +905,8 @@ export default function App() {
         {activeTab === 'patients' && (
           <PatientRegister 
             patients={patients}
+            setPatients={setPatients}
+            currentUser={currentUser}
             onAddPatient={handleAddPatient}
             onUpdatePatient={handleUpdatePatient}
             onDeletePatient={handleDeletePatient}
@@ -449,12 +921,14 @@ export default function App() {
           <Appointments 
             patients={patients}
             appointments={appointments}
+            setAppointments={setAppointments}
             therapists={therapists}
             holidays={holidays}
             onAddAppointment={handleAddAppointment}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             onDeleteAppointment={handleDeleteAppointment}
             onUpdateAppointment={handleUpdateAppointment}
+            currentUser={currentUser}
           />
         )}
 
@@ -462,6 +936,7 @@ export default function App() {
           <DevelopmentalAssessment 
             patients={patients}
             assessments={assessments}
+            setAssessments={setAssessments}
             therapists={therapists}
             onAddAssessment={handleAddAssessment}
             onDeleteAssessment={handleDeleteAssessment}
@@ -469,6 +944,7 @@ export default function App() {
               const a = assessments.find(item => item.id === id);
               setPrintView({ show: true, type: 'assessment', data: a });
             }}
+            currentUser={currentUser}
           />
         )}
 
@@ -481,6 +957,7 @@ export default function App() {
             onPrintOPD={(type, data) => {
               setPrintView({ show: true, type, data });
             }}
+            currentUser={currentUser}
           />
         )}
 
@@ -531,12 +1008,16 @@ export default function App() {
           <ReceiptHistory 
             patients={patients}
             receipts={receipts}
+            setReceipts={setReceipts}
+            services={services}
             onVoidReceipt={handleVoidReceipt}
             onEditDraftReceipt={handleEditDraftReceipt}
+            onDeleteReceipt={handleDeleteReceipt}
             onPrintReceipt={(id) => {
               const r = receipts.find(item => item.id === id);
               setPrintView({ show: true, type: 'receipt', data: r });
             }}
+            currentUser={currentUser}
           />
         )}
 
@@ -603,6 +1084,14 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'profile' && (
+          <UserProfile 
+            currentUser={currentUser}
+            onUpdateProfile={handleUpdateProfile}
+            users={users}
+          />
+        )}
+
       </div>
 
       {/* 8. หน้าพรีวิวจัดพิมพ์ PDF แบบลอยครอบหน้าจอ (Print Overlay) */}
@@ -613,6 +1102,7 @@ export default function App() {
           clinicInfo={clinicInfo}
           patients={patients}
           therapists={therapists}
+          bankAccounts={bankAccounts}
           onClose={() => setPrintView({ show: false, type: 'receipt', data: null })}
         />
       )}
