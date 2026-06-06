@@ -490,11 +490,9 @@ export default function Users({ users, setUsers }) {
         );
       })
       .sort((a, b) => {
-        const dateA = a.startDate || '';
-        const dateB = b.startDate || '';
         const empIdA = a.employeeId || '';
         const empIdB = b.employeeId || '';
-        return dateB.localeCompare(dateA) || empIdB.localeCompare(empIdA);
+        return empIdB.localeCompare(empIdA);
       });
   }, [users, searchQuery]);
 
@@ -647,7 +645,7 @@ export default function Users({ users, setUsers }) {
         )}
 
         <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
-          แสดง {filteredUsers.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredUsers.length)} จากทั้งหมด {filteredUsers.length} รายการ (เรียงจากล่าสุด)
+          แสดง {filteredUsers.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredUsers.length)} จากทั้งหมด {filteredUsers.length} รายการ (เรียงจากรหัสพนักงานมากไปน้อย)
         </div>
       </div>
 
