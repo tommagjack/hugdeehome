@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatPatientNickname } from '../utils/format';
 import { 
   UserPlus, 
   Search, 
@@ -300,7 +301,7 @@ export default function PatientRegister({
       html: `
         <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.5rem; color: var(--dark)">
           <div style="border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.5rem">
-            <strong>ชื่อ-นามสกุล:</strong> ${p.title}${p.firstname} ${p.lastname} (${p.nickname ? 'น้อง' + p.nickname : 'ไม่มีชื่อเล่น'})<br/>
+            <strong>ชื่อ-นามสกุล:</strong> ${p.title}${p.firstname} ${p.lastname} (${p.nickname ? formatPatientNickname(p.nickname) : 'ไม่มีชื่อเล่น'})<br/>
             <strong>เพศ:</strong> ${p.gender} | <strong>สถานะ:</strong> <span class="badge ${p.status === 'Active' ? 'badge-success' : p.status === 'Pending' ? 'badge-warning' : 'badge-secondary'}">${p.status}</span>
           </div>
           <div>
@@ -839,7 +840,7 @@ export default function PatientRegister({
                       <td>
                         <div style={{ fontWeight: 600 }}>{p.title}{p.firstname} {p.lastname}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
-                          น้อง{p.nickname || '-'} ({p.gender})
+                          {p.nickname ? formatPatientNickname(p.nickname) : '-'} ({p.gender})
                         </div>
                       </td>
                       <td>{p.phone}</td>

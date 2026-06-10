@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatPatientNickname } from '../utils/format';
 import { 
   BarChart3, 
   Calendar, 
@@ -321,7 +322,7 @@ export default function ServiceSummary({
                           <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{cs.timeSlot}</td>
                           <td style={{ fontFamily: 'monospace' }}>{cs.hn}</td>
                           <td>
-                            <strong>{cs.patientName}</strong> (น้อง{cs.patientNickname})
+                            <strong>{cs.patientName}</strong> ({cs.patientNickname ? formatPatientNickname(cs.patientNickname) : ''})
                           </td>
                         </tr>
                       ))}

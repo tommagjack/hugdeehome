@@ -275,9 +275,9 @@ export default function Appointments({
       html: `
         <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.6; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; background-color: var(--light);">
           <div style="margin-bottom: 0.5rem;"><strong>HN:</strong> ${app.hn}</div>
-          <div style="margin-bottom: 0.5rem;"><strong>ผู้ป่วย:</strong> ${patient.title || ''}${patient.firstname || 'ไม่ระบุ'} ${patient.lastname || ''} (น้อง${patient.nickname || 'ไม่ระบุ'})</div>
+          <div style="margin-bottom: 0.5rem;"><strong>ผู้ป่วย:</strong> ${patient.title || ''}${patient.firstname || 'ไม่ระบุ'} ${patient.lastname || ''} (${patient.nickname ? formatPatientNickname(patient.nickname) : 'ไม่ระบุ'})</div>
           <div style="margin-bottom: 0.5rem;"><strong>ผู้ปกครอง:</strong> ${patient.guardian || '-'} (โทร. ${patient.phone || '-'})</div>
-          <div style="margin-bottom: 0.5rem;"><strong>ผู้สอน:</strong> ครู${therapist.nickname || 'ไม่ระบุ'} (${therapist.fullname || '-'})</div>
+          <div style="margin-bottom: 0.5rem;"><strong>ผู้สอน:</strong> ${formatTherapistName(therapist.nickname || 'ไม่ระบุ')} (${therapist.fullname || '-'})</div>
           <div style="margin-bottom: 0.5rem;"><strong>เลขใบประกอบโรคศิลปะ:</strong> ${therapist.licenseNo || '-'}</div>
           <div style="margin-bottom: 0.5rem;"><strong>วันที่นัดหมาย:</strong> ${new Date(app.date).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
           <div style="margin-bottom: 0.5rem;"><strong>เวลา:</strong> ${app.timeSlot} น.</div>
@@ -631,12 +631,12 @@ export default function Appointments({
                               onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--light)'}
                               onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                               onClick={() => {
-                                setSelectedHn(p.hn);
-                                setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
-                                setShowPatientDropdown(false);
-                              }}
-                            >
-                              HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                                 setSelectedHn(p.hn);
+                                 setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
+                                 setShowPatientDropdown(false);
+                               }}
+                             >
+                               HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}${p.firstname} ${p.lastname})
                             </div>
                           ))
                         )}
@@ -669,7 +669,7 @@ export default function Appointments({
                     >
                       {therapists.map(t => (
                         <option key={t.id} value={t.id}>
-                          {t.nickname.startsWith('ครู') ? t.nickname : `ครู${t.nickname}`} ({t.fullname})
+                          {formatTherapistName(t.nickname)} ({t.fullname})
                         </option>
                       ))}
                     </select>

@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Printer, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { formatPatientNickname } from '../utils/format';
 
 export default function PDFViewer({ 
   documentType, 
@@ -132,7 +133,7 @@ export default function PDFViewer({
         <h3 className="a4-table-title">ข้อมูลประวัติทั่วไป (General Info)</h3>
         <div className="a4-patient-section">
           <div className="a4-data-item"><span className="a4-data-label">ชื่อ-นามสกุล:</span><span className="a4-data-value">{cleanTitle}{cleanFirstname} {cleanLastname}</span></div>
-          <div className="a4-data-item"><span className="a4-data-label">ชื่อเล่น:</span><span className="a4-data-value">น้อง{p.nickname || '-'}</span></div>
+          <div className="a4-data-item"><span className="a4-data-label">ชื่อเล่น:</span><span className="a4-data-value">{p.nickname ? formatPatientNickname(p.nickname) : '-'}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">เพศ:</span><span className="a4-data-value">{p.gender}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">วัน/เดือน/ปีเกิด:</span><span className="a4-data-value">{formatDateTh(p.dob)} (พ.ศ.)</span></div>
           <div className="a4-data-item"><span className="a4-data-label">อายุเมื่อเข้าตรวจ:</span><span className="a4-data-value">{years} ปี {months} เดือน</span></div>
@@ -242,7 +243,7 @@ export default function PDFViewer({
 
         {/* ข้อมูลเด็ก */}
         <div className="a4-patient-section">
-          <div className="a4-data-item"><span className="a4-data-label">ชื่อผู้รับการประเมิน:</span><span className="a4-data-value">{pInfo.fullname} (น้อง{pInfo.nickname || '-'})</span></div>
+          <div className="a4-data-item"><span className="a4-data-label">ชื่อผู้รับการประเมิน:</span><span className="a4-data-value">{pInfo.fullname} ({pInfo.nickname ? formatPatientNickname(pInfo.nickname) : '-'})</span></div>
           <div className="a4-data-item"><span className="a4-data-label">รหัส HN:</span><span className="a4-data-value">{item.hn}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">เพศ:</span><span className="a4-data-value">{pInfo.gender}</span></div>
           <div className="a4-data-item"><span className="a4-data-label">ผู้ปกครองผู้ให้ข้อมูล:</span><span className="a4-data-value">{pInfo.guardian || '-'}</span></div>

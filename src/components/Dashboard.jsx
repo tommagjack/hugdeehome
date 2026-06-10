@@ -9,6 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { formatPatientNickname } from '../utils/format';
 
 export default function Dashboard({ 
   patients, 
@@ -223,7 +224,7 @@ export default function Dashboard({
                       <td style={{ fontWeight: 600 }}>{app.timeSlot}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{app.patientName}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn} (น้อง{app.patientNickname})</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn} ({formatPatientNickname(app.patientNickname)})</div>
                       </td>
                       <td>{app.therapistNickname}</td>
                       <td>
@@ -287,7 +288,7 @@ export default function Dashboard({
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>น้อง{alert.nickname} ({alert.name})</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatPatientNickname(alert.nickname)} ({alert.name})</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {alert.hn} | ซื้อ {alert.purchased} ใช้ {alert.used}</div>
                   </div>
                   

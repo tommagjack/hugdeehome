@@ -829,11 +829,11 @@ export default function ReceiptHistory({
                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                                 onClick={() => {
                                   setEditHn(p.hn);
-                                  setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                  setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                                   setShowPatientDropdown(false);
                                 }}
                               >
-                                HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                                HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}{p.firstname} {p.lastname})
                               </div>
                             ))
                           )}

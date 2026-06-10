@@ -199,7 +199,11 @@ export default function CourseBalance({
         sessions: 1,
         direction: 'out',
         docId: app.id,
-        remark: `สอนโดย ครู${appointments.find(a => a.id === app.id)?.therapistId || ''}`
+        remark: (() => {
+          const tId = app.therapistId;
+          const therapist = therapists.find(t => t.id === tId);
+          return `สอนโดย ${therapist ? formatTherapistName(therapist.nickname) : 'ไม่พบข้อมูลครู'}`;
+        })()
       });
     });
 
@@ -518,7 +522,7 @@ export default function CourseBalance({
             <form onSubmit={handleTransferSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ padding: '0.75rem', backgroundColor: 'var(--danger-light)', borderRadius: 'var(--radius-md)', color: 'var(--dark)' }}>
-                  <strong>ผู้โอนคอร์ส (ต้นทาง):</strong> น้อง{currentPatient.nickname} (คงเหลือ {currentBalanceInfo?.balance} ครั้ง)
+                  <strong>ผู้โอนคอร์ส (ต้นทาง):</strong> {formatPatientNickname(currentPatient.nickname)} (คงเหลือ {currentBalanceInfo?.balance} ครั้ง)
                 </div>
 
                 <div className="form-group">
@@ -579,11 +583,11 @@ export default function CourseBalance({
                               onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                               onClick={() => {
                                 setTransfereeHn(p.hn);
-                                setTransfereeSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                setTransfereeSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                                 setShowTransfereeDropdown(false);
                               }}
                             >
-                              HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                              HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}${p.firstname} {p.lastname})
                             </div>
                           ))
                         )}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { formatTherapistName } from '../utils/format';
 import { 
   Building2, 
   Tag, 
@@ -1114,7 +1115,7 @@ function saveTableToSheet(key, list) {
                   <tbody>
                     {therapists.map(t => (
                       <tr key={t.id}>
-                        <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>ครู{t.nickname}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{formatTherapistName(t.nickname)}</td>
                         <td>{t.fullname}</td>
                         <td style={{ fontFamily: 'monospace' }}>{t.licenseNo || '-'}</td>
                         <td>

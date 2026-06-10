@@ -144,7 +144,7 @@ export default function DevelopmentalAssessment({
     if (selectedHn) {
       const p = patients.find(item => item.hn === selectedHn);
       if (p) {
-        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+        setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
         setPatientSearchText('');
       }
@@ -785,7 +785,7 @@ export default function DevelopmentalAssessment({
                                   setShowPatientDropdown(false);
                                 }}
                               >
-                                HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                                HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}{p.firstname} {p.lastname})
                               </div>
                             ))
                           )}
