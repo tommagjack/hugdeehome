@@ -217,18 +217,18 @@ export default function ReceiptHistory({
 
       const indexMap = {};
       const headersMap = {
-        id: ['id', 'เลขที่เอกสาร', 'เลขที่บิล', 'รหัสเอกสาร', 'เลขที่'],
+        id: ['id', 'เลขที่เอกสาร', 'เลขที่บิล', 'รหัสเอกสาร', 'เลขที่', 'no'],
         hn: ['hn', 'รหัส hn', 'รหัสผู้ป่วย', 'hn ผู้ป่วย'],
         date: ['date', 'วันที่ออกบิล', 'วันที่', 'วันที่บิล'],
-        items: ['items', 'รายการซื้อ', 'รายการสินค้า', 'สินค้า'],
+        items: ['items', 'รายการซื้อ', 'รายการสินค้า', 'สินค้า', 'cartitems'],
         discountValue: ['discountvalue', 'ส่วนลด'],
         discountType: ['discounttype', 'ประเภทส่วนลด'],
         discountReason: ['discountreason', 'เหตุผลส่วนลด'],
         promotionId: ['promotionid', 'รหัสโปรโมชั่น', 'โปรโมชั่น'],
-        paymentMethod: ['paymentmethod', 'ชำระโดย', 'วิธีชำระเงิน'],
+        paymentMethod: ['paymentmethod', 'ชำระโดย', 'วิธีชำระเงิน', 'method'],
         bankAccountId: ['bankaccountid', 'บัญชีธนาคาร', 'ธนาคาร'],
         slipUrl: ['slipurl', 'ลิงก์สลิป', 'รูปสลิป'],
-        totalAmount: ['totalamount', 'ยอดสุทธิ', 'ยอดรวม', 'จำนวนเงิน'],
+        totalAmount: ['totalamount', 'ยอดสุทธิ', 'ยอดรวม', 'จำนวนเงิน', 'amount'],
         status: ['status', 'สถานะ'],
         createdBy: ['createdby', 'ผู้ทำรายการ', 'ผู้สร้าง'],
         created_at: ['created_at', 'วันเวลาที่สร้าง', 'วันที่บันทึก']
@@ -341,6 +341,30 @@ export default function ReceiptHistory({
 
   const parseItems = (rawStr, servicesList) => {
     if (!rawStr) return [];
+    const cleanStr = rawStr.trim();
+    if (cleanStr.startsWith('[') && cleanStr.endsWith(']')) {
+      try {
+        const arr = JSON.parse(cleanStr);
+        if (Array.isArray(arr)) {
+          return arr.map(item => {
+            const name = item.name || item.desc || 'สินค้า/บริการ';
+            const quantity = parseInt(item.qty || item.quantity) || 1;
+            const price = parseFloat(item.price) || 0;
+            const code = item.code || item.id || 'MANUAL_ADD';
+            const type = item.type || (item.unit === 'คอร์ส' || item.unit === 'ครั้ง' ? 'บริการ' : 'สินค้า');
+            return {
+              name,
+              quantity,
+              price,
+              code,
+              type
+            };
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse items as JSON, falling back to text parsing', e);
+      }
+    }
     const parts = rawStr.split('|');
     return parts.map(part => {
       const trimmed = part.trim();

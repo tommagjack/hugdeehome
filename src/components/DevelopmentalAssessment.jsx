@@ -19,22 +19,22 @@ import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
 
 const headersMap = {
-  id: ['id', 'เลขที่เอกสาร', 'เลขที่เอกสารการประเมิน', 'assessment id'],
+  id: ['id', 'เลขที่เอกสาร', 'เลขที่เอกสารการประเมิน', 'assessment id', 'assessid'],
   hn: ['hn', 'รหัส hn', 'รหัสผู้ป่วย'],
   date: ['date', 'วันที่ประเมิน', 'วันที่ประเมิน (yyyy-mm-dd)', 'วันที่'],
   gm: ['gm', 'กล้ามเนื้อมัดใหญ่', 'กล้ามเนื้อมัดใหญ่ (gm)'],
   fm: ['fm', 'กล้ามเนื้อมัดเล็ก', 'กล้ามเนื้อมัดเล็ก (fm)'],
-  language: ['language', 'ด้านภาษา', 'ด้านภาษา (language)'],
-  social: ['social', 'ด้านสังคม', 'ด้านสังคม (social)'],
-  tactile: ['tactile', 'sensory_tactile', 'ประสาทสัมผัสทางผิวหนัง'],
-  vestibular: ['vestibular', 'sensory_vestibular', 'การทรงตัว'],
-  proprioceptive: ['proprioceptive', 'sensory_proprioceptive', 'กล้ามเนื้อและข้อต่อ'],
-  visual: ['visual', 'sensory_visual', 'การรับรู้ทางสายตา'],
-  auditory: ['auditory', 'sensory_auditory', 'การรับรู้ทางเสียง'],
-  movement: ['movement', 'sensory_movement', 'การวางแผนเคลื่อนไหว'],
-  snapInattention: ['snapinattention', 'snap_inattention', 'สมาธิสั้น', 'ขาดสมาธิ'],
-  snapHyperactivity: ['snaphyperactivity', 'snap_hyperactivity', 'ซนสมาธิสั้น', 'ซน/วู่วาม'],
-  snapOppositional: ['snapoppositional', 'snap_oppositional', 'ดื้อต่อต้าน', 'ดื้อ/ต่อต้าน'],
+  language: ['language', 'ด้านภาษา', 'ด้านภาษา (language)', 'lang'],
+  social: ['social', 'ด้านสังคม', 'ด้านสังคม (social)', 'soc'],
+  tactile: ['tactile', 'sensory_tactile', 'ประสาทสัมผัสทางผิวหนัง', 'senresp'],
+  vestibular: ['vestibular', 'sensory_vestibular', 'การทรงตัว', 'senbal'],
+  proprioceptive: ['proprioceptive', 'sensory_proprioceptive', 'กล้ามเนื้อและข้อต่อ', 'sentaste'],
+  visual: ['visual', 'sensory_visual', 'การรับรู้ทางสายตา', 'senvis'],
+  auditory: ['auditory', 'sensory_auditory', 'การรับรู้ทางเสียง', 'senhear'],
+  movement: ['movement', 'sensory_movement', 'การวางแผนเคลื่อนไหว', 'senmove'],
+  snapInattention: ['snapinattention', 'snap_inattention', 'สมาธิสั้น', 'ขาดสมาธิ', 'sninatt'],
+  snapHyperactivity: ['snaphyperactivity', 'snap_hyperactivity', 'ซนสมาธิสั้น', 'ซน/วู่วาม', 'snhyper'],
+  snapOppositional: ['snapoppositional', 'snap_oppositional', 'ดื้อต่อต้าน', 'ดื้อ/ต่อต้าน', 'snodd'],
   comment: ['comment', 'ความเห็นเพิ่มเติม', 'ความเห็น', 'ความคิดเห็น']
 };
 
