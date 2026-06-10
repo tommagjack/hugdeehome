@@ -7,12 +7,12 @@ import {
 import Swal from 'sweetalert2';
 
 export default function SalarySettings({ salaryRules, setSalaryRules }) {
-  const [localEarnings, setLocalEarnings] = useState(() => salaryRules.earnings || []);
-  const [localDeductions, setLocalDeductions] = useState(() => salaryRules.deductions || []);
+  const [localEarnings, setLocalEarnings] = useState(() => salaryRules?.earnings || []);
+  const [localDeductions, setLocalDeductions] = useState(() => salaryRules?.deductions || []);
 
   useEffect(() => {
-    setLocalEarnings(salaryRules.earnings || []);
-    setLocalDeductions(salaryRules.deductions || []);
+    setLocalEarnings(salaryRules?.earnings || []);
+    setLocalDeductions(salaryRules?.deductions || []);
   }, [salaryRules]);
 
   // ฟังก์ชันเพิ่มรายการรับใหม่

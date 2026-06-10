@@ -125,7 +125,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     let calcTotalEarnings = basicSalary;
 
     // คำนวณจากกติกาสัญญาหลักในหน้าตั้งค่าเงินเดือน
-    (salaryRules.earnings || []).forEach(rule => {
+    (salaryRules?.earnings || []).forEach(rule => {
       const count = Number(earningCounts[rule.id]) || 0;
       const rate = Number(rule.value) || 0;
       const amount = count * rate;
@@ -152,7 +152,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     const deductionsList = [];
     let calcTotalDeductions = 0;
 
-    (salaryRules.deductions || []).forEach(rule => {
+    (salaryRules?.deductions || []).forEach(rule => {
       if (appliedDeductions[rule.id]) {
         let amount = 0;
         if (rule.type === 'เปอร์เซ็นต์ (%)') {
@@ -693,7 +693,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                         </div>
                         
                         {/* รายการรับตามกฎ (เช่น OT, ค่าเคส) */}
-                        {(salaryRules.earnings || []).map(rule => {
+                        {(salaryRules?.earnings || []).map(rule => {
                           const val = earningCounts[rule.id] || '';
                           return (
                             <div key={rule.id} className="salary-calc-item">
@@ -761,7 +761,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                       <div>
                         <div className="salary-calc-col-title">รายการหัก</div>
                         
-                        {(salaryRules.deductions || []).map(rule => {
+                        {(salaryRules?.deductions || []).map(rule => {
                           const isApplied = !!appliedDeductions[rule.id];
                           let showAmt = 0;
                           if (isApplied) {

@@ -126,8 +126,10 @@ export default function OPD({
   const calculateAge = (dob) => {
     if (!dob) return '-';
     const birthDate = new Date(dob);
+    const birthYear = birthDate.getFullYear();
+    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
     const today = new Date('2026-06-05');
-    let years = today.getFullYear() - birthDate.getFullYear();
+    let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();
     if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
       years--;

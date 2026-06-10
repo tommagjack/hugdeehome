@@ -86,8 +86,10 @@ export default function PDFViewer({
     
     // คำนวณอายุอ้างอิงวันที่พิมพ์ (5 มิ.ย. 2026)
     const birthDate = new Date(p.dob);
+    const birthYear = birthDate.getFullYear();
+    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
     const today = new Date('2026-06-05');
-    let years = today.getFullYear() - birthDate.getFullYear();
+    let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();
     if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
       years--;
@@ -609,8 +611,10 @@ export default function PDFViewer({
     let ageStr = '';
     if (patient?.dob) {
       const birthDate = new Date(patient.dob);
+      const birthYear = birthDate.getFullYear();
+      const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
       const today = new Date('2026-06-05'); // อิงเวลาจำลอง
-      let years = today.getFullYear() - birthDate.getFullYear();
+      let years = today.getFullYear() - normalizedBirthYear;
       let months = today.getMonth() - birthDate.getMonth();
       if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
         years--;
