@@ -14,6 +14,9 @@ import {
 import Swal from 'sweetalert2';
 
 export default function Salary({ currentUser, users, salaryRules, payrolls, setPayrolls, clinicInfo, setPrintView }) {
+  const safeUsers = useMemo(() => Array.isArray(users) ? users.filter(Boolean) : [], [users]);
+  const safePayrolls = useMemo(() => Array.isArray(payrolls) ? payrolls.filter(Boolean) : [], [payrolls]);
+
   const [filterYear, setFilterYear] = useState('All');
   const [filterMonth, setFilterMonth] = useState('All');
   const [filterUser, setFilterUser] = useState('All');
@@ -50,32 +53,35 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
   // รายชื่อพนักงานที่เป็น Active เท่านั้นสำหรับคำนวณเงินเดือน
   const activeEmployees = useMemo(() => {
-    return users.filter(u => u.status === 'Active' && u.username.toLowerCase() !== 'admin');
-  }, [users]);
+    return safeUsers.filter(u => u && u.status === 'Active' && u.username && u.username.toLowerCase() !== 'admin');
+  }, [safeUsers]);
 
   // พนักงานที่เลือกอยู่ในขณะคำนวณ
   const selectedEmployee = useMemo(() => {
     if (!selectedUsername) return null;
-    return users.find(u => u.username === selectedUsername);
-  }, [selectedUsername, users]);
+    return safeUsers.find(u => u && u.username === selectedUsername);
+  }, [selectedUsername, safeUsers]);
 
   // ดึงรายการปีที่บันทึกแล้วในระบบ
   const yearOptions = useMemo(() => {
-    const years = payrolls.map(p => p.year);
-    return ['All', ...new Set(years)].sort((a, b) => b.localeCompare(a));
-  }, [payrolls]);
+    const years = safePayrolls.map(p => p && p.year ? String(p.year) : '').filter(Boolean);
+    const uniqueYears = [...new Set(years)].sort((a, b) => String(b).localeCompare(String(a)));
+    return ['All', ...uniqueYears];
+  }, [safePayrolls]);
 
   // ดึงรายการเดือนที่มีข้อมูล
   const monthOptions = useMemo(() => {
-    const months = payrolls.map(p => p.month);
-    return ['All', ...new Set(months)];
-  }, [payrolls]);
+    const months = safePayrolls.map(p => p && p.month ? String(p.month) : '').filter(Boolean);
+    const uniqueMonths = [...new Set(months)];
+    return ['All', ...uniqueMonths];
+  }, [safePayrolls]);
 
   // ดึงรายชื่อพนักงานที่มีประวัติเงินเดือน
   const employeeOptions = useMemo(() => {
-    const names = payrolls.map(p => p.employeeName);
-    return ['All', ...new Set(names)].sort((a, b) => a.localeCompare(b));
-  }, [payrolls]);
+    const names = safePayrolls.map(p => p && p.employeeName ? String(p.employeeName) : '').filter(Boolean);
+    const uniqueNames = [...new Set(names)].sort((a, b) => String(a).localeCompare(String(b)));
+    return ['All', ...uniqueNames];
+  }, [safePayrolls]);
 
   // กรองประวัติเงินเดือนแสดงในตาราง
   const filteredPayrolls = useMemo(() => {
@@ -85,17 +91,19 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
       'กันยายน': 9, 'ตุลาคม': 10, 'พฤศจิกายน': 11, 'ธันวาคม': 12
     };
 
-    return payrolls
+    return safePayrolls
       .filter(p => {
+        if (!p) return false;
         if (currentUser?.role !== 'Admin' && p.employeeUsername !== currentUser?.username) {
           return false;
         }
-        const matchY = filterYear === 'All' || p.year === filterYear;
-        const matchM = filterMonth === 'All' || p.month === filterMonth;
-        const matchU = filterUser === 'All' || p.employeeName === filterUser;
+        const matchY = filterYear === 'All' || String(p.year) === filterYear;
+        const matchM = filterMonth === 'All' || String(p.month) === filterMonth;
+        const matchU = filterUser === 'All' || String(p.employeeName) === filterUser;
         return matchY && matchM && matchU;
       })
       .sort((a, b) => {
+        if (!a || !b) return 0;
         const yearA = parseInt(a.year) || 0;
         const yearB = parseInt(b.year) || 0;
         if (yearB !== yearA) return yearB - yearA;
@@ -104,7 +112,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
         const monthValB = thaiMonths[b.month] || parseInt(b.month) || 0;
         return monthValB - monthValA;
       });
-  }, [payrolls, filterYear, filterMonth, filterUser, currentUser]);
+  }, [safePayrolls, filterYear, filterMonth, filterUser, currentUser]);
 
   const paginatedPayrolls = useMemo(() => {
     const itemsPerPage = 20;
@@ -125,25 +133,29 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     let calcTotalEarnings = basicSalary;
 
     // คำนวณจากกติกาสัญญาหลักในหน้าตั้งค่าเงินเดือน
-    (salaryRules?.earnings || []).forEach(rule => {
-      const count = Number(earningCounts[rule.id]) || 0;
-      const rate = Number(rule.value) || 0;
-      const amount = count * rate;
-      if (count > 0) {
-        earningsList.push({
-          id: rule.id,
-          name: `${rule.name} (${rate})`,
-          count,
-          rate,
-          amount
-        });
-        calcTotalEarnings += amount;
+    const safeEarningsRules = salaryRules && Array.isArray(salaryRules.earnings) ? salaryRules.earnings.filter(Boolean) : [];
+    safeEarningsRules.forEach(rule => {
+      if (rule && rule.id) {
+        const count = Number(earningCounts[rule.id]) || 0;
+        const rate = Number(rule.value) || 0;
+        const amount = count * rate;
+        if (count > 0) {
+          earningsList.push({
+            id: rule.id,
+            name: `${rule.name || ''} (${rate})`,
+            count,
+            rate,
+            amount
+          });
+          calcTotalEarnings += amount;
+        }
       }
     });
 
     // บวก รายรับพิเศษ
-    specialEarnings.forEach(item => {
-      if (item.name && item.amount > 0) {
+    const safeSpecialEarnings = Array.isArray(specialEarnings) ? specialEarnings.filter(Boolean) : [];
+    safeSpecialEarnings.forEach(item => {
+      if (item && item.name && item.amount > 0) {
         calcTotalEarnings += Number(item.amount);
       }
     });
@@ -152,37 +164,41 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     const deductionsList = [];
     let calcTotalDeductions = 0;
 
-    (salaryRules?.deductions || []).forEach(rule => {
-      if (appliedDeductions[rule.id]) {
-        let amount = 0;
-        if (rule.type === 'เปอร์เซ็นต์ (%)') {
-          // ภาษีคำนวนจากยอดรวมรับ ประกันสังคมคำนวนจากฐานเงินเดือน
-          const nameLower = String(rule.name || '').toLowerCase();
-          const isTax = nameLower.includes('ภาษี') || nameLower.includes('tax');
-          const baseForCalc = isTax ? calcTotalEarnings : basicSalary;
-          
-          amount = (baseForCalc * (Number(rule.value) || 0)) / 100;
-          if (rule.maxLimit && amount > Number(rule.maxLimit)) {
-            amount = Number(rule.maxLimit);
+    const safeDeductionsRules = salaryRules && Array.isArray(salaryRules.deductions) ? salaryRules.deductions.filter(Boolean) : [];
+    safeDeductionsRules.forEach(rule => {
+      if (rule && rule.id) {
+        if (appliedDeductions[rule.id]) {
+          let amount = 0;
+          if (rule.type === 'เปอร์เซ็นต์ (%)') {
+            // ภาษีคำนวนจากยอดรวมรับ ประกันสังคมคำนวนจากฐานเงินเดือน
+            const nameLower = String(rule.name || '').toLowerCase();
+            const isTax = nameLower.includes('ภาษี') || nameLower.includes('tax');
+            const baseForCalc = isTax ? calcTotalEarnings : basicSalary;
+            
+            amount = (baseForCalc * (Number(rule.value) || 0)) / 100;
+            if (rule.maxLimit && amount > Number(rule.maxLimit)) {
+              amount = Number(rule.maxLimit);
+            }
+          } else {
+            amount = Number(rule.value) || 0;
           }
-        } else {
-          amount = Number(rule.value) || 0;
-        }
 
-        if (amount > 0) {
-          deductionsList.push({
-            id: rule.id,
-            name: `${rule.name} (${rule.value}${rule.type === 'เปอร์เซ็นต์ (%)' ? '%' : ''})`,
-            amount
-          });
-          calcTotalDeductions += amount;
+          if (amount > 0) {
+            deductionsList.push({
+              id: rule.id,
+              name: `${rule.name || ''} (${rule.value || 0}${rule.type === 'เปอร์เซ็นต์ (%)' ? '%' : ''})`,
+              amount
+            });
+            calcTotalDeductions += amount;
+          }
         }
       }
     });
 
     // บวก รายการหักพิเศษ
-    specialDeductions.forEach(item => {
-      if (item.name && item.amount > 0) {
+    const safeSpecialDeductions = Array.isArray(specialDeductions) ? specialDeductions.filter(Boolean) : [];
+    safeSpecialDeductions.forEach(item => {
+      if (item && item.name && item.amount > 0) {
         calcTotalDeductions += Number(item.amount);
       }
     });
@@ -213,45 +229,64 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     setEarningCounts({});
     // ติ๊กถูกเริ่มต้นสำหรับรายการหักเปอร์เซ็นต์ทั้งหมด
     const initialApplied = {};
-    (salaryRules?.deductions || []).forEach(d => {
-      initialApplied[d.id] = true;
+    const safeDeductionsRules = salaryRules && Array.isArray(salaryRules.deductions) ? salaryRules.deductions.filter(Boolean) : [];
+    safeDeductionsRules.forEach(d => {
+      if (d && d.id) {
+        initialApplied[d.id] = true;
+      }
     });
     setAppliedDeductions(initialApplied);
     setSpecialEarnings([]);
     setSpecialDeductions([]);
   };
 
+  const parseToDateInputStr = (val) => {
+    if (!val) return '';
+    const str = String(val);
+    if (str.includes('T')) {
+      return str.split('T')[0];
+    }
+    return str;
+  };
 
   // ดึงประวัติเงินเดือนกลับมาแก้ไข
   const handleEditPayroll = (p) => {
+    if (!p) return;
     setEditingPayrollId(p.id);
-    setCalcYear(p.year);
-    setCalcMonth(p.month);
+    setCalcYear(String(p.year));
+    setCalcMonth(String(p.month));
     setSelectedUsername(p.employeeUsername);
-    setCalcPaymentDate(p.paymentDate || (p.created_at ? p.created_at.split('T')[0] : '2026-06-05'));
+    setCalcPaymentDate(parseToDateInputStr(p.paymentDate) || parseToDateInputStr(p.created_at) || '2026-06-05');
     
     // ตั้งค่า Counts
     const counts = {};
-    (p.earningsList || []).forEach(e => {
-      // ค้นหารหัส id เพื่อตั้งกลับคืน
-      const rule = (salaryRules?.earnings || []).find(r => e.name.startsWith(r.name));
-      if (rule) {
-        counts[rule.id] = e.count;
+    const safeEarningsList = Array.isArray(p.earningsList) ? p.earningsList.filter(Boolean) : [];
+    const safeEarningsRules = salaryRules && Array.isArray(salaryRules.earnings) ? salaryRules.earnings.filter(Boolean) : [];
+    safeEarningsList.forEach(e => {
+      if (e && typeof e.name === 'string') {
+        // ค้นหารหัส id เพื่อตั้งกลับคืน
+        const rule = safeEarningsRules.find(r => r && typeof r.name === 'string' && e.name.startsWith(r.name));
+        if (rule) {
+          counts[rule.id] = e.count;
+        }
       }
     });
     setEarningCounts(counts);
 
     // ตั้งค่าตัวเลือกรายการหัก
     const applied = {};
-    (salaryRules?.deductions || []).forEach(d => {
-      applied[d.id] = p.deductionsList.some(dl => dl.name.startsWith(d.name));
+    const safeDeductionsRules = salaryRules && Array.isArray(salaryRules.deductions) ? salaryRules.deductions.filter(Boolean) : [];
+    const safeDeductionsList = Array.isArray(p.deductionsList) ? p.deductionsList.filter(Boolean) : [];
+    safeDeductionsRules.forEach(d => {
+      if (d && d.id && typeof d.name === 'string') {
+        applied[d.id] = safeDeductionsList.some(dl => dl && typeof dl.name === 'string' && dl.name.startsWith(d.name));
+      }
     });
     setAppliedDeductions(applied);
 
-
     // ตั้งค่าพิเศษ
-    setSpecialEarnings(p.specialEarnings || []);
-    setSpecialDeductions(p.specialDeductions || []);
+    setSpecialEarnings(Array.isArray(p.specialEarnings) ? p.specialEarnings : []);
+    setSpecialDeductions(Array.isArray(p.specialDeductions) ? p.specialDeductions : []);
 
     setShowCalcModal(true);
   };
@@ -269,7 +304,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
       cancelButtonText: 'ยกเลิก'
     }).then(res => {
       if (res.isConfirmed) {
-        setPayrolls(payrolls.filter(p => p.id !== id));
+        setPayrolls(safePayrolls.filter(p => p && p.id !== id));
         Swal.fire({ icon: 'success', title: 'ลบรายการสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
       }
     });
@@ -305,16 +340,16 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     };
 
     if (editingPayrollId) {
-      setPayrolls(payrolls.map(p => p.id === editingPayrollId ? payrollObj : p));
+      setPayrolls(safePayrolls.map(p => p && p.id === editingPayrollId ? payrollObj : p));
       Swal.fire({ icon: 'success', title: 'บันทึกการแก้ไขเงินเดือนสำเร็จ', confirmButtonColor: 'var(--secondary)' });
     } else {
       // ตรวจสอบข้อมูลซ้ำ
-      const isDuplicate = payrolls.some(p => p.year === calcYear && p.month === calcMonth && p.employeeUsername === selectedEmployee.username);
+      const isDuplicate = safePayrolls.some(p => p && p.year === calcYear && p.month === calcMonth && p.employeeUsername === selectedEmployee.username);
       if (isDuplicate) {
-        Swal.fire('ข้อมูลซ้ำ', `พนักงานคนนี้ได้รับการคิดเงินเดือนในรอบ ${calcMonth}/${calcYear} ไปแล้ว หากต้องการแก้ไขกรุณากดปุ่มแก้ไขในตาราง`, 'warning');
+        Swal.fire('ข้อมูลซ้ำ', `พนักงานคนนี้ได้รับการคิดเงินเดือนในรอบ ${calcMonth}/${calcYear} ไปแล้ว หากต้องการแก้ไขกรุณกดปุ่มแก้ไขในตาราง`, 'warning');
         return;
       }
-      setPayrolls([payrollObj, ...payrolls]);
+      setPayrolls([payrollObj, ...safePayrolls]);
       Swal.fire({ icon: 'success', title: 'คำนวณและบันทึกเงินเดือนสำเร็จ', confirmButtonColor: 'var(--secondary)' });
     }
 
@@ -693,11 +728,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                         </div>
                         
                         {/* รายการรับตามกฎ (เช่น OT, ค่าเคส) */}
-                        {(salaryRules?.earnings || []).map(rule => {
+                        {(salaryRules && Array.isArray(salaryRules.earnings) ? salaryRules.earnings.filter(Boolean) : []).map(rule => {
+                          if (!rule || !rule.id) return null;
                           const val = earningCounts[rule.id] || '';
                           return (
                             <div key={rule.id} className="salary-calc-item">
-                              <span>{rule.name} ({rule.value})</span>
+                              <span>{rule.name || ''} ({rule.value || 0})</span>
                               <div className="salary-calc-input-wrapper">
                                 <input 
                                   type="number" 
@@ -711,7 +747,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                                     [rule.id]: e.target.value === '' ? '' : Number(e.target.value)
                                   })}
                                 />
-                                <span style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>x {rule.value}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>x {rule.value || 0}</span>
                               </div>
                             </div>
                           );
@@ -761,16 +797,17 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                       <div>
                         <div className="salary-calc-col-title">รายการหัก</div>
                         
-                        {(salaryRules?.deductions || []).map(rule => {
+                        {(salaryRules && Array.isArray(salaryRules.deductions) ? salaryRules.deductions.filter(Boolean) : []).map(rule => {
+                          if (!rule || !rule.id) return null;
                           const isApplied = !!appliedDeductions[rule.id];
                           let showAmt = 0;
                           if (isApplied) {
                             const base = Number(selectedEmployee.basicSalary) || 0;
                             if (rule.type === 'เปอร์เซ็นต์ (%)') {
-                              showAmt = (base * Number(rule.value)) / 100;
-                              if (rule.maxLimit && showAmt > rule.maxLimit) showAmt = rule.maxLimit;
+                              showAmt = (base * Number(rule.value || 0)) / 100;
+                              if (rule.maxLimit && showAmt > Number(rule.maxLimit)) showAmt = Number(rule.maxLimit);
                             } else {
-                              showAmt = rule.value;
+                              showAmt = Number(rule.value) || 0;
                             }
                           }
                           return (
@@ -784,7 +821,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                                     [rule.id]: e.target.checked
                                   })}
                                 />
-                                <span>{rule.name} ({rule.value}{rule.type === 'เปอร์เซ็นต์ (%)' ? '%' : ''})</span>
+                                <span>{rule.name || ''} ({rule.value || 0}{rule.type === 'เปอร์เซ็นต์ (%)' ? '%' : ''})</span>
                               </label>
                               <span style={{ fontWeight: 600, color: showAmt > 0 ? 'var(--danger)' : 'inherit' }}>
                                 Apply {showAmt > 0 ? `(-฿${showAmt.toLocaleString('th-TH', { minimumFractionDigits: 2 })})` : ''}
@@ -928,11 +965,11 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                 <div>
                   <div><strong>รหัสพนักงาน:</strong> {selectedSlip.employeeId || '-'}</div>
                   <div><strong>ชื่อ-สกุล:</strong> {selectedSlip.employeeName}</div>
-                  <div><strong>ตำแหน่งงาน:</strong> {users.find(u => u.username === selectedSlip.employeeUsername)?.position || '-'}</div>
+                  <div><strong>ตำแหน่งงาน:</strong> {safeUsers.find(u => u && u.username === selectedSlip.employeeUsername)?.position || '-'}</div>
                 </div>
                 <div>
-                  <div><strong>ธนาคาร:</strong> {users.find(u => u.username === selectedSlip.employeeUsername)?.bankName || '-'}</div>
-                  <div><strong>เลขที่บัญชี:</strong> {users.find(u => u.username === selectedSlip.employeeUsername)?.bankAccountNo || '-'}</div>
+                  <div><strong>ธนาคาร:</strong> {safeUsers.find(u => u && u.username === selectedSlip.employeeUsername)?.bankName || '-'}</div>
+                  <div><strong>เลขที่บัญชี:</strong> {safeUsers.find(u => u && u.username === selectedSlip.employeeUsername)?.bankAccountNo || '-'}</div>
                   <div><strong>วันที่ทำรายการจ่าย:</strong> {selectedSlip.paymentDate ? new Date(selectedSlip.paymentDate).toLocaleDateString('th-TH') : new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
                 </div>
               </div>
