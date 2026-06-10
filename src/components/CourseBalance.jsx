@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatPatientNickname } from '../utils/format';
 import { 
   FileText, 
   Plus, 
@@ -97,7 +98,7 @@ export default function CourseBalance({
     if (selectedHn) {
       const b = patientCourseBalances.find(item => item.hn === selectedHn);
       if (b) {
-        setPatientSearchText(`HN: ${b.hn} | น้อง${b.nickname} (เหลือ ${b.balance} ครั้ง)`);
+        setPatientSearchText(`HN: ${b.hn} | ${formatPatientNickname(b.nickname)} (เหลือ ${b.balance} ครั้ง)`);
       } else {
         setPatientSearchText('');
       }
@@ -111,7 +112,7 @@ export default function CourseBalance({
     if (transfereeHn) {
       const p = patients.find(item => item.hn === transfereeHn);
       if (p) {
-        setTransfereeSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+        setTransfereeSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
         setTransfereeSearchText('');
       }
@@ -339,11 +340,11 @@ export default function CourseBalance({
                         onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                         onClick={() => {
                           setSelectedHn(b.hn);
-                          setPatientSearchText(`HN: ${b.hn} | น้อง${b.nickname} (เหลือ ${b.balance} ครั้ง)`);
+                          setPatientSearchText(`HN: ${b.hn} | ${formatPatientNickname(b.nickname)} (เหลือ ${b.balance} ครั้ง)`);
                           setShowPatientDropdown(false);
                         }}
                       >
-                        HN: {b.hn} | น้อง{b.nickname} ({b.name}) (เหลือ {b.balance} ครั้ง)
+                        HN: {b.hn} | {formatPatientNickname(b.nickname)} ({b.name}) (เหลือ {b.balance} ครั้ง)
                       </div>
                     ))
                   )}
@@ -431,7 +432,7 @@ export default function CourseBalance({
                 <tbody>
                   {courseTransactionHistory.map((h, index) => (
                     <tr key={index}>
-                      <td>{new Date(h.date).toLocaleDateString('th-TH')}</td>
+                      <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
                       <td>
                         <span className={`badge ${
                           h.type === 'โอนคอร์สออก' ? 'badge-danger' : 
@@ -470,7 +471,7 @@ export default function CourseBalance({
             <form onSubmit={handleManualAddSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ padding: '0.75rem', backgroundColor: 'var(--light)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}>
-                  <strong>ผู้ได้รับสิทธิ์:</strong> น้อง{currentPatient.nickname} ({currentPatient.title}{currentPatient.firstname})
+                  <strong>ผู้ได้รับสิทธิ์:</strong> {formatPatientNickname(currentPatient.nickname)} ({currentPatient.title}{currentPatient.firstname})
                 </div>
                 
                 <div className="form-group">

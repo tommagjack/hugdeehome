@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatPatientNickname, formatTherapistName } from '../utils/format';
 import { 
   ClipboardList, 
   Search, 
@@ -49,7 +50,7 @@ export default function OPD({
     if (selectedHn) {
       const p = patients.find(item => item.hn === selectedHn);
       if (p) {
-        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+        setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
         setPatientSearchText('');
       }
@@ -251,26 +252,99 @@ export default function OPD({
     });
   };
 
-  // จำลองอัปโหลดไฟล์ (แปลงชื่อไฟล์เป็น Link จำลอง)
+  // บันทึกไฟล์ประวัติคนไข้ไปยังระบบจริงผ่าน /api/upload
   const handleMockUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setFormFileUrl(file.name);
-      Swal.fire({
-        icon: 'success',
-        title: 'อัปโหลดเสร็จสิ้น (จำลอง)',
-        text: `แนบไฟล์ ${file.name} เรียบร้อย`,
-        timer: 1200,
-        showConfirmButton: false
-      });
+    if (!file) return;
+    if (!activePatient) {
+      Swal.fire('กรุณาเลือกผู้รับบริการก่อน', '', 'warning');
+      e.target.value = '';
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const cleanTitle = (activePatient.title || '').replace(/\$/g, '');
+      const cleanFirstname = (activePatient.firstname || '').replace(/\$/g, '');
+      const cleanLastname = (activePatient.lastname || '').replace(/\$/g, '');
+      const fullnameClean = `${cleanTitle}${cleanFirstname} ${cleanLastname}`.trim().replace(/\s+/g, '-');
+      const folderName = `${activePatient.hn}-${fullnameClean}`;
+      const fileName = `${activePatient.hn}-${fullnameClean}-${file.name}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดไฟล์ประวัติล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setFormFileUrl(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบไฟล์ ${file.name} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleEditMockUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setEditFileUrl(file.name);
-    }
+    if (!file) return;
+    if (!activePatient) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const cleanTitle = (activePatient.title || '').replace(/\$/g, '');
+      const cleanFirstname = (activePatient.firstname || '').replace(/\$/g, '');
+      const cleanLastname = (activePatient.lastname || '').replace(/\$/g, '');
+      const fullnameClean = `${cleanTitle}${cleanFirstname} ${cleanLastname}`.trim().replace(/\s+/g, '-');
+      const folderName = `${activePatient.hn}-${fullnameClean}`;
+      const fileName = `${activePatient.hn}-${fullnameClean}-${file.name}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดไฟล์ประวัติล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setEditFileUrl(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบไฟล์ ${file.name} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleExportCSV = () => {
@@ -528,11 +602,11 @@ export default function OPD({
                         onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                         onClick={() => {
                           setSelectedHn(p.hn);
-                          setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                          setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                           setShowPatientDropdown(false);
                         }}
                       >
-                        HN: {p.hn} | น้อง${p.nickname} ({p.title}{p.firstname} {p.lastname}) [{p.status === 'Active' ? 'ปกติ' : 'ปิดประวัติ'}]
+                        HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}{p.firstname} {p.lastname}) [{p.status === 'Active' ? 'ปกติ' : 'ปิดประวัติ'}]
                       </div>
                     ))
                   )}
@@ -801,9 +875,9 @@ export default function OPD({
                           ) : (
                             // โหมดเรนเดอร์ปกติ
                             <>
-                              <td style={{ fontWeight: 500 }}>{row.date ? new Date(row.date).toLocaleDateString('th-TH') : ''}</td>
+                              <td style={{ fontWeight: 500 }}>{row.date ? new Date(row.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</td>
                               <td style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45', textAlign: 'left' }}>{row.details}</td>
-                              <td><strong>{row.therapist}</strong></td>
+                              <td><strong>{formatTherapistName(row.therapist)}</strong></td>
                               <td>
                                 {row.fileUrl ? (
                                   <a 

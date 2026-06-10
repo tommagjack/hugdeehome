@@ -37,7 +37,8 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'courses', label: 'คอร์สลูกค้า', icon: FileText, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'pos', label: 'ออกใบเสร็จ', icon: ShoppingCart, roles: ['Admin', 'Staff'] },
     { id: 'history', label: 'ประวัติใบเสร็จ', icon: History, roles: ['Admin', 'Staff'] },
-    { id: 'summaries', label: 'สรุปชั่วโมงงานครู', icon: BarChart3, roles: ['Admin'] },
+    { id: 'summaries', label: 'สรุปชั่วโมงงานครู', icon: BarChart3, roles: ['Admin', 'OT'] },
+
     { id: 'transactions', label: 'ข้อมูลรายรับ-รายจ่าย', icon: CircleDollarSign, roles: ['Admin'] },
     { id: 'users', label: 'บัญชีผู้ใช้งานระบบ', icon: UsersIcon, roles: ['Admin'] },
     { id: 'salary', label: 'เงินเดือน', icon: CoinsIcon, roles: ['Admin', 'OT', 'Staff'] },

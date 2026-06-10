@@ -54,7 +54,7 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
     return `HDH${String(maxId + 1).padStart(3, '0')}`;
   }, [users]);
 
-  // ฟังก์ชันแปลงไฟล์เป็น base64 และอ่านข้อมูลขนาด/นามสกุล
+  // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง
   const handleFileUpload = (e, setDocState, docType) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -72,23 +72,47 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
 
     const reader = new FileReader();
     reader.onload = () => {
-      // ดึงนามสกุลไฟล์
       const origName = file.name;
       const ext = origName.substring(origName.lastIndexOf('.'));
       
-      // คำนวณชื่อ/นามสกุลเพื่อตั้งชื่อพาธ
       const parts = fullname.trim().split(/\s+/);
       const fname = parts[0] || 'Unknown';
       const lname = parts[1] || 'Unknown';
       const folderName = `${nextEmployeeId}-${fname}-${lname}`;
       const fileName = `${nextEmployeeId}-${fname}-${lname}-${docType}${ext}`;
       
-      setDocState({
-        name: origName,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        path: `uploads/${folderName}/${fileName}`,
-        data: reader.result, // base64
-        uploadedAt: new Date().toISOString()
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดไฟล์ล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setDocState({
+          name: origName,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          path: data.url,
+          data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
+          uploadedAt: new Date().toISOString()
+        });
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบไฟล์ ${origName} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
       });
     };
     reader.readAsDataURL(file);

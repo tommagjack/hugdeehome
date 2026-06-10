@@ -1022,13 +1022,15 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'summaries' && currentUser.role === 'Admin' && (
+        {activeTab === 'summaries' && ['Admin', 'OT'].includes(currentUser.role) && (
           <ServiceSummary 
             patients={patients}
             appointments={appointments}
             therapists={therapists}
+            currentUser={currentUser}
           />
         )}
+
 
         {activeTab === 'transactions' && currentUser.role === 'Admin' && (
           <Transactions 

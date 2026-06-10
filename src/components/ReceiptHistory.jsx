@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatPatientNickname } from '../utils/format';
 import { 
   History, 
   Search, 
@@ -55,7 +56,7 @@ export default function ReceiptHistory({
     if (editHn) {
       const p = patients.find(item => item.hn === editHn);
       if (p) {
-        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+        setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
         setPatientSearchText('');
       }
@@ -589,12 +590,12 @@ export default function ReceiptHistory({
                       <td style={{ fontWeight: 700, color: 'var(--secondary)', fontFamily: 'monospace' }}>
                         {r.id}
                       </td>
-                      <td>{new Date(r.date).toLocaleDateString('th-TH')}</td>
+                      <td>{new Date(r.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{r.patientName}</div>
                         {/* แสดงชื่อเล่นในวงเล็บต่อท้าย HN ลูกค้าเสมอตามสเปก */}
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
-                          HN: {r.hn} ({r.patientNickname ? `น้อง${r.patientNickname}` : 'ไม่มีชื่อเล่น'})
+                          HN: {r.hn} ({r.patientNickname ? formatPatientNickname(r.patientNickname) : 'ไม่มีชื่อเล่น'})
                         </div>
                       </td>
                       <td>

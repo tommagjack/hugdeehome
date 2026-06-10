@@ -30,12 +30,47 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
 
     const reader = new FileReader();
     reader.onload = () => {
-      setAvatarFile({
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        data: reader.result // base64
+      const origName = file.name;
+      const ext = origName.substring(origName.lastIndexOf('.'));
+      
+      const parts = (currentUser.fullname || 'Unknown').trim().split(/\s+/);
+      const fname = parts[0] || 'Unknown';
+      const lname = parts[1] || 'Unknown';
+      const folderName = `${currentUser.employeeId || 'TEMP'}-${fname}-${lname}`;
+      const fileName = `${currentUser.employeeId || 'TEMP'}-${fname}-${lname}-profile${ext}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดรูปภาพโปรไฟล์ล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setAvatarFile({
+          name: origName,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          data: data.url
+        });
+        setAvatarUrl(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `บันทึกรูปภาพโปรไฟล์เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ', 'error');
       });
-      setAvatarUrl(reader.result); // ใช้ base64 ลอยตัวสำหรับแสดงผล
     };
     reader.readAsDataURL(file);
   };

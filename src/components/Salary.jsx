@@ -213,13 +213,14 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     setEarningCounts({});
     // ติ๊กถูกเริ่มต้นสำหรับรายการหักเปอร์เซ็นต์ทั้งหมด
     const initialApplied = {};
-    (salaryRules.deductions || []).forEach(d => {
+    (salaryRules?.deductions || []).forEach(d => {
       initialApplied[d.id] = true;
     });
     setAppliedDeductions(initialApplied);
     setSpecialEarnings([]);
     setSpecialDeductions([]);
   };
+
 
   // ดึงประวัติเงินเดือนกลับมาแก้ไข
   const handleEditPayroll = (p) => {
@@ -233,7 +234,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     const counts = {};
     (p.earningsList || []).forEach(e => {
       // ค้นหารหัส id เพื่อตั้งกลับคืน
-      const rule = salaryRules.earnings.find(r => e.name.startsWith(r.name));
+      const rule = (salaryRules?.earnings || []).find(r => e.name.startsWith(r.name));
       if (rule) {
         counts[rule.id] = e.count;
       }
@@ -242,10 +243,11 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
     // ตั้งค่าตัวเลือกรายการหัก
     const applied = {};
-    (salaryRules.deductions || []).forEach(d => {
+    (salaryRules?.deductions || []).forEach(d => {
       applied[d.id] = p.deductionsList.some(dl => dl.name.startsWith(d.name));
     });
     setAppliedDeductions(applied);
+
 
     // ตั้งค่าพิเศษ
     setSpecialEarnings(p.specialEarnings || []);
@@ -734,10 +736,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                                   className="form-control" 
                                   placeholder="จำนวนเงิน" 
                                   min="0"
+                                  step="0.01"
                                   value={item.amount || ''}
-                                  onChange={(e) => updateSpecialEarningRow(idx, 'amount', Number(e.target.value) || 0)}
+                                  onChange={(e) => updateSpecialEarningRow(idx, 'amount', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                   style={{ flex: 1.5 }}
                                 />
+
                                 <button type="button" className="btn btn-light" onClick={() => removeSpecialEarningRow(idx)} style={{ padding: '0.25rem 0.5rem', color: 'var(--danger)' }}>×</button>
                               </div>
                             ))}
@@ -808,10 +812,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                                   className="form-control" 
                                   placeholder="จำนวนเงิน" 
                                   min="0"
+                                  step="0.01"
                                   value={item.amount || ''}
-                                  onChange={(e) => updateSpecialDeductionRow(idx, 'amount', Number(e.target.value) || 0)}
+                                  onChange={(e) => updateSpecialDeductionRow(idx, 'amount', e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                                   style={{ flex: 1.5 }}
                                 />
+
                                 <button type="button" className="btn btn-light" onClick={() => removeSpecialDeductionRow(idx)} style={{ padding: '0.25rem 0.5rem', color: 'var(--danger)' }}>×</button>
                               </div>
                             ))}

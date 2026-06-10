@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatPatientNickname, formatTherapistName } from '../utils/format';
 import { 
   Calendar, 
   Clock, 
@@ -335,12 +336,12 @@ export default function Appointments({
         const therapist = (therapists || []).find(t => t.id === app.therapistId);
         let tNickname = 'ไม่ระบุชื่อครู';
         if (therapist) {
-          tNickname = String(therapist.nickname).startsWith('ครู') ? therapist.nickname : `ครู${therapist.nickname}`;
+          tNickname = formatTherapistName(therapist.nickname);
         }
         return {
           ...app,
           patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูลผู้ป่วย',
-          patientNickname: patient ? patient.nickname : '',
+          patientNickname: patient ? formatPatientNickname(patient.nickname) : '',
           patientFirstname: patient ? patient.firstname : '',
           therapistNickname: tNickname
         };
@@ -863,7 +864,7 @@ export default function Appointments({
                     <tr key={app.id}>
                       <td>
                         <div style={{ fontWeight: 600 }}>
-                          {new Date(app.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                          {new Date(app.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>
                           {app.timeSlot}
@@ -872,7 +873,7 @@ export default function Appointments({
                       <td>
                         <div style={{ fontWeight: 600 }}>{app.patientName}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
-                          HN: {app.hn} (น้อง{app.patientNickname})
+                          HN: {app.hn} ({app.patientNickname})
                         </div>
                         {app.type && (
                           <div style={{ fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 500, marginTop: '2px' }}>

@@ -44,18 +44,16 @@ const trHeadersMap = {
   amount: ['amount', 'จำนวนเงิน', 'ยอดเงิน', 'จำนวน', 'ยอดเงินสุทธิ']
 };
 
-// แปลงวันที่ YYYY-MM-DD เป็นพ.ศ. DD/MM/BBBB
+// แปลงวันที่ YYYY-MM-DD เป็นพ.ศ. แบบยาว
 const formatDateBE = (dateStr) => {
   if (!dateStr) return '-';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const year = parseInt(parts[0], 10);
-    const month = parts[1];
-    const day = parts[2];
-    const beYear = year + 543;
-    return `${day}/${month}/${beYear}`;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (e) {
+    return dateStr;
   }
-  return dateStr;
 };
 
 // แปลงปี พ.ศ. ค.ศ.
@@ -103,6 +101,7 @@ export default function Transactions({
   const [tAmount, setTAmount] = useState('');
   const [tSlipName, setTSlipName] = useState('');
   const [tSlipAttached, setTSlipAttached] = useState(false);
+  const [tSlipUrl, setTSlipUrl] = useState('');
 
   // สถานะแบ่งหน้า (Pagination)
   const [currentPage, setCurrentPage] = useState(1);
@@ -278,6 +277,7 @@ export default function Transactions({
     setTAmount('');
     setTSlipName('');
     setTSlipAttached(false);
+    setTSlipUrl('');
   };
 
   // เมื่อต้องการแก้ไขรายการ
@@ -288,8 +288,9 @@ export default function Transactions({
     setTDescription(t.description);
     setTCategory(t.category);
     setTAmount(t.amount);
-    setTSlipName(t.slipUrl ? 'slip_uploaded.png' : '');
+    setTSlipName(t.slipUrl ? t.slipUrl.split('/').pop() : '');
     setTSlipAttached(!!t.slipUrl);
+    setTSlipUrl(t.slipUrl || '');
     setShowModal(true);
   };
 
@@ -327,7 +328,7 @@ export default function Transactions({
       description: tDescription,
       category: tCategory,
       amount: Number(tAmount) || 0,
-      slipUrl: tSlipAttached ? 'temp_attached_slip_url' : '',
+      slipUrl: tSlipAttached ? tSlipUrl : '',
       refId: editingId ? transactions.find(t => t.id === editingId)?.refId || '' : ''
     };
 
@@ -590,10 +591,49 @@ export default function Transactions({
   };
 
   const handleSlipUpload = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setTSlipAttached(true);
-      setTSlipName(e.target.files[0].name);
-    }
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const today = new Date();
+      const beYear = today.getFullYear() + 543;
+      const yy = String(beYear).slice(-2);
+      const codeType = tType === 'income' ? 'IN' : 'EX';
+      const folderName = 'Income-expenses';
+      const fileName = `${yy}-${codeType}-${file.name}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดหลักฐานธุรกรรมล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setTSlipAttached(true);
+        setTSlipName(file.name);
+        setTSlipUrl(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบหลักฐาน ${file.name} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   return (

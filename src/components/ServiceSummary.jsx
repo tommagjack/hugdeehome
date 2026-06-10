@@ -12,7 +12,8 @@ import {
 export default function ServiceSummary({ 
   patients, 
   appointments, 
-  therapists 
+  therapists,
+  currentUser
 }) {
   // สเปก: กำหนดค่าเริ่มต้นเป็น วันที่ 26 ของเดือนก่อน ถึง วันที่ 25 ของเดือนปัจจุบัน (รอบเงินเดือน)
   // อิงวันที่ของระบบ: 5 มิถุนายน 2026
@@ -51,7 +52,7 @@ export default function ServiceSummary({
     });
 
     // แมปข้อมูลครูและส่งคืนเฉพาะครูที่มีชั่วโมงสอน > 0
-    return therapists
+    let list = therapists
       .map(t => ({
         id: t.id,
         nickname: t.nickname,
@@ -60,7 +61,20 @@ export default function ServiceSummary({
         totalHours: counts[t.id]
       }))
       .filter(t => t.totalHours > 0);
-  }, [appointments, therapists, startDate, endDate]);
+
+    // ถ้าเป็นบทบาท OT ให้แสดงเฉพาะชั่วโมงสอนของตนเอง
+    if (currentUser && currentUser.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      list = list.filter(t => t.id === myTherapistId);
+    }
+
+    return list;
+  }, [appointments, therapists, startDate, endDate, currentUser]);
 
   // 2. จัดกลุ่มนัดหมายที่สอนสำเร็จตาม ครู + วัน (1 แถวต่อครูในวันเดียวกัน)
   const aggregatedTeachingRows = useMemo(() => {
@@ -87,6 +101,16 @@ export default function ServiceSummary({
       groups[key].appointmentIds.push(app.id);
     });
 
+    let myTherapistId = null;
+    if (currentUser && currentUser.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+    }
+
     // แปลงกลุ่มเป็นอาเรย์ แร็พชื่อคุณครู และเรียงตามวันที่ล่าสุด
     return Object.values(groups)
       .map(g => {
@@ -98,8 +122,14 @@ export default function ServiceSummary({
           licenseNo: therapist ? therapist.licenseNo : ''
         };
       })
+      .filter(row => {
+        if (currentUser && currentUser.role === 'OT') {
+          return row.therapistId === myTherapistId;
+        }
+        return true;
+      })
       .sort((a, b) => b.date.localeCompare(a.date) || a.therapistNickname.localeCompare(b.therapistNickname));
-  }, [appointments, therapists, startDate, endDate]);
+  }, [appointments, therapists, startDate, endDate, currentUser]);
 
   // 3. คลิกดูข้อมูลเปิด Modal
   const handleViewDetailClick = (row) => {
@@ -135,8 +165,9 @@ export default function ServiceSummary({
       <div className="page-header">
         <h1 className="page-title">
           <BarChart3 size={28} />
-          สรุปการให้บริการและชั่วโมงสอนครู (Admin Only)
+          สรุปการให้บริการและชั่วโมงสอนครู {currentUser?.role === 'Admin' ? '(Admin Only)' : ''}
         </h1>
+
       </div>
 
       {/* เลือกช่วงเวลาอัจฉริยะ (เริ่มต้น 26 เดือนก่อนหน้า - 25 เดือนปัจจุบัน) */}

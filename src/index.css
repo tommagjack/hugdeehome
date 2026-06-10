@@ -1459,7 +1459,11 @@ button, input, select, textarea {
 
 /* Print Specific overrides */
 @media print {
-  body {
+  html, body, #root, .app-container {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: auto !important;
+    max-height: none !important;
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;

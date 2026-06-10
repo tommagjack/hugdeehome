@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatPatientNickname } from '../utils/format';
 import { 
   ShoppingCart, 
   Trash2, 
@@ -56,7 +57,7 @@ export default function ReceiptPOS({
     if (selectedHn) {
       const p = activePatients.find(item => item.hn === selectedHn);
       if (p) {
-        setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+        setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
         setPatientSearchText('');
       }
@@ -208,22 +209,49 @@ export default function ReceiptPOS({
     setDiscountReason(`โปรโมชั่น: ${promo.name} (${promo.description})`);
   };
 
-  // แนบไฟล์สลิปปลอม
+  // แนบไฟล์สลิปจริงและอัปโหลดไปเซิร์ฟเวอร์
   const handleSlipUpload = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const origName = file.name;
-      const ext = origName.includes('.') ? origName.slice(origName.lastIndexOf('.')) : '.jpg';
-      
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
       const today = new Date();
-      const yy = String(today.getFullYear()).slice(-2);
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      
-      const formattedName = `${selectedHn || 'UNKNOWN'}-${yy}${mm}${dd}${ext}`;
-      setSlipAttached(true);
-      setSlipName(formattedName);
-    }
+      const beYear = today.getFullYear() + 543;
+      const yy = String(beYear).slice(-2);
+      const folderName = 'Income-expenses';
+      const fileName = `${yy}-IN-${file.name}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดสลิปใบเสร็จล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setSlipAttached(true);
+        setSlipName(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบสลิป ${file.name} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   // บันทึกบิล (draft = บันทึกร่าง, paid = รับชำระเงินสำเร็จ)
@@ -257,11 +285,8 @@ export default function ReceiptPOS({
     }
 
     const today = new Date();
-    const yy = String(today.getFullYear()).slice(-2);
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    const ext = slipName.includes('.') ? slipName.slice(slipName.lastIndexOf('.')) : '.jpg';
-    const finalSlipName = slipAttached ? `${selectedHn}-${yy}${mm}${dd}${ext}` : '';
 
     const billId = generateNextBillId();
     const newInvoice = {
@@ -282,7 +307,7 @@ export default function ReceiptPOS({
       promotionId: selectedPromoCode,
       paymentMethod,
       bankAccountId: paymentMethod === 'โอนเงิน' ? selectedBankId : '',
-      slipUrl: paymentMethod === 'โอนเงิน' ? finalSlipName : '',
+      slipUrl: paymentMethod === 'โอนเงิน' && slipAttached ? slipName : '',
       status: statusType, // 'ชำระเงินแล้ว' หรือ 'รอชำระเงิน'
       totalAmount: cartTotal,
       created_at: new Date().toISOString(),
@@ -401,11 +426,11 @@ export default function ReceiptPOS({
                           onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                           onClick={() => {
                             setSelectedHn(p.hn);
-                            setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                            setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                             setShowPatientDropdown(false);
                           }}
                         >
-                          HN: {p.hn} | น้อง{p.nickname} ({p.title}{p.firstname} {p.lastname})
+                          HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}{p.firstname} {p.lastname})
                         </div>
                       ))
                     )}

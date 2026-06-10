@@ -92,7 +92,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  // ฟังก์ชันอัปโหลดไฟล์จำลองและแปลงเป็น Base64
+  // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง
   const handleFileUpload = (e, setDocState, docType) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -114,12 +114,38 @@ export default function Users({ users, setUsers, setPrintView }) {
       const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
-      setDocState({
-        name: origName,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        path: `uploads/${folderName}/${fileName}`,
-        data: reader.result, // base64
-        uploadedAt: new Date().toISOString()
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setDocState({
+          name: origName,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          path: data.url,
+          data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
+          uploadedAt: new Date().toISOString()
+        });
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
       });
     };
     reader.readAsDataURL(file);

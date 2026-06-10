@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatPatientNickname, formatTherapistName } from '../utils/format';
 import { 
   ClipboardCheck, 
   Brain, 
@@ -33,8 +34,10 @@ const headersMap = {
   movement: ['movement', 'sensory_movement', 'การวางแผนเคลื่อนไหว'],
   snapInattention: ['snapinattention', 'snap_inattention', 'สมาธิสั้น', 'ขาดสมาธิ'],
   snapHyperactivity: ['snaphyperactivity', 'snap_hyperactivity', 'ซนสมาธิสั้น', 'ซน/วู่วาม'],
-  snapOppositional: ['snapoppositional', 'snap_oppositional', 'ดื้อต่อต้าน', 'ดื้อ/ต่อต้าน']
+  snapOppositional: ['snapoppositional', 'snap_oppositional', 'ดื้อต่อต้าน', 'ดื้อ/ต่อต้าน'],
+  comment: ['comment', 'ความเห็นเพิ่มเติม', 'ความเห็น', 'ความคิดเห็น']
 };
+
 
 export default function DevelopmentalAssessment({ 
   patients, 
@@ -71,6 +74,8 @@ export default function DevelopmentalAssessment({
   const [snapInattention, setSnapInattention] = useState(0);
   const [snapHyperactivity, setSnapHyperactivity] = useState(0);
   const [snapOppositional, setSnapOppositional] = useState(0);
+  const [comment, setComment] = useState('');
+
 
   // Modals and Search States
   const [showFormModal, setShowFormModal] = useState(false);
@@ -189,7 +194,9 @@ export default function DevelopmentalAssessment({
     setSnapInattention(0);
     setSnapHyperactivity(0);
     setSnapOppositional(0);
+    setComment('');
   };
+
 
   const handleOpenAddModal = () => {
     resetForm();
@@ -215,10 +222,12 @@ export default function DevelopmentalAssessment({
     setSnapInattention(item.snapIV?.inattention ?? 0);
     setSnapHyperactivity(item.snapIV?.hyperactivity ?? 0);
     setSnapOppositional(item.snapIV?.oppositional ?? 0);
+    setComment(item.comment || '');
     setIsEditing(true);
     setEditingId(item.id);
     setShowFormModal(true);
   };
+
 
   // บันทึกการประเมิน
   const handleSubmit = (e) => {
@@ -264,8 +273,10 @@ export default function DevelopmentalAssessment({
         hyperactivityStatus: snapEvaluation.hyperactivityStatus,
         oppositionalStatus: snapEvaluation.oppositionalStatus
       },
+      comment,
       created_at: new Date().toISOString()
     };
+
 
     onAddAssessment(newAssessment);
 
@@ -334,14 +345,14 @@ export default function DevelopmentalAssessment({
       'เลขที่เอกสาร', 'รหัส HN', 'วันที่ประเมิน (YYYY-MM-DD)', 
       'กล้ามเนื้อมัดใหญ่ (GM)', 'กล้ามเนื้อมัดเล็ก (FM)', 'ด้านภาษา (Language)', 'ด้านสังคม (Social)',
       'Sensory_Tactile', 'Sensory_Vestibular', 'Sensory_Proprioceptive', 'Sensory_Visual', 'Sensory_Auditory', 'Sensory_Movement',
-      'SNAP_Inattention', 'SNAP_Hyperactivity', 'SNAP_Oppositional'
+      'SNAP_Inattention', 'SNAP_Hyperactivity', 'SNAP_Oppositional', 'ความเห็นเพิ่มเติม'
     ];
 
     let rows = [];
     if (assessments.length === 0) {
       // Export template
       rows = [
-        ['HDA69-69001', '69001', '2026-06-05', 'สมวัย', 'สมวัย', 'สมวัย', 'สมวัย', '0', '0', '0', '0', '0', '0', '0', '0', '0']
+        ['HDA69-69001', '69001', '2026-06-05', 'สมวัย', 'สมวัย', 'สมวัย', 'สมวัย', '0', '0', '0', '0', '0', '0', '0', '0', '0', '']
       ];
       Swal.fire({
         title: 'ส่งออกไฟล์เทมเพลต',
@@ -366,9 +377,11 @@ export default function DevelopmentalAssessment({
         item.sensoryScores?.movement ?? 0,
         item.snapIV?.inattention ?? 0,
         item.snapIV?.hyperactivity ?? 0,
-        item.snapIV?.oppositional ?? 0
+        item.snapIV?.oppositional ?? 0,
+        item.comment || ''
       ]);
     }
+
 
     exportToCSV('developmental_assessments.csv', headers, rows);
   };
@@ -460,6 +473,8 @@ export default function DevelopmentalAssessment({
           const snapInattention = Number(val('snapInattention')) || 0;
           const snapHyperactivity = Number(val('snapHyperactivity')) || 0;
           const snapOppositional = Number(val('snapOppositional')) || 0;
+          const comment = val('comment') || '';
+
 
           const inattentionStatus = snapInattention >= 16 ? 'เสี่ยง' : 'ปกติ';
           const hyperactivityStatus = snapHyperactivity >= 13 ? 'เสี่ยง' : 'ปกติ';
@@ -499,8 +514,10 @@ export default function DevelopmentalAssessment({
               hyperactivityStatus,
               oppositionalStatus
             },
+            comment,
             created_at: new Date().toISOString()
           };
+
 
           const existingAssessmentIndex = currentAssessmentsList.findIndex(a => a.id === id);
           if (existingAssessmentIndex !== -1) {
@@ -597,10 +614,11 @@ export default function DevelopmentalAssessment({
                 paginatedAssessments.map((item) => (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{item.id}</td>
-                    <td>{new Date(item.date).toLocaleDateString('th-TH')}</td>
+                     <td>{new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+
                     <td>
                       <div style={{ fontWeight: 600 }}>{item.patientName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {item.hn} (น้อง{item.patientNickname})</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {item.hn} ({formatPatientNickname(item.patientNickname)})</div>
                     </td>
                     <td>
                       <div style={{ fontSize: '0.8rem' }}>
@@ -763,7 +781,7 @@ export default function DevelopmentalAssessment({
                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                                 onClick={() => {
                                   setSelectedHn(p.hn);
-                                  setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
+                                  setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                                   setShowPatientDropdown(false);
                                 }}
                               >
@@ -800,7 +818,7 @@ export default function DevelopmentalAssessment({
                       <option value="">-- เลือกนักกิจกรรมบำบัดผู้ประเมิน --</option>
                       {therapists.map(t => (
                         <option key={t.id} value={t.id}>
-                          ครู{t.nickname} | {t.fullname} (ใบอนุญาต: {t.licenseNo || 'ไม่มี'})
+                          {formatTherapistName(t.nickname)} | {t.fullname} (ใบอนุญาต: {t.licenseNo || 'ไม่มี'})
                         </option>
                       ))}
                     </select>
@@ -867,39 +885,6 @@ export default function DevelopmentalAssessment({
                   </div>
                   <div className="sensory-grid">
                     <div className="form-group">
-                      <label className="form-label">สัมผัส (Tactile)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={tactile} 
-                        onChange={(e) => setTactile(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">การทรงตัว (Vestibular)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={vestibular} 
-                        onChange={(e) => setVestibular(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">ข้อต่อ/กล้ามเนื้อ (Proprio)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={proprioceptive} 
-                        onChange={(e) => setProprioceptive(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
                       <label className="form-label">การมองเห็น (Visual)</label>
                       <input 
                         type="number" 
@@ -932,7 +917,41 @@ export default function DevelopmentalAssessment({
                         onChange={(e) => setMovement(e.target.value)} 
                       />
                     </div>
+                    <div className="form-group">
+                      <label className="form-label">รักษาสมดุล (Vestibular)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        min="0" max="50"
+                        disabled={!isSensoryEnabled} 
+                        value={vestibular} 
+                        onChange={(e) => setVestibular(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">รับรส/กลิ่น (Proprio)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        min="0" max="50"
+                        disabled={!isSensoryEnabled} 
+                        value={proprioceptive} 
+                        onChange={(e) => setProprioceptive(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">การตอบสนอง (Tactile)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        min="0" max="50"
+                        disabled={!isSensoryEnabled} 
+                        value={tactile} 
+                        onChange={(e) => setTactile(e.target.value)} 
+                      />
+                    </div>
                   </div>
+
                   
                   <div className="form-group" style={{ maxWidth: '200px' }}>
                     <label className="form-label">คะแนนรวมประสาทสัมผัส</label>
@@ -1012,6 +1031,20 @@ export default function DevelopmentalAssessment({
                   </div>
                 </div>
 
+                {/* 4. ความเห็นเพิ่มเติม */}
+                <div className="form-group">
+                  <label className="form-label">ความเห็นเพิ่มเติม (Comments)</label>
+                  <textarea 
+                    className="form-control" 
+                    rows="3" 
+                    placeholder="ระบุข้อสังเกต พฤติกรรม หรือข้อเสนอแนะเพิ่มเติม..." 
+                    value={comment} 
+                    onChange={(e) => setComment(e.target.value)} 
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+
+
               </div>
               
               <div className="modal-footer">
@@ -1048,7 +1081,7 @@ export default function DevelopmentalAssessment({
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.9rem' }}>
                   <div><strong>ชื่อ-สกุล:</strong> {viewingAssessment.patientName}</div>
-                  <div><strong>ชื่อเล่น:</strong> น้อง{viewingAssessment.patientNickname || '-'}</div>
+                  <div><strong>ชื่อเล่น:</strong> {formatPatientNickname(viewingAssessment.patientNickname) || '-'}</div>
                   <div><strong>รหัส HN:</strong> {viewingAssessment.hn}</div>
                   <div><strong>วันที่ประเมิน:</strong> {new Date(viewingAssessment.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                 </div>
@@ -1084,15 +1117,6 @@ export default function DevelopmentalAssessment({
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>สัมผัส (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.tactile} / 50</strong>
-                      </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การทรงตัว (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.vestibular} / 50</strong>
-                      </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>ข้อต่อ/กล้ามเนื้อ (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.proprioceptive} / 50</strong>
-                      </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การมองเห็น (Visual):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.visual} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
@@ -1101,7 +1125,17 @@ export default function DevelopmentalAssessment({
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การเคลื่อนไหว (Movement):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.movement} / 50</strong>
                       </div>
+                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รักษาสมดุล (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.vestibular} / 50</strong>
+                      </div>
+                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รับรส/กลิ่น (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.proprioceptive} / 50</strong>
+                      </div>
+                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การตอบสนอง (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.tactile} / 50</strong>
+                      </div>
                     </div>
+
                     <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <strong style={{ color: 'var(--dark)' }}>คะแนนรวมการตอบสนองระบบประสาทสัมผัส:</strong>
                       <strong style={{ color: 'var(--secondary)', fontSize: '1.2rem' }}>{viewingAssessment.sensoryScores.total} / 300</strong>
@@ -1139,6 +1173,14 @@ export default function DevelopmentalAssessment({
                       แปลผล: {viewingAssessment.snapIV?.oppositionalStatus} (เกณฑ์ ≥15)
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* 4. ความเห็นเพิ่มเติม */}
+              <div>
+                <h3 className="assessment-section-title">ความเห็นเพิ่มเติม (Comments)</h3>
+                <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--light)', border: '1px solid var(--border)', minHeight: '60px', whiteSpace: 'pre-wrap' }}>
+                  {viewingAssessment.comment || '-'}
                 </div>
               </div>
 

@@ -289,12 +289,12 @@ export default function PDFViewer({
                 </tr>
               </thead>
               <tbody>
-                <tr><td>ระบบการรับสัมผัสทางผิวหนัง (Tactile System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.tactile} / 50</td></tr>
-                <tr><td>ระบบการทรงตัวและระดับความตื่นตัว (Vestibular System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.vestibular} / 50</td></tr>
-                <tr><td>ระบบการรับรู้เอ็นข้อต่อและตำแหน่งในอวกาศ (Proprioceptive System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.proprioceptive} / 50</td></tr>
                 <tr><td>ระบบการรับภาพและการมองเห็น (Visual Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.visual} / 50</td></tr>
                 <tr><td>ระบบการได้ยินและการรับเสียง (Auditory Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.auditory} / 50</td></tr>
                 <tr><td>ระบบการเคลื่อนไหวและการควบคุมแกนกลาง (Movement Skills)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.movement} / 50</td></tr>
+                <tr><td>ระบบการทรงตัวและระดับความตื่นตัว (Vestibular System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.vestibular} / 50</td></tr>
+                <tr><td>ระบบการรับรู้เอ็นข้อต่อและตำแหน่งในอวกาศ (Proprioceptive System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.proprioceptive} / 50</td></tr>
+                <tr><td>ระบบการรับสัมผัสทางผิวหนัง (Tactile System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.tactile} / 50</td></tr>
                 <tr style={{ backgroundColor: '#f9f9f9', fontWeight: 700 }}>
                   <td><strong>คะแนนรวมการตอบสนองระบบประสาทสัมผัส (Total Sensory Score)</strong></td>
                   <td style={{ textAlign: 'center', color: 'var(--secondary)' }}>{item.sensoryScores.total} / 300</td>
@@ -342,6 +342,12 @@ export default function PDFViewer({
             </tr>
           </tbody>
         </table>
+
+        {/* ส่วนที่ 4: ความเห็นเพิ่มเติม */}
+        <h3 className="a4-table-title">ส่วนที่ 4: ความเห็นเพิ่มเติมของนักกิจกรรมบำบัด</h3>
+        <div className="a4-text-area-box" style={{ minHeight: '80px', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
+          {item.comment || '-'}
+        </div>
 
         {/* ลายเซ็นครูประเมิน */}
         {(() => {
@@ -832,7 +838,10 @@ export default function PDFViewer({
           display: 'flex',
           flexDirection: 'column',
           fontSize: '9px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             textAlign: 'center',
