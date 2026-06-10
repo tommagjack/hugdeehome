@@ -861,7 +861,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                     const fname = (uFullname || '').trim().split(/\s+/)[0] || 'Unknown';
                     const lname = (uFullname || '').trim().split(/\s+/)[1] || 'Unknown';
                     const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
-                    const targetFolderUrl = `${folderUrl}/${folderName}`;
+                    const targetFolderUrl = folderUrl;
                     return (
                       <div style={{ 
                         backgroundColor: '#fbf7f2', 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, parseDateToAD } from '../utils/format';
 import { 
   UserPlus, 
   Search, 
@@ -99,9 +99,11 @@ export default function PatientRegister({
       return;
     }
     
-    const birthDate = new Date(dob);
-    const birthYear = birthDate.getFullYear();
-    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
+    const birthDate = parseDateToAD(dob);
+    if (!birthDate) {
+      return { years: 0, months: 0, text: 'วันเกิดไม่ถูกต้อง' };
+    }
+    const normalizedBirthYear = birthDate.getFullYear();
     const today = new Date('2026-06-05'); // อิงเวลาของระบบจำลอง มิถุนายน 2026
     
     let years = today.getFullYear() - normalizedBirthYear;

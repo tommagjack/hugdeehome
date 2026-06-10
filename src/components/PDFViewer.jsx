@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Printer, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, parseDateToAD } from '../utils/format';
 
 export default function PDFViewer({ 
   documentType, 
@@ -85,17 +85,16 @@ export default function PDFViewer({
     const p = documentData; // ผ่านตัวแปรผู้ป่วยมาเลย
     
     // คำนวณอายุอ้างอิงวันที่พิมพ์ (5 มิ.ย. 2026)
-    const birthDate = new Date(p.dob);
-    const birthYear = birthDate.getFullYear();
-    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
+    const birthDate = parseDateToAD(p.dob);
+    const normalizedBirthYear = birthDate ? birthDate.getFullYear() : 0;
     const today = new Date('2026-06-05');
-    let years = today.getFullYear() - normalizedBirthYear;
-    let months = today.getMonth() - birthDate.getMonth();
-    if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+    let years = birthDate ? (today.getFullYear() - normalizedBirthYear) : 0;
+    let months = birthDate ? (today.getMonth() - birthDate.getMonth()) : 0;
+    if (birthDate && (months < 0 || (months === 0 && today.getDate() < birthDate.getDate()))) {
       years--;
       months += 12;
     }
-    if (today.getDate() < birthDate.getDate()) {
+    if (birthDate && today.getDate() < birthDate.getDate()) {
       months--;
     }
     if (months < 0) months = 11;
@@ -213,8 +212,20 @@ export default function PDFViewer({
     const item = documentData; // ข้อมูลใบประเมิน
     const pInfo = getPatientInfo(item.hn);
 
-    // เช็คว่า Sensory มีคะแนนจริงไหม
-    const hasSensoryData = item.sensoryScores && item.sensoryScores.total > 0;
+    const patientObj = patients.find(p => p.hn === item.hn);
+    let isSensoryEnabled = false;
+    if (patientObj?.dob) {
+      const birthDate = parseDateToAD(patientObj.dob);
+      if (birthDate) {
+        const evalDate = new Date(item.date);
+        let years = evalDate.getFullYear() - birthDate.getFullYear();
+        let months = evalDate.getMonth() - birthDate.getMonth();
+        if (months < 0 || (months === 0 && evalDate.getDate() < birthDate.getDate())) {
+          years--;
+        }
+        isSensoryEnabled = years >= 6;
+      }
+    }
 
     return (
       <div className="a4-document" ref={documentRef} id="printable-a4-area" style={{ padding: '10mm 15mm 15mm 15mm', minHeight: '297mm' }}>
@@ -281,7 +292,7 @@ export default function PDFViewer({
         </table>
 
         {/* ส่วนที่ 2: Sensory Test (เฉพาะเด็กอายุ 6 ปีขึ้นไป) */}
-        {hasSensoryData ? (
+        {isSensoryEnabled ? (
           <div>
             <h3 className="a4-table-title">ส่วนที่ 2: สรุปผลการประเมินระบบประสาทความรู้สึก (Sensory Profile Test)</h3>
             <table className="a4-table">
@@ -292,15 +303,15 @@ export default function PDFViewer({
                 </tr>
               </thead>
               <tbody>
-                <tr><td>ระบบการรับภาพและการมองเห็น (Visual Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.visual} / 50</td></tr>
-                <tr><td>ระบบการได้ยินและการรับเสียง (Auditory Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.auditory} / 50</td></tr>
-                <tr><td>ระบบการเคลื่อนไหวและการควบคุมแกนกลาง (Movement Skills)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.movement} / 50</td></tr>
-                <tr><td>ระบบการทรงตัวและระดับความตื่นตัว (Vestibular System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.vestibular} / 50</td></tr>
-                <tr><td>ระบบการรับรู้เอ็นข้อต่อและตำแหน่งในอวกาศ (Proprioceptive System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.proprioceptive} / 50</td></tr>
-                <tr><td>ระบบการรับสัมผัสทางผิวหนัง (Tactile System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores.tactile} / 50</td></tr>
+                <tr><td>ระบบการรับภาพและการมองเห็น (Visual Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.visual ?? 0} / 50</td></tr>
+                <tr><td>ระบบการได้ยินและการรับเสียง (Auditory Processing)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.auditory ?? 0} / 50</td></tr>
+                <tr><td>ระบบการเคลื่อนไหวและการควบคุมแกนกลาง (Movement Skills)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.movement ?? 0} / 50</td></tr>
+                <tr><td>ระบบการทรงตัวและระดับความตื่นตัว (Vestibular System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.vestibular ?? 0} / 50</td></tr>
+                <tr><td>ระบบการรับรู้เอ็นข้อต่อและตำแหน่งในอวกาศ (Proprioceptive System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.proprioceptive ?? 0} / 50</td></tr>
+                <tr><td>ระบบการรับสัมผัสทางผิวหนัง (Tactile System)</td><td style={{ textAlign: 'center' }}>{item.sensoryScores?.tactile ?? 0} / 50</td></tr>
                 <tr style={{ backgroundColor: '#f9f9f9', fontWeight: 700 }}>
                   <td><strong>คะแนนรวมการตอบสนองระบบประสาทสัมผัส (Total Sensory Score)</strong></td>
-                  <td style={{ textAlign: 'center', color: 'var(--secondary)' }}>{item.sensoryScores.total} / 300</td>
+                  <td style={{ textAlign: 'center', color: 'var(--secondary)' }}>{item.sensoryScores?.total ?? 0} / 300</td>
                 </tr>
               </tbody>
             </table>
@@ -610,17 +621,16 @@ export default function PDFViewer({
     // คำนวณอายุเด็ก
     let ageStr = '';
     if (patient?.dob) {
-      const birthDate = new Date(patient.dob);
-      const birthYear = birthDate.getFullYear();
-      const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
+      const birthDate = parseDateToAD(patient.dob);
+      const normalizedBirthYear = birthDate ? birthDate.getFullYear() : 0;
       const today = new Date('2026-06-05'); // อิงเวลาจำลอง
-      let years = today.getFullYear() - normalizedBirthYear;
-      let months = today.getMonth() - birthDate.getMonth();
-      if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+      let years = birthDate ? (today.getFullYear() - normalizedBirthYear) : 0;
+      let months = birthDate ? (today.getMonth() - birthDate.getMonth()) : 0;
+      if (birthDate && (months < 0 || (months === 0 && today.getDate() < birthDate.getDate()))) {
         years--;
         months += 12;
       }
-      if (today.getDate() < birthDate.getDate()) {
+      if (birthDate && today.getDate() < birthDate.getDate()) {
         months--;
       }
       if (months < 0) months = 11;

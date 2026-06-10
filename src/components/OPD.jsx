@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, parseDateToAD } from '../utils/format';
 import { 
   ClipboardList, 
   Search, 
@@ -125,9 +125,9 @@ export default function OPD({
   // ฟังก์ชันคำนวณอายุเด็ก ณ วันที่จำลองระบบ 5 มิถุนายน 2569 (2026-06-05)
   const calculateAge = (dob) => {
     if (!dob) return '-';
-    const birthDate = new Date(dob);
-    const birthYear = birthDate.getFullYear();
-    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
+    const birthDate = parseDateToAD(dob);
+    if (!birthDate) return 'วันเกิดไม่ถูกต้อง';
+    const normalizedBirthYear = birthDate.getFullYear();
     const today = new Date('2026-06-05');
     let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();

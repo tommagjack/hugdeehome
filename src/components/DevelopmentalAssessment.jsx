@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, parseDateToAD } from '../utils/format';
 import { 
   ClipboardCheck, 
   Brain, 
@@ -100,9 +100,9 @@ export default function DevelopmentalAssessment({
   const patientAgeInfo = useMemo(() => {
     if (!selectedPatient) return { years: 0, months: 0, text: 'กรุณาเลือกผู้รับบริการ' };
     
-    const birthDate = new Date(selectedPatient.dob);
-    const birthYear = birthDate.getFullYear();
-    const normalizedBirthYear = birthYear > 2400 ? birthYear - 543 : birthYear;
+    const birthDate = parseDateToAD(selectedPatient.dob);
+    if (!birthDate) return { years: 0, months: 0, text: 'วันเกิดไม่ถูกต้อง' };
+    const normalizedBirthYear = birthDate.getFullYear();
     const today = new Date('2026-06-05');
     
     let years = today.getFullYear() - normalizedBirthYear;
@@ -128,6 +128,25 @@ export default function DevelopmentalAssessment({
   const isSensoryEnabled = useMemo(() => {
     return patientAgeInfo.years >= 6;
   }, [patientAgeInfo]);
+
+  // ข้อมูลผู้ป่วยและสิทธิ์ในการดู Sensory สำหรับการประเมินที่กำลังเปิดดู
+  const viewingPatient = useMemo(() => {
+    if (!viewingAssessment) return null;
+    return patients.find(p => p.hn === viewingAssessment.hn);
+  }, [viewingAssessment, patients]);
+
+  const isViewingSensoryEnabled = useMemo(() => {
+    if (!viewingAssessment || !viewingPatient) return false;
+    const birthDate = parseDateToAD(viewingPatient.dob);
+    if (!birthDate) return false;
+    const evalDate = new Date(viewingAssessment.date);
+    let years = evalDate.getFullYear() - birthDate.getFullYear();
+    let months = evalDate.getMonth() - birthDate.getMonth();
+    if (months < 0 || (months === 0 && evalDate.getDate() < birthDate.getDate())) {
+      years--;
+    }
+    return years >= 6;
+  }, [viewingAssessment, viewingPatient]);
 
   // ปิดช่อง Sensory Test และเซ็ตค่าเป็น 0 หากผู้ป่วยอายุน้อยกว่า 6 ปี
   useEffect(() => {
@@ -1115,32 +1134,32 @@ export default function DevelopmentalAssessment({
               {/* 2. Sensory Test */}
               <div>
                 <h3 className="assessment-section-title">สรุปผลการประเมินระบบประสาทสัมผัส (Sensory Profile Test)</h3>
-                {viewingAssessment.sensoryScores && viewingAssessment.sensoryScores.total > 0 ? (
+                {isViewingSensoryEnabled ? (
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การมองเห็น (Visual):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.visual} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การมองเห็น (Visual):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.visual ?? 0} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การได้ยิน (Auditory):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.auditory} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การได้ยิน (Auditory):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.auditory ?? 0} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การเคลื่อนไหว (Movement):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.movement} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การเคลื่อนไหว (Movement):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.movement ?? 0} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รักษาสมดุล (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.vestibular} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รักษาสมดุล (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.vestibular ?? 0} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รับรส/กลิ่น (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.proprioceptive} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รับรส/กลิ่น (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.proprioceptive ?? 0} / 50</strong>
                       </div>
                       <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การตอบสนอง (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores.tactile} / 50</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การตอบสนอง (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.tactile ?? 0} / 50</strong>
                       </div>
                     </div>
 
                     <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <strong style={{ color: 'var(--dark)' }}>คะแนนรวมการตอบสนองระบบประสาทสัมผัส:</strong>
-                      <strong style={{ color: 'var(--secondary)', fontSize: '1.2rem' }}>{viewingAssessment.sensoryScores.total} / 300</strong>
+                      <strong style={{ color: 'var(--secondary)', fontSize: '1.2rem' }}>{viewingAssessment.sensoryScores?.total ?? 0} / 300</strong>
                     </div>
                   </div>
                 ) : (
