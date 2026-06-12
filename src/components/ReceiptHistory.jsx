@@ -30,8 +30,26 @@ export default function ReceiptHistory({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMonth, setFilterMonth] = useState('All'); // All, 01-12
-  const [filterYear, setFilterYear] = useState('2026');   // All, 2026, ฯลฯ
+  const [filterYear, setFilterYear] = useState('All');   // All, 2026, ฯลฯ
   const [currentPage, setCurrentPage] = useState(1);
+
+  const uniqueYears = useMemo(() => {
+    const years = new Set();
+    receipts.forEach(r => {
+      if (r.date) {
+        const yr = r.date.split('-')[0];
+        if (yr && yr.length === 4) {
+          years.add(yr);
+        }
+      }
+    });
+    const currentYear = new Date().getFullYear().toString();
+    years.add(currentYear);
+    years.add('2025');
+    years.add('2026');
+    years.add('2027');
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [receipts]);
 
   // สำหรับการแก้ไขบิล
   const [showEditModal, setShowEditModal] = useState(false);
@@ -573,8 +591,14 @@ export default function ReceiptHistory({
                 onChange={(e) => setFilterYear(e.target.value)}
               >
                 <option value="All">-- ทุกปี --</option>
-                <option value="2026">2569 (2026)</option>
-                <option value="2027">2570 (2027)</option>
+                {uniqueYears.map(yr => {
+                  const bcYear = parseInt(yr, 10) + 543;
+                  return (
+                    <option key={yr} value={yr}>
+                      {bcYear} ({yr})
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
