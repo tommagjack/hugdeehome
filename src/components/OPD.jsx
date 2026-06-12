@@ -438,62 +438,62 @@ export default function OPD({
       let invalidHnCount = 0;
       let errorCount = 0;
 
-      setOpdRecords(prev => {
-        let currentRecords = [...prev];
+      let currentRecords = [...opdRecords];
 
-        rows.forEach((row, index) => {
-          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      rows.forEach((row, index) => {
+        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-          const val = (key) => {
-            const idx = indexMap[key];
-            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-          };
+        const val = (key) => {
+          const idx = indexMap[key];
+          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        };
 
-          const hn = val('hn');
-          const date = val('date');
-          const details = val('details');
+        const hn = val('hn');
+        const date = val('date');
+        const details = val('details');
 
-          if (!hn || !date || !details) {
-            errorCount++;
-            return;
-          }
+        if (!hn || !date || !details) {
+          errorCount++;
+          return;
+        }
 
-          const patientExists = patients.some(p => p.hn === hn);
-          if (!patientExists) {
-            invalidHnCount++;
-            return;
-          }
+        const patientExists = patients.some(p => String(p.hn) === String(hn));
+        if (!patientExists) {
+          invalidHnCount++;
+          return;
+        }
 
-          let id = val('id');
-          if (!id) {
-            id = `OPD-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`;
-          }
+        let id = val('id');
+        if (!id) {
+          id = `OPD-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`;
+        }
 
-          const isVisibleRaw = val('isVisible').toLowerCase();
-          const isVisible = isVisibleRaw === 'ใช่' || isVisibleRaw === 'true' || isVisibleRaw === '1' || isVisibleRaw === 'yes' || isVisibleRaw === '';
+        const isVisibleRaw = val('isVisible').toLowerCase();
+        const isVisible = isVisibleRaw === 'ใช่' || isVisibleRaw === 'true' || isVisibleRaw === '1' || isVisibleRaw === 'yes' || isVisibleRaw === '';
 
-          const recordData = {
-            id,
-            hn,
-            date,
-            therapist: val('therapist') || (therapists[0] ? therapists[0].nickname : 'ครูผู้ดูแล'),
-            details,
-            fileUrl: val('fileUrl'),
-            isVisible
-          };
+        const recordData = {
+          id,
+          hn,
+          date,
+          therapist: val('therapist') || (therapists[0] ? therapists[0].nickname : 'ครูผู้ดูแล'),
+          details,
+          fileUrl: val('fileUrl'),
+          isVisible
+        };
 
-          const existingIdx = currentRecords.findIndex(r => r.id === id);
-          if (existingIdx !== -1) {
-            currentRecords[existingIdx] = recordData;
-            updatedCount++;
-          } else {
-            currentRecords.push(recordData);
-            addedCount++;
-          }
-        });
-
-        return currentRecords;
+        const existingIdx = currentRecords.findIndex(r => r.id === id);
+        if (existingIdx !== -1) {
+          currentRecords[existingIdx] = recordData;
+          updatedCount++;
+        } else {
+          currentRecords.push(recordData);
+          addedCount++;
+        }
       });
+
+      if (setOpdRecords) {
+        setOpdRecords(currentRecords);
+      }
 
       setCurrentPage(1);
 

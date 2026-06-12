@@ -448,98 +448,98 @@ export default function PatientRegister({
       let updatedCount = 0;
       let errorCount = 0;
 
-      setPatients(prev => {
-        let currentPatientsList = [...prev];
+      let currentPatientsList = [...patients];
 
-        rows.forEach(row => {
-          // Skip empty rows
-          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      rows.forEach(row => {
+        // Skip empty rows
+        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-          const val = (key) => {
-            const idx = indexMap[key];
-            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        const val = (key) => {
+          const idx = indexMap[key];
+          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        };
+
+        const firstname = val('firstname');
+        const lastname = val('lastname');
+        const phone = val('phone');
+        const dob = val('dob');
+
+        // Validation
+        if (!firstname || !lastname || !dob || !phone) {
+          errorCount++;
+          return;
+        }
+
+        // Channels are split by | or comma
+        const channelsRaw = val('channels');
+        const channels = channelsRaw ? channelsRaw.split(/[|,]+/).map(c => c.trim()).filter(Boolean) : [];
+
+        // Check or generate HN
+        let hn = val('hn');
+        const exists = currentPatientsList.some(p => p && String(p.hn) === String(hn));
+
+        if (!hn || (!exists && isNaN(parseInt(hn)))) {
+          const generateTempHn = (tempList) => {
+            const today = new Date('2026-06-05');
+            const beYear = today.getFullYear() + 543;
+            const yearSuffix = beYear.toString().slice(-2);
+            
+            const yearPatients = tempList.filter(p => p && p.hn && String(p.hn).startsWith(yearSuffix));
+            if (yearPatients.length === 0) {
+              return `${yearSuffix}001`;
+            }
+            const hns = yearPatients.map(p => parseInt(String(p.hn).slice(2)));
+            const maxNum = Math.max(...hns);
+            const nextNum = maxNum + 1;
+            const paddedNum = nextNum.toString().padStart(3, '0');
+            return `${yearSuffix}${paddedNum}`;
           };
+          hn = generateTempHn(currentPatientsList);
+        }
 
-          const firstname = val('firstname');
-          const lastname = val('lastname');
-          const phone = val('phone');
-          const dob = val('dob');
+        const patientData = {
+          hn,
+          status: val('status') || 'Active',
+          gender: val('gender') || 'ชาย',
+          title: val('title') || (val('gender') === 'หญิง' ? 'เด็กหญิง' : 'เด็กชาย'),
+          firstname,
+          lastname,
+          nickname: val('nickname'),
+          dob,
+          guardian: val('guardian'),
+          phone,
+          allergies: val('allergies') || 'ปฏิเสธการแพ้ยา',
+          allergiesDetails: val('allergiesDetails'),
+          conditions: val('conditions') || 'ไม่มี',
+          conditionsDetails: val('conditionsDetails'),
+          channels,
+          channelsOtherDetails: val('channelsOtherDetails'),
+          worries: val('worries'),
+          created_at: new Date().toISOString()
+        };
 
-          // Validation
-          if (!firstname || !lastname || !dob || !phone) {
-            errorCount++;
-            return;
-          }
-
-          // Channels are split by | or comma
-          const channelsRaw = val('channels');
-          const channels = channelsRaw ? channelsRaw.split(/[|,]+/).map(c => c.trim()).filter(Boolean) : [];
-
-          // Check or generate HN
-          let hn = val('hn');
-          const exists = currentPatientsList.some(p => p && String(p.hn) === String(hn));
-
-          if (!hn || (!exists && isNaN(parseInt(hn)))) {
-            const generateTempHn = (tempList) => {
-              const today = new Date('2026-06-05');
-              const beYear = today.getFullYear() + 543;
-              const yearSuffix = beYear.toString().slice(-2);
-              
-              const yearPatients = tempList.filter(p => p && p.hn && String(p.hn).startsWith(yearSuffix));
-              if (yearPatients.length === 0) {
-                return `${yearSuffix}001`;
-              }
-              const hns = yearPatients.map(p => parseInt(String(p.hn).slice(2)));
-              const maxNum = Math.max(...hns);
-              const nextNum = maxNum + 1;
-              const paddedNum = nextNum.toString().padStart(3, '0');
-              return `${yearSuffix}${paddedNum}`;
-            };
-            hn = generateTempHn(currentPatientsList);
-          }
-
-          const patientData = {
-            hn,
-            status: val('status') || 'Active',
-            gender: val('gender') || 'ชาย',
-            title: val('title') || (val('gender') === 'หญิง' ? 'เด็กหญิง' : 'เด็กชาย'),
-            firstname,
-            lastname,
-            nickname: val('nickname'),
-            dob,
-            guardian: val('guardian'),
-            phone,
-            allergies: val('allergies') || 'ปฏิเสธการแพ้ยา',
-            allergiesDetails: val('allergiesDetails'),
-            conditions: val('conditions') || 'ไม่มี',
-            conditionsDetails: val('conditionsDetails'),
-            channels,
-            channelsOtherDetails: val('channelsOtherDetails'),
-            worries: val('worries'),
-            created_at: new Date().toISOString()
+        const existingPatientIndex = currentPatientsList.findIndex(p => p && String(p.hn) === String(hn));
+        if (existingPatientIndex !== -1) {
+          const existingPatient = currentPatientsList[existingPatientIndex];
+          currentPatientsList[existingPatientIndex] = {
+            ...existingPatient,
+            ...patientData,
+            created_at: existingPatient.created_at,
+            createdBy: existingPatient.createdBy || currentUser?.fullname || 'ผู้ดูแลระบบ'
           };
-
-          const existingPatientIndex = currentPatientsList.findIndex(p => p.hn === hn);
-          if (existingPatientIndex !== -1) {
-            const existingPatient = currentPatientsList[existingPatientIndex];
-            currentPatientsList[existingPatientIndex] = {
-              ...existingPatient,
-              ...patientData,
-              created_at: existingPatient.created_at,
-              createdBy: existingPatient.createdBy || currentUser?.fullname || 'ผู้ดูแลระบบ'
-            };
-            updatedCount++;
-          } else {
-            currentPatientsList.push({
-              ...patientData,
-              createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
-            });
-            addedCount++;
-          }
-        });
-
-        return currentPatientsList;
+          updatedCount++;
+        } else {
+          currentPatientsList.push({
+            ...patientData,
+            createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
+          });
+          addedCount++;
+        }
       });
+
+      if (setPatients) {
+        setPatients(currentPatientsList);
+      }
 
       Swal.fire({
         icon: 'success',
