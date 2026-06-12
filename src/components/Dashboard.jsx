@@ -9,7 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, getLocalDateString } from '../utils/format';
 
 export default function Dashboard({ 
   patients, 
@@ -18,15 +18,7 @@ export default function Dashboard({
   therapists, 
   onUpdateAppointmentStatus 
 }) {
-  const getTodayLocalDateString = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const todayLocalDateString = getTodayLocalDateString();
+  const todayLocalDateString = getLocalDateString(new Date());
 
   const [selectedDate, setSelectedDate] = useState(todayLocalDateString);
 
@@ -48,7 +40,7 @@ export default function Dashboard({
   }, [patients, totalPatients]);
 
   const todayAppointmentsCount = useMemo(() => {
-    return appointments.filter(app => app.date && app.date.split('T')[0] === todayLocalDateString && app.status !== 'ยกเลิก').length;
+    return appointments.filter(app => app.date && getLocalDateString(app.date) === todayLocalDateString && app.status !== 'ยกเลิก').length;
   }, [appointments, todayLocalDateString]);
 
   const monthlySales = useMemo(() => {
@@ -63,7 +55,7 @@ export default function Dashboard({
   // 2. ตารางนัดหมายตามวันที่เลือก
   const filteredAppointments = useMemo(() => {
     return appointments
-      .filter(app => app.date && app.date.split('T')[0] === selectedDate)
+      .filter(app => app.date && getLocalDateString(app.date) === selectedDate)
       .map(app => {
         const patient = patients.find(p => p.hn === app.hn);
         const therapist = therapists.find(t => t.id === app.therapistId);
@@ -71,7 +63,7 @@ export default function Dashboard({
           ...app,
           patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูลผู้ป่วย',
           patientNickname: patient ? patient.nickname : '',
-          therapistNickname: therapist ? therapist.nickname : 'ไม่พบชื่อครู'
+          therapistNickname: therapist ? formatTherapistName(therapist.nickname) : 'ไม่พบชื่อครู'
         };
       });
   }, [appointments, selectedDate, patients, therapists]);

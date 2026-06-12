@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, getLocalDateString } from '../utils/format';
 import { 
   Calendar, 
   Clock, 
@@ -135,7 +135,7 @@ export default function Appointments({
   const therapistBookedSlots = useMemo(() => {
     if (!bookingDate || !selectedTherapistId) return [];
     return appointments
-      .filter(app => app.date && app.date.split('T')[0] === bookingDate && app.therapistId === selectedTherapistId && app.status !== 'ยกเลิก' && app.id !== editingAppointmentId)
+      .filter(app => app.date && getLocalDateString(app.date) === bookingDate && app.therapistId === selectedTherapistId && app.status !== 'ยกเลิก' && app.id !== editingAppointmentId)
       .map(app => app.timeSlot);
   }, [bookingDate, selectedTherapistId, appointments, editingAppointmentId]);
 
@@ -355,7 +355,7 @@ export default function Appointments({
           String(app.patientName || '').toLowerCase().includes(query) ||
           (app.patientNickname && String(app.patientNickname).toLowerCase().includes(query));
           
-        const matchesDate = !filterDate || (app.date && app.date.split('T')[0] === filterDate);
+        const matchesDate = !filterDate || (app.date && getLocalDateString(app.date) === filterDate);
           
         return matchesStatus && matchesQuery && matchesDate;
       })

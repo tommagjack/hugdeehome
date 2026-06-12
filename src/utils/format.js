@@ -76,3 +76,21 @@ export const parseDateToAD = (dateStr) => {
   return null;
 };
 
+/**
+ * แปลง ISO date string (UTC) หรือ string วันใดๆ เป็น YYYY-MM-DD ในเขตนัยเวลาท้องถิ่น (Local Timezone)
+ * เพื่อป้องกันปัญหาความคลาดเคลื่อนทางเขตเวลา (Timezone shift)
+ * @param {string|Date} dateInput 
+ * @returns {string} วันที่ในรูปแบบ YYYY-MM-DD
+ */
+export const getLocalDateString = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) {
+    return String(dateInput).split('T')[0];
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
