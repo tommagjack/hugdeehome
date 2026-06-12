@@ -187,8 +187,10 @@ function getAllDataFromSheets() {
         if (!header) return;
         let val = row[index];
         
-        // ลองถอดรูป JSON string (เช่น อาร์เรย์รายการสินค้า หรืออ็อบเจกต์ชั่วโมงทำงาน)
-        if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+        // แปลงข้อมูลวันที่ (Date object) ให้เป็นสตริงรูปแบบ yyyy-MM-dd ตามโซนเวลาของสคริปต์/ชีท เพื่อหลีกเลี่ยงปัญหาเวลาเพี้ยนหรือส่งกลับไปมา
+        if (val instanceof Date) {
+          val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+        } else if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
           try {
             val = JSON.parse(val);
           } catch(err) {
