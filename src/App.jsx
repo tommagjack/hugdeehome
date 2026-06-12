@@ -125,8 +125,13 @@ export default function App() {
         } catch (e) {
           console.error('Initial sync error:', e);
         }
+        
+        setTimeout(() => {
+          setIsSyncing(false);
+        }, 1000);
+      } else {
+        setIsSyncing(false);
       }
-      setIsSyncing(false);
     };
     runInitialSync();
   }, []);
