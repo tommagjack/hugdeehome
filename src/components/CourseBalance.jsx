@@ -23,6 +23,11 @@ export default function CourseBalance({
   onTransferCourse 
 }) {
   const [selectedHn, setSelectedHn] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedHn]);
   
   // สำหรับการค้นหาผู้ป่วยหลัก
   const [patientSearchText, setPatientSearchText] = useState('');
@@ -210,7 +215,17 @@ export default function CourseBalance({
 
     // เรียงประวัติจากล่าสุดลงไปอดีต
     return list.sort((a, b) => b.date.localeCompare(a.date));
-  }, [selectedHn, receipts, appointments]);
+  }, [selectedHn, receipts, appointments, therapists]);
+
+  const itemsPerPage = 10;
+  const maxPages = useMemo(() => {
+    return Math.ceil(courseTransactionHistory.length / itemsPerPage);
+  }, [courseTransactionHistory]);
+
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return courseTransactionHistory.slice(startIndex, startIndex + itemsPerPage);
+  }, [courseTransactionHistory, currentPage]);
 
   // ยื่นคำขอเพิ่มแมนนวล
   const handleManualAddSubmit = (e) => {
@@ -423,43 +438,71 @@ export default function CourseBalance({
               ไม่พบประวัติการซื้อคอร์ส หรือการเข้าใช้บริการของเด็กรายนี้
             </div>
           ) : (
-            <div className="table-container">
-              <table className="hdh-table">
-                <thead>
-                  <tr>
-                    <th>วันที่</th>
-                    <th>ประเภทรายการ</th>
-                    <th>รายละเอียดสินค้า/บริการ</th>
-                    <th style={{ textAlign: 'center' }}>จำนวนเซสชัน</th>
-                    <th>เอกสารอ้างอิง</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {courseTransactionHistory.map((h, index) => (
-                    <tr key={index}>
-                      <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-                      <td>
-                        <span className={`badge ${
-                          h.type === 'โอนคอร์สออก' ? 'badge-danger' : 
-                          h.type === 'เข้าใช้บริการรักษา' ? 'badge-warning' : 
-                          h.type === 'ซื้อคอร์สบริการ' ? 'badge-success' : 'badge-info'
-                        }`}>
-                          {h.type}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{h.itemName}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{h.remark}</div>
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: h.direction === 'in' ? 'var(--success)' : 'var(--danger)' }}>
-                        {h.direction === 'in' ? `+${h.sessions}` : `-${h.sessions}`}
-                      </td>
-                      <td style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{h.docId}</td>
+            <>
+              <div className="table-container">
+                <table className="hdh-table">
+                  <thead>
+                    <tr>
+                      <th>วันที่</th>
+                      <th>ประเภทรายการ</th>
+                      <th>รายละเอียดสินค้า/บริการ</th>
+                      <th style={{ textAlign: 'center' }}>จำนวนเซสชัน</th>
+                      <th>เอกสารอ้างอิง</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {paginatedHistory.map((h, index) => (
+                      <tr key={index}>
+                        <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                        <td>
+                          <span className={`badge ${
+                            h.type === 'โอนคอร์สออก' ? 'badge-danger' : 
+                            h.type === 'เข้าใช้บริการรักษา' ? 'badge-warning' : 
+                            h.type === 'ซื้อคอร์สบริการ' ? 'badge-success' : 'badge-info'
+                          }`}>
+                            {h.type}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{h.itemName}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{h.remark}</div>
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: h.direction === 'in' ? 'var(--success)' : 'var(--danger)' }}>
+                          {h.direction === 'in' ? `+${h.sessions}` : `-${h.sessions}`}
+                        </td>
+                        <td style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{h.docId}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {maxPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1rem', marginBottom: '0.5rem' }}>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    type="button"
+                  >
+                    ก่อนหน้า
+                  </button>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={currentPage === maxPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    type="button"
+                  >
+                    ถัดไป
+                  </button>
+                </div>
+              )}
+
+              <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right' }}>
+                แสดง {courseTransactionHistory.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, courseTransactionHistory.length)} จากทั้งหมด {courseTransactionHistory.length} รายการ
+              </div>
+            </>
           )}
         </div>
 

@@ -21,6 +21,7 @@ export default function Dashboard({
   const todayLocalDateString = getLocalDateString(new Date());
 
   const [selectedDate, setSelectedDate] = useState(todayLocalDateString);
+  const [alertPage, setAlertPage] = useState(1);
 
   // 1. คำนวณสถิติ
   const totalPatients = patients.length;
@@ -70,6 +71,7 @@ export default function Dashboard({
 
   // 3. ตารางคอร์สใกล้หมด (Active Patients, คอร์สเหลือ <= 2)
   // คำนวณคอร์สคงเหลือของแต่ละคน: ยอดซื้อบริการสะสม (Paid) - ยอดใช้งาน (Served)
+  // เรียงจากใหม่ไปเก่า (ตามวันที่ลงทะเบียน/HN)
   const courseAlerts = useMemo(() => {
     return activePatients
       .map(patient => {
@@ -79,14 +81,13 @@ export default function Dashboard({
         patientReceipts.forEach(r => {
           r.items.forEach(item => {
             if (item.type === 'บริการ') {
-              // ถ้าเป็นแพ็กเกจ 10 ครั้ง ให้คูณ 10 หรืออ้างอิงตามจำนวนเซสชัน?
-              // ใน mockData: SV03 คือ "แพ็กเกจคอร์สกิจกรรมบำบัด 10 ครั้ง" ยอดซื้อจะบวกตามจำนวนครั้งที่ได้
-              // เพื่อความยืดหยุ่น ถ้าซื้อ SV03 จะแถม 10 ครั้ง (เราเก็บ quantity * 10 ถ้าโค้ดเป็นคอร์ส 10 ครั้ง)
-              // มาเขียนเงื่อนไขตรวจสอบรหัสบริการกัน:
-              if (item.code === 'SV03') {
-                totalPurchased += item.quantity * 10;
-              } else {
+              if (item.code === 'TRANSFER_OUT') {
+                totalPurchased -= item.quantity;
+              } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
                 totalPurchased += item.quantity;
+              } else {
+                const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+                totalPurchased += item.quantity * sessionsPerUnit;
               }
             }
           });
@@ -103,12 +104,33 @@ export default function Dashboard({
           nickname: patient.nickname,
           purchased: totalPurchased,
           used: totalUsed,
-          balance: balance
+          balance: balance,
+          created_at: patient.created_at || ''
         };
       })
       .filter(alert => alert.balance <= 2)
-      .sort((a, b) => a.balance - b.balance);
+      .sort((a, b) => {
+        // เรียงจากใหม่ไปเก่า (created_at desc, then hn desc)
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (timeB !== timeA) return timeB - timeA;
+        return String(b.hn).localeCompare(String(a.hn));
+      });
   }, [activePatients, receipts, appointments]);
+
+  const alertsPerPage = 5;
+  const maxAlertPages = useMemo(() => {
+    return Math.ceil(courseAlerts.length / alertsPerPage);
+  }, [courseAlerts]);
+
+  const paginatedAlerts = useMemo(() => {
+    const startIndex = (alertPage - 1) * alertsPerPage;
+    return courseAlerts.slice(startIndex, startIndex + alertsPerPage);
+  }, [courseAlerts, alertPage]);
+
+  React.useEffect(() => {
+    setAlertPage(1);
+  }, [courseAlerts.length]);
 
   const handleStatusChange = (appId, newStatus) => {
     onUpdateAppointmentStatus(appId, newStatus);
@@ -282,7 +304,7 @@ export default function Dashboard({
           </div>
           
           <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
-            แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง
+            แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง (เรียงจากใหม่ไปเก่า)
           </p>
 
           {courseAlerts.length === 0 ? (
@@ -290,31 +312,61 @@ export default function Dashboard({
               ✓ ไม่มีคิวลูกค้าคอร์สใกล้หมด
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {courseAlerts.map((alert) => (
-                <div 
-                  key={alert.hn}
-                  style={{ 
-                    border: '1px solid var(--border-light)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '0.75rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    backgroundColor: alert.balance <= 0 ? 'var(--danger-light)' : 'var(--warning-light)'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatPatientNickname(alert.nickname)} ({alert.name})</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {alert.hn} | ซื้อ {alert.purchased} ใช้ {alert.used}</div>
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {paginatedAlerts.map((alert) => (
+                  <div 
+                    key={alert.hn}
+                    style={{ 
+                      border: '1px solid var(--border-light)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      backgroundColor: alert.balance <= 0 ? 'var(--danger-light)' : 'var(--warning-light)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatPatientNickname(alert.nickname)} ({alert.name})</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {alert.hn} | ซื้อ {alert.purchased} ใช้ {alert.used}</div>
+                    </div>
+                    
+                    <span className={`badge ${alert.balance <= 0 ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.85rem', padding: '0.3rem 0.6rem' }}>
+                      คงเหลือ {alert.balance} ครั้ง
+                    </span>
                   </div>
-                  
-                  <span className={`badge ${alert.balance <= 0 ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.85rem', padding: '0.3rem 0.6rem' }}>
-                    คงเหลือ {alert.balance} ครั้ง
-                  </span>
+                ))}
+              </div>
+
+              {maxAlertPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '0.5rem' }}>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={alertPage === 1}
+                    onClick={() => setAlertPage(alertPage - 1)}
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                    type="button"
+                  >
+                    ก่อนหน้า
+                  </button>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{alertPage} / {maxAlertPages}</span>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={alertPage === maxAlertPages}
+                    onClick={() => setAlertPage(alertPage + 1)}
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                    type="button"
+                  >
+                    ถัดไป
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '0.5rem' }}>
+                แสดง {courseAlerts.length === 0 ? 0 : (alertPage - 1) * alertsPerPage + 1} - {Math.min(alertPage * alertsPerPage, courseAlerts.length)} จากทั้งหมด {courseAlerts.length} รายการ
+              </div>
+            </>
           )}
         </div>
       </div>
