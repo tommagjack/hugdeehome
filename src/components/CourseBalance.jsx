@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, formatTherapistName } from '../utils/format';
 import { 
   FileText, 
   Plus, 
@@ -18,6 +18,7 @@ export default function CourseBalance({
   patients, 
   appointments, 
   receipts, 
+  therapists,
   onManualAddCourse, 
   onTransferCourse 
 }) {

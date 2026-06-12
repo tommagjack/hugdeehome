@@ -971,6 +971,7 @@ export default function App() {
             patients={patients}
             appointments={appointments}
             receipts={receipts}
+            therapists={therapists}
             onManualAddCourse={handleManualAddCourse}
             onTransferCourse={handleTransferCourse}
           />
