@@ -32,6 +32,7 @@ const headersMap = {
   visual: ['visual', 'sensory_visual', 'การรับรู้ทางสายตา', 'senvis'],
   auditory: ['auditory', 'sensory_auditory', 'การรับรู้ทางเสียง', 'senhear'],
   movement: ['movement', 'sensory_movement', 'การวางแผนเคลื่อนไหว', 'senmove'],
+  score6YearsPlus: ['score6yearsplus', 'คะแนน (เด็ก 6 ปี+)', 'คะแนนเด็ก6ปีขึ้นไป', 'score6plus', 'คะแนนเด็ก 6 ปี+'],
   snapInattention: ['snapinattention', 'snap_inattention', 'สมาธิสั้น', 'ขาดสมาธิ', 'sninatt'],
   snapHyperactivity: ['snaphyperactivity', 'snap_hyperactivity', 'ซนสมาธิสั้น', 'ซน/วู่วาม', 'snhyper'],
   snapOppositional: ['snapoppositional', 'snap_oppositional', 'ดื้อต่อต้าน', 'ดื้อ/ต่อต้าน', 'snodd'],
@@ -69,6 +70,7 @@ export default function DevelopmentalAssessment({
   const [visual, setVisual] = useState(0);
   const [auditory, setAuditory] = useState(0);
   const [movement, setMovement] = useState(0);
+  const [score6YearsPlus, setScore6YearsPlus] = useState(0);
 
   // SNAP-IV คะแนนดิบ
   const [snapInattention, setSnapInattention] = useState(0);
@@ -103,7 +105,7 @@ export default function DevelopmentalAssessment({
     const birthDate = parseDateToAD(selectedPatient.dob);
     if (!birthDate) return { years: 0, months: 0, text: 'วันเกิดไม่ถูกต้อง' };
     const normalizedBirthYear = birthDate.getFullYear();
-    const today = new Date('2026-06-05');
+    const today = evalDate ? (parseDateToAD(evalDate) || new Date('2026-06-05')) : new Date('2026-06-05');
     
     let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();
@@ -122,7 +124,7 @@ export default function DevelopmentalAssessment({
       months,
       text: `${years} ปี ${months} เดือน`
     };
-  }, [selectedPatient]);
+  }, [selectedPatient, evalDate]);
 
   // ตรวจสอบสิทธิ์ Sensory Test (เฉพาะเด็กอายุ 6 ปีขึ้นไป ถ้าน้อยกว่าให้ Disabled)
   const isSensoryEnabled = useMemo(() => {
@@ -157,6 +159,7 @@ export default function DevelopmentalAssessment({
       setVisual(0);
       setAuditory(0);
       setMovement(0);
+      setScore6YearsPlus(0);
     }
   }, [isSensoryEnabled]);
 
@@ -212,6 +215,7 @@ export default function DevelopmentalAssessment({
     setVisual(0);
     setAuditory(0);
     setMovement(0);
+    setScore6YearsPlus(0);
     setSnapInattention(0);
     setSnapHyperactivity(0);
     setSnapOppositional(0);
@@ -240,6 +244,7 @@ export default function DevelopmentalAssessment({
     setVisual(item.sensoryScores?.visual ?? 0);
     setAuditory(item.sensoryScores?.auditory ?? 0);
     setMovement(item.sensoryScores?.movement ?? 0);
+    setScore6YearsPlus(item.sensoryScores?.score6YearsPlus ?? 0);
     setSnapInattention(item.snapIV?.inattention ?? 0);
     setSnapHyperactivity(item.snapIV?.hyperactivity ?? 0);
     setSnapOppositional(item.snapIV?.oppositional ?? 0);
@@ -284,7 +289,8 @@ export default function DevelopmentalAssessment({
         visual: Number(visual),
         auditory: Number(auditory),
         movement: Number(movement),
-        total: sensoryTotal
+        total: sensoryTotal,
+        score6YearsPlus: isSensoryEnabled ? Number(score6YearsPlus) || 0 : 0
       },
       snapIV: {
         inattention: Number(snapInattention),
@@ -366,6 +372,7 @@ export default function DevelopmentalAssessment({
       'เลขที่เอกสาร', 'รหัส HN', 'วันที่ประเมิน (YYYY-MM-DD)', 
       'กล้ามเนื้อมัดใหญ่ (GM)', 'กล้ามเนื้อมัดเล็ก (FM)', 'ด้านภาษา (Language)', 'ด้านสังคม (Social)',
       'Sensory_Tactile', 'Sensory_Vestibular', 'Sensory_Proprioceptive', 'Sensory_Visual', 'Sensory_Auditory', 'Sensory_Movement',
+      'คะแนน (เด็ก 6 ปี+)',
       'SNAP_Inattention', 'SNAP_Hyperactivity', 'SNAP_Oppositional', 'ความเห็นเพิ่มเติม'
     ];
 
@@ -373,7 +380,7 @@ export default function DevelopmentalAssessment({
     if (assessments.length === 0) {
       // Export template
       rows = [
-        ['HDA69-69001', '69001', '2026-06-05', 'สมวัย', 'สมวัย', 'สมวัย', 'สมวัย', '0', '0', '0', '0', '0', '0', '0', '0', '0', '']
+        ['HDA69-69001', '69001', '2026-06-05', 'สมวัย', 'สมวัย', 'สมวัย', 'สมวัย', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '']
       ];
       Swal.fire({
         title: 'ส่งออกไฟล์เทมเพลต',
@@ -396,6 +403,7 @@ export default function DevelopmentalAssessment({
         item.sensoryScores?.visual ?? 0,
         item.sensoryScores?.auditory ?? 0,
         item.sensoryScores?.movement ?? 0,
+        item.sensoryScores?.score6YearsPlus ?? 0,
         item.snapIV?.inattention ?? 0,
         item.snapIV?.hyperactivity ?? 0,
         item.snapIV?.oppositional ?? 0,
@@ -489,6 +497,7 @@ export default function DevelopmentalAssessment({
           const visual = Number(val('visual')) || 0;
           const auditory = Number(val('auditory')) || 0;
           const movement = Number(val('movement')) || 0;
+          const score6YearsPlus = Number(val('score6YearsPlus')) || 0;
           const sensoryTotal = tactile + vestibular + proprioceptive + visual + auditory + movement;
 
           const snapInattention = Number(val('snapInattention')) || 0;
@@ -525,7 +534,8 @@ export default function DevelopmentalAssessment({
               visual,
               auditory,
               movement,
-              total: sensoryTotal
+              total: sensoryTotal,
+              score6YearsPlus
             },
             snapIV: {
               inattention: snapInattention,
@@ -974,15 +984,29 @@ export default function DevelopmentalAssessment({
                   </div>
 
                   
-                  <div className="form-group" style={{ maxWidth: '200px' }}>
-                    <label className="form-label">คะแนนรวมประสาทสัมผัส</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      readOnly 
-                      value={sensoryTotal}
-                      style={{ backgroundColor: '#f5f5f5', fontWeight: 700, color: 'var(--secondary)' }} 
-                    />
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
+                      <label className="form-label">คะแนนรวมประสาทสัมผัส</label>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        readOnly 
+                        value={sensoryTotal}
+                        style={{ backgroundColor: '#f5f5f5', fontWeight: 700, color: 'var(--secondary)' }} 
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
+                      <label className="form-label">คะแนน (เด็ก 6 ปี+)</label>
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        min="0"
+                        disabled={!isSensoryEnabled} 
+                        value={score6YearsPlus} 
+                        onChange={(e) => setScore6YearsPlus(e.target.value)} 
+                        placeholder="กรอกคะแนนเด็ก 6 ปีขึ้นไป"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1157,9 +1181,15 @@ export default function DevelopmentalAssessment({
                       </div>
                     </div>
 
-                    <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: 'var(--dark)' }}>คะแนนรวมการตอบสนองระบบประสาทสัมผัส:</strong>
-                      <strong style={{ color: 'var(--secondary)', fontSize: '1.2rem' }}>{viewingAssessment.sensoryScores?.total ?? 0} / 300</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                      <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ color: 'var(--dark)', fontSize: '0.85rem' }}>คะแนนรวมระบบประสาทสัมผัส:</strong>
+                        <strong style={{ color: 'var(--secondary)', fontSize: '1.15rem' }}>{viewingAssessment.sensoryScores?.total ?? 0} / 300</strong>
+                      </div>
+                      <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ color: 'var(--dark)', fontSize: '0.85rem' }}>คะแนน (เด็ก 6 ปี+):</strong>
+                        <strong style={{ color: 'var(--secondary)', fontSize: '1.15rem' }}>{viewingAssessment.sensoryScores?.score6YearsPlus ?? 0}</strong>
+                      </div>
                     </div>
                   </div>
                 ) : (

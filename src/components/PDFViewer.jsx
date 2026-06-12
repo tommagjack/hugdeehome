@@ -313,6 +313,10 @@ export default function PDFViewer({
                   <td><strong>คะแนนรวมการตอบสนองระบบประสาทสัมผัส (Total Sensory Score)</strong></td>
                   <td style={{ textAlign: 'center', color: 'var(--secondary)' }}>{item.sensoryScores?.total ?? 0} / 300</td>
                 </tr>
+                <tr style={{ backgroundColor: '#f9f9f9', fontWeight: 700 }}>
+                  <td><strong>คะแนน (เด็ก 6 ปี+) (Score for Child 6 Years+)</strong></td>
+                  <td style={{ textAlign: 'center', color: 'var(--secondary)' }}>{item.sensoryScores?.score6YearsPlus ?? 0}</td>
+                </tr>
               </tbody>
             </table>
           </div>
