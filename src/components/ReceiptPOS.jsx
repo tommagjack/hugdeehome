@@ -52,6 +52,14 @@ export default function ReceiptPOS({
   const [patientSearchText, setPatientSearchText] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
+  const [customBillId, setCustomBillId] = useState('');
+  const [customDate, setCustomDate] = useState(() => {
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${mm}-${dd}`;
+  });
+
   // Sync patientSearchText when selectedHn updates
   useEffect(() => {
     if (selectedHn) {
@@ -133,6 +141,11 @@ export default function ReceiptPOS({
     setSelectedBankId('');
     setSlipAttached(false);
     setSlipName('');
+    setCustomBillId('');
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setCustomDate(`${today.getFullYear()}-${mm}-${dd}`);
     
     Swal.fire({
       icon: 'info',
@@ -278,21 +291,32 @@ export default function ReceiptPOS({
         Swal.fire({ icon: 'warning', title: 'กรุณาเลือกบัญชีธนาคารโอนเข้า', confirmButtonColor: 'var(--secondary)' });
         return;
       }
-      if (!slipAttached) {
-        Swal.fire({ icon: 'warning', title: 'กรุณาแนบสลิปโอนเงิน', confirmButtonColor: 'var(--secondary)' });
-        return;
-      }
     }
 
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
 
-    const billId = generateNextBillId();
+    const billId = (currentUser?.role === 'Admin' && customBillId.trim()) ? customBillId.trim() : generateNextBillId();
+
+    // ตรวจสอบเลขที่ใบเสร็จซ้ำในระบบ (ป้องกันการทับบิลเดิมที่ไม่ใช่บิลร่าง)
+    const isDuplicate = receipts.some(r => r.id === billId);
+    if (isDuplicate) {
+      Swal.fire({
+        icon: 'error',
+        title: 'เลขที่ใบเสร็จซ้ำในระบบ',
+        text: `หมายเลขใบเสร็จ ${billId} มีการใช้งานไปแล้ว กรุณากรอกเลขอื่น`,
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
+
     const newInvoice = {
       id: billId,
       hn: selectedHn,
-      date: `${today.getFullYear()}-${mm}-${dd}`, // วันที่ออกเอกสารจริง
+      date: invoiceDate, // วันที่ออกเอกสารจริง
       items: cart.map(item => ({
         code: item.code,
         name: item.name,
@@ -529,6 +553,47 @@ export default function ReceiptPOS({
             </div>
           )}
 
+          {/* ข้อมูลเอกสารใบเสร็จ (เฉพาะ Admin) */}
+          {currentUser?.role === 'Admin' && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '0.75rem', 
+              padding: '1rem', 
+              backgroundColor: 'var(--light)', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border)', 
+              marginBottom: '1rem' 
+            }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--secondary)' }}>
+                ตั้งค่าเลขที่บิลและวันที่ (เฉพาะผู้ดูแลระบบ)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.5rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>เลขที่ใบเสร็จ</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
+                    placeholder={generateNextBillId()}
+                    value={customBillId} 
+                    onChange={(e) => setCustomBillId(e.target.value)} 
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>วันที่ออกใบเสร็จ</label>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
+                    value={customDate} 
+                    onChange={(e) => setCustomDate(e.target.value)} 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* โปรโมชั่นและส่วนลด */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -634,7 +699,7 @@ export default function ReceiptPOS({
                 </div>
                 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">แนบรูปภาพสลิปหลักฐาน</label>
+                  <label className="form-label">แนบรูปภาพสลิปหลักฐาน (แนบหรือไม่แนบก็ได้)</label>
                   <input 
                     type="file" 
                     accept="image/*"
@@ -642,9 +707,29 @@ export default function ReceiptPOS({
                     onChange={handleSlipUpload}
                   />
                   {slipAttached && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--success)', display: 'block', marginTop: '0.25rem' }}>
-                      ✓ แนบสลิปเรียบร้อย: {slipName}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>
+                        ✓ แนบสลิปเรียบร้อย: {slipName.split('/').pop()}
+                      </span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--danger)',
+                          fontSize: '0.75rem',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                        onClick={() => {
+                          setSlipAttached(false);
+                          setSlipName('');
+                        }}
+                      >
+                        ลบรูป
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
