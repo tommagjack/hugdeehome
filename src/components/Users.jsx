@@ -14,14 +14,14 @@ import { exportToCSV, parseCSV } from '../utils/csvHelper';
 const headersMap = {
   username: ['username', 'ชื่อผู้ใช้', 'ชื่อบัญชีผู้ใช้ (username)', 'ชื่อบัญชี', 'ชื่อบัญชีผู้ใช้', 'ชื่อผู้ใช้ (username)'],
   password: ['password', 'รหัสผ่าน', 'รหัสผ่าน (password)'],
-  employeeId: ['employeeid', 'รหัสพนักงาน', 'รหัส'],
-  title: ['title', 'คำนำหน้า', 'คำนำหน้าชื่อ'],
-  fullname: ['fullname', 'ชื่อ-นามสกุล', 'ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อนามสกุล'],
+  employeeId: ['employeeid', 'รหัสพนักงาน', 'รหัส', 'id'],
+  title: ['title', 'คำนำหน้า', 'คำนำหน้าชื่อ', 'prefix'],
+  fullname: ['fullname', 'ชื่อ-นามสกุล', 'ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อนามสกุล', 'name'],
   nickname: ['nickname', 'ชื่อเล่น'],
   role: ['role', 'สิทธิ์', 'สิทธิ์การใช้งาน', 'สิทธิ์การใช้งาน (admin/ot/staff)', 'สิทธิ์การเข้าใช้งานระบบ'],
-  employeeType: ['employeetype', 'ประเภทพนักงาน', 'ประเภทของพนักงาน'],
+  employeeType: ['employeetype', 'ประเภทพนักงาน', 'ประเภทของพนักงาน', 'emptype'],
   position: ['position', 'ตำแหน่ง', 'ตำแหน่งงาน'],
-  citizenId: ['citizenid', 'เลขบัตรประชาชน', 'เลขประจำตัวประชาชน', 'เลขบัตรประจำตัวประชาชน'],
+  citizenId: ['citizenid', 'เลขบัตรประชาชน', 'เลขประจำตัวประชาชน', 'เลขบัตรประจำตัวประชาชน', 'idcard', 'id_card', 'id card'],
   gender: ['gender', 'เพศ'],
   dob: ['dob', 'วันเกิด', 'วันเกิด (yyyy-mm-dd)', 'วันเกิด (ค.ศ. yyyy-mm-dd)'],
   startDate: ['startdate', 'วันที่เริ่มงาน', 'วันที่เริ่มงาน (yyyy-mm-dd)', 'วันที่เริ่มงาน (ค.ศ. yyyy-mm-dd)'],
@@ -385,11 +385,16 @@ export default function Users({ users, setUsers, setPrintView }) {
         }
       });
 
-      if (indexMap.username === undefined || indexMap.password === undefined || indexMap.fullname === undefined || indexMap.role === undefined) {
+      // ตรวจสอบคีย์ระบุพนักงาน (ต้องการ employeeId หรือ fullname เพื่อทำการอัปเดต)
+      // หรือหากนำเข้าพนักงานใหม่ทั้งหมด ต้องมีข้อมูลพื้นฐานหลักครบถ้วน
+      const hasRequiredForNew = indexMap.username !== undefined && indexMap.password !== undefined && indexMap.fullname !== undefined && indexMap.role !== undefined;
+      const hasRequiredForUpdate = indexMap.employeeId !== undefined || indexMap.fullname !== undefined;
+
+      if (!hasRequiredForNew && !hasRequiredForUpdate) {
         Swal.fire({
           icon: 'error',
           title: 'รูปแบบคอลัมน์ไม่ถูกต้อง',
-          text: 'กรุณาตรวจสอบว่ามีคอลัมน์ ชื่อผู้ใช้, รหัสผ่าน, ชื่อ-นามสกุล และ สิทธิ์การใช้งาน อย่างน้อยที่สุด',
+          text: 'กรุณาตรวจสอบว่ามีคอลัมน์ รหัสพนักงาน (ID) หรือ ชื่อ-นามสกุล (Name) เพื่อระบุตัวตนพนักงาน',
           confirmButtonColor: 'var(--secondary)'
         });
         return;
@@ -399,22 +404,72 @@ export default function Users({ users, setUsers, setPrintView }) {
       let updatedCount = 0;
       let errorCount = 0;
 
-      setUsers(prev => {
-        let currentUsersList = [...prev];
+      let currentUsersList = [...users];
 
-        rows.forEach(row => {
-          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      rows.forEach(row => {
+        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-          const val = (key) => {
-            const idx = indexMap[key];
-            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-          };
+        const val = (key) => {
+          const idx = indexMap[key];
+          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        };
 
-          const username = val('username');
-          const password = val('password');
-          const fullname = val('fullname');
+        const username = val('username');
+        const fullname = val('fullname');
+        const employeeId = val('employeeId');
+
+        // ค้นหาพนักงานเดิมเพื่ออัปเดต
+        let existingUserIndex = -1;
+        if (employeeId) {
+          existingUserIndex = currentUsersList.findIndex(u => u && u.employeeId && String(u.employeeId).toLowerCase() === String(employeeId).toLowerCase());
+        }
+        if (existingUserIndex === -1 && fullname) {
+          existingUserIndex = currentUsersList.findIndex(u => u && u.fullname && u.fullname.trim().toLowerCase() === fullname.trim().toLowerCase());
+        }
+        if (existingUserIndex === -1 && username) {
+          existingUserIndex = currentUsersList.findIndex(u => u && u.username && u.username.trim().toLowerCase() === username.trim().toLowerCase());
+        }
+
+        if (existingUserIndex !== -1) {
+          const existingUser = currentUsersList[existingUserIndex];
+          const updatedUserData = { ...existingUser };
+
+          if (val('title')) updatedUserData.title = val('title');
+          if (val('nickname')) updatedUserData.nickname = val('nickname');
+          if (val('gender')) updatedUserData.gender = val('gender');
+          if (val('dob')) updatedUserData.dob = val('dob');
+          if (val('phone')) updatedUserData.phone = val('phone');
+          if (val('email')) updatedUserData.email = val('email');
+          
+          if (val('citizenId')) {
+            updatedUserData.citizenId = val('citizenId');
+          }
+
+          if (val('employeeType')) {
+            let empType = val('employeeType');
+            const empTypeLower = empType.toLowerCase();
+            if (empTypeLower === 'full-time' || empTypeLower === 'fulltime') {
+              empType = 'พนักงานประจำ';
+            } else if (empTypeLower === 'part-time' || empTypeLower === 'parttime') {
+              empType = 'พนักงานชั่วคราว';
+            } else if (empTypeLower.includes('freelance') || empTypeLower.includes('อิสระ')) {
+              empType = 'นักบำบัดอิสระ (Freelance)';
+            }
+            updatedUserData.employeeType = empType;
+          }
+
+          if (val('position')) updatedUserData.position = val('position');
+          if (val('basicSalary')) updatedUserData.basicSalary = Number(val('basicSalary')) || 0;
+          if (val('bankName')) updatedUserData.bankName = val('bankName');
+          if (val('bankAccountNo')) updatedUserData.bankAccountNo = val('bankAccountNo');
+          if (val('avatarUrl')) updatedUserData.avatarUrl = val('avatarUrl');
+
+          currentUsersList[existingUserIndex] = updatedUserData;
+          updatedCount++;
+        } else {
+          // สำหรับการเพิ่มพนักงานใหม่ ต้องมีข้อมูลครบ
           let role = val('role');
-
+          const password = val('password');
           if (!username || !password || !fullname || !role) {
             errorCount++;
             return;
@@ -434,9 +489,19 @@ export default function Users({ users, setUsers, setPrintView }) {
             status = 'Inactive';
           }
 
-          let employeeId = val('employeeId');
-          if (!employeeId || employeeId === 'HDH-Auto') {
-            employeeId = getNextEmployeeId(currentUsersList);
+          let empId = employeeId;
+          if (!empId || empId === 'HDH-Auto') {
+            empId = getNextEmployeeId(currentUsersList);
+          }
+
+          let empType = val('employeeType') || 'พนักงานประจำ';
+          const empTypeLower = empType.toLowerCase();
+          if (empTypeLower === 'full-time' || empTypeLower === 'fulltime') {
+            empType = 'พนักงานประจำ';
+          } else if (empTypeLower === 'part-time' || empTypeLower === 'parttime') {
+            empType = 'พนักงานชั่วคราว';
+          } else if (empTypeLower.includes('freelance') || empTypeLower.includes('อิสระ')) {
+            empType = 'นักบำบัดอิสระ (Freelance)';
           }
 
           const userData = {
@@ -444,8 +509,8 @@ export default function Users({ users, setUsers, setPrintView }) {
             password,
             fullname,
             role: standardizedRole,
-            employeeId,
-            employeeType: val('employeeType') || 'พนักงานประจำ',
+            employeeId: empId,
+            employeeType: empType,
             title: val('title') || 'นาย',
             nickname: val('nickname'),
             citizenId: val('citizenId'),
@@ -462,25 +527,14 @@ export default function Users({ users, setUsers, setPrintView }) {
             avatarUrl: val('avatarUrl') || ''
           };
 
-          const existingUserIndex = currentUsersList.findIndex(u => u.username === username);
-          if (existingUserIndex !== -1) {
-            const existingUser = currentUsersList[existingUserIndex];
-            if (existingUser.employeeId && existingUser.employeeId !== 'HDH-Auto') {
-              userData.employeeId = existingUser.employeeId;
-            }
-            currentUsersList[existingUserIndex] = {
-              ...existingUser,
-              ...userData
-            };
-            updatedCount++;
-          } else {
-            currentUsersList.push(userData);
-            addedCount++;
-          }
-        });
-
-        return currentUsersList;
+          currentUsersList.push(userData);
+          addedCount++;
+        }
       });
+
+      if (setUsers) {
+        setUsers(currentUsersList);
+      }
 
       Swal.fire({
         icon: 'success',

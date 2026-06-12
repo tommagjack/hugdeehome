@@ -274,6 +274,17 @@ function saveTableToSheet(key, list) {
   });
   
   if (rows.length > 0) {
+    // ตั้งรูปแบบสำหรับคอลัมน์รหัสและเบอร์โทรให้แสดงเป็นข้อความ (Plain Text) ป้องกันการแปลงเป็นวิทยาศาสตร์
+    headers.forEach((header, index) => {
+      const hLower = header.toLowerCase();
+      if (hLower === 'citizenid' || 
+          hLower === 'idcard' || 
+          hLower === 'phone' || 
+          hLower === 'bankaccountno' || 
+          hLower === 'hn') {
+        sheet.getRange(2, index + 1, rows.length, 1).setNumberFormat("@");
+      }
+    });
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
   
