@@ -861,7 +861,16 @@ export default function Users({ users, setUsers, setPrintView }) {
                     const fname = (uFullname || '').trim().split(/\s+/)[0] || 'Unknown';
                     const lname = (uFullname || '').trim().split(/\s+/)[1] || 'Unknown';
                     const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
-                    const targetFolderUrl = folderUrl;
+                    let targetFolderUrl = folderUrl;
+                    const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+                    const parentId = match ? match[1] : null;
+                    if (parentId) {
+                      const query = `'${parentId}' in parents and name contains '${folderName}'`;
+                      targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
+                    } else {
+                      const query = `name contains '${folderName}'`;
+                      targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
+                    }
                     return (
                       <div style={{ 
                         backgroundColor: '#fbf7f2', 

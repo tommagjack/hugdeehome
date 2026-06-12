@@ -18,10 +18,17 @@ export default function Dashboard({
   therapists, 
   onUpdateAppointmentStatus 
 }) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    // กำหนดค่าเริ่มต้นเป็นวันที่ปัจจุบัน 2026-06-05
-    return '2026-06-05';
-  });
+  const getTodayLocalDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayLocalDateString = getTodayLocalDateString();
+
+  const [selectedDate, setSelectedDate] = useState(todayLocalDateString);
 
   // 1. คำนวณสถิติ
   const totalPatients = patients.length;
@@ -41,18 +48,17 @@ export default function Dashboard({
   }, [patients, totalPatients]);
 
   const todayAppointmentsCount = useMemo(() => {
-    return appointments.filter(app => app.date && app.date.split('T')[0] === '2026-06-05' && app.status !== 'ยกเลิก').length;
-  }, [appointments]);
+    return appointments.filter(app => app.date && app.date.split('T')[0] === todayLocalDateString && app.status !== 'ยกเลิก').length;
+  }, [appointments, todayLocalDateString]);
 
   const monthlySales = useMemo(() => {
-    // กรองบิลเดือนนี้ มิ.ย. 2026 เฉพาะบิลชำระเงินแล้ว
-    const currentMonth = '2026-06';
+    const currentMonth = todayLocalDateString.slice(0, 7); // YYYY-MM
     const monthlyBills = receipts.filter(r => 
       r.date.startsWith(currentMonth) && 
       r.status === 'ชำระเงินแล้ว'
     );
     return monthlyBills.reduce((sum, r) => sum + r.totalAmount, 0);
-  }, [receipts]);
+  }, [receipts, todayLocalDateString]);
 
   // 2. ตารางนัดหมายตามวันที่เลือก
   const filteredAppointments = useMemo(() => {
@@ -132,7 +138,17 @@ export default function Dashboard({
           หน้าหลักแดชบอร์ด
         </h1>
         <div style={{ color: 'var(--dark-light)', fontWeight: 500 }}>
-          วันที่ระบบ: 5 มิถุนายน 2569 (2026)
+          วันที่ระบบ: {(() => {
+            const parts = todayLocalDateString.split('-');
+            const d = parseInt(parts[2], 10);
+            const m = parseInt(parts[1], 10);
+            const y = parseInt(parts[0], 10);
+            const thaiMonths = [
+              'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+              'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+            ];
+            return `${d} ${thaiMonths[m - 1]} ${y + 543} (${y})`;
+          })()}
         </div>
       </div>
 
@@ -163,7 +179,16 @@ export default function Dashboard({
         </div>
 
         <div className="card-2xl stat-card">
-          <div className="stat-title">ยอดขายเดือนนี้ (มิ.ย.)</div>
+          <div className="stat-title">
+            ยอดขายเดือนนี้ ({(() => {
+              const m = parseInt(todayLocalDateString.split('-')[1], 10);
+              const thaiMonthAbbrs = [
+                'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+              ];
+              return thaiMonthAbbrs[m - 1];
+            })()})
+          </div>
           <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>฿{monthlySales.toLocaleString()}</span>
             <CircleDollarSign size={32} color="var(--secondary)" />
@@ -204,7 +229,7 @@ export default function Dashboard({
 
           {filteredAppointments.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
-              ไม่มีคิวนัดหมายในวันที่ {selectedDate === '2026-06-05' ? 'วันนี้' : selectedDate}
+              ไม่มีคิวนัดหมายในวันที่ {selectedDate === todayLocalDateString ? 'วันนี้' : selectedDate}
             </div>
           ) : (
             <div className="table-container">

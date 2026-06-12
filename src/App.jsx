@@ -135,77 +135,77 @@ export default function App() {
   useEffect(() => { 
     db.setClinicInfo(clinicInfo); 
     if (!isSyncing) syncToSupabase('hdh_clinic_info', clinicInfo);
-  }, [clinicInfo, isSyncing]);
+  }, [clinicInfo]);
 
   useEffect(() => { 
     db.setUsers(users); 
     if (!isSyncing) syncToSupabase('hdh_users', users);
-  }, [users, isSyncing]);
+  }, [users]);
 
   useEffect(() => { 
     db.setTherapists(therapists); 
     if (!isSyncing) syncToSupabase('hdh_therapists', therapists);
-  }, [therapists, isSyncing]);
+  }, [therapists]);
 
   useEffect(() => { 
     db.setServices(services); 
     if (!isSyncing) syncToSupabase('hdh_services', services);
-  }, [services, isSyncing]);
+  }, [services]);
 
   useEffect(() => { 
     db.setPromotions(promotions); 
     if (!isSyncing) syncToSupabase('hdh_promotions', promotions);
-  }, [promotions, isSyncing]);
+  }, [promotions]);
 
   useEffect(() => { 
     db.setBankAccounts(bankAccounts); 
     if (!isSyncing) syncToSupabase('hdh_bank_accounts', bankAccounts);
-  }, [bankAccounts, isSyncing]);
+  }, [bankAccounts]);
 
   useEffect(() => { 
     db.setHolidays(holidays); 
     if (!isSyncing) syncToSupabase('hdh_holidays', holidays);
-  }, [holidays, isSyncing]);
+  }, [holidays]);
 
   useEffect(() => { 
     db.setPatients(patients); 
     if (!isSyncing) syncToSupabase('hdh_patients', patients);
-  }, [patients, isSyncing]);
+  }, [patients]);
 
   useEffect(() => { 
     db.setAppointments(appointments); 
     if (!isSyncing) syncToSupabase('hdh_appointments', appointments);
-  }, [appointments, isSyncing]);
+  }, [appointments]);
 
   useEffect(() => { 
     db.setReceipts(receipts); 
     if (!isSyncing) syncToSupabase('hdh_receipts', receipts);
-  }, [receipts, isSyncing]);
+  }, [receipts]);
 
   useEffect(() => { 
     db.setAssessments(assessments); 
     if (!isSyncing) syncToSupabase('hdh_assessments', assessments);
-  }, [assessments, isSyncing]);
+  }, [assessments]);
 
   useEffect(() => { 
     db.setSalaryRules(salaryRules); 
     if (!isSyncing) syncToSupabase('hdh_salary_rules', salaryRules);
-  }, [salaryRules, isSyncing]);
+  }, [salaryRules]);
 
   useEffect(() => { 
     db.setPayrolls(payrolls); 
     if (!isSyncing) syncToSupabase('hdh_payrolls', payrolls);
-  }, [payrolls, isSyncing]);
+  }, [payrolls]);
 
   useEffect(() => { 
     db.setTransactions(transactions); 
     if (!isSyncing) syncToSupabase('hdh_transactions', transactions);
-  }, [transactions, isSyncing]);
+  }, [transactions]);
 
   useEffect(() => { 
     db.setOpdRecords(opdRecords); 
     if (!isSyncing) syncToSupabase('hdh_opd_records', opdRecords);
-  }, [opdRecords, isSyncing]);
+  }, [opdRecords]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
