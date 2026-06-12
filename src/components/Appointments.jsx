@@ -450,74 +450,74 @@ export default function Appointments({
       let invalidTherapistCount = 0;
       let errorCount = 0;
 
-      setAppointments(prev => {
-        let currentAppointmentsList = [...prev];
+      let currentAppointmentsList = [...appointments];
 
-        rows.forEach(row => {
-          if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+      rows.forEach(row => {
+        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
 
-          const val = (key) => {
-            const idx = indexMap[key];
-            return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        const val = (key) => {
+          const idx = indexMap[key];
+          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        };
+
+        const hn = val('hn');
+        const therapistId = val('therapistId');
+        const date = val('date');
+        const timeSlot = val('timeSlot');
+
+        if (!hn || !therapistId || !date || !timeSlot) {
+          errorCount++;
+          return;
+        }
+
+        const patientExists = patients.some(p => p.hn === hn);
+        if (!patientExists) {
+          invalidHnCount++;
+          return;
+        }
+
+        const therapistExists = therapists.some(t => t.id === therapistId);
+        if (!therapistExists) {
+          invalidTherapistCount++;
+          return;
+        }
+
+        let id = val('id');
+        const exists = currentAppointmentsList.some(app => app.id === id);
+
+        if (!id || !exists) {
+          id = 'A' + (currentAppointmentsList.length + 1) + Math.floor(Math.random() * 1000);
+        }
+
+        const appData = {
+          id,
+          hn,
+          therapistId,
+          date,
+          timeSlot,
+          type: val('type') || 'ฝึกกระตุ้นพัฒนาการ',
+          status: val('status') || 'จองแล้ว',
+          created_at: new Date().toISOString()
+        };
+
+        const existingAppIndex = currentAppointmentsList.findIndex(app => app.id === id);
+        if (existingAppIndex !== -1) {
+          const existingApp = currentAppointmentsList[existingAppIndex];
+          currentAppointmentsList[existingAppIndex] = {
+            ...existingApp,
+            ...appData,
+            created_at: existingApp.created_at
           };
-
-          const hn = val('hn');
-          const therapistId = val('therapistId');
-          const date = val('date');
-          const timeSlot = val('timeSlot');
-
-          if (!hn || !therapistId || !date || !timeSlot) {
-            errorCount++;
-            return;
-          }
-
-          const patientExists = patients.some(p => p.hn === hn);
-          if (!patientExists) {
-            invalidHnCount++;
-            return;
-          }
-
-          const therapistExists = therapists.some(t => t.id === therapistId);
-          if (!therapistExists) {
-            invalidTherapistCount++;
-            return;
-          }
-
-          let id = val('id');
-          const exists = currentAppointmentsList.some(app => app.id === id);
-
-          if (!id || !exists) {
-            id = 'A' + (currentAppointmentsList.length + 1) + Math.floor(Math.random() * 1000);
-          }
-
-          const appData = {
-            id,
-            hn,
-            therapistId,
-            date,
-            timeSlot,
-            type: val('type') || 'ฝึกกระตุ้นพัฒนาการ',
-            status: val('status') || 'จองแล้ว',
-            created_at: new Date().toISOString()
-          };
-
-          const existingAppIndex = currentAppointmentsList.findIndex(app => app.id === id);
-          if (existingAppIndex !== -1) {
-            const existingApp = currentAppointmentsList[existingAppIndex];
-            currentAppointmentsList[existingAppIndex] = {
-              ...existingApp,
-              ...appData,
-              created_at: existingApp.created_at
-            };
-            updatedCount++;
-          } else {
-            currentAppointmentsList.push(appData);
-            addedCount++;
-          }
-        });
-
-        return currentAppointmentsList;
+          updatedCount++;
+        } else {
+          currentAppointmentsList.push(appData);
+          addedCount++;
+        }
       });
+
+      if (setAppointments) {
+        setAppointments(currentAppointmentsList);
+      }
 
       Swal.fire({
         icon: 'success',

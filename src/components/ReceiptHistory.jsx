@@ -257,66 +257,64 @@ export default function ReceiptHistory({
       let invalidHnCount = 0;
       let errorCount = 0;
 
+      let currentReceipts = [...receipts];
+
+      rows.forEach(row => {
+        if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
+
+        const val = (key) => {
+          const idx = indexMap[key];
+          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+        };
+
+        const id = val('id');
+        const hn = val('hn');
+        const date = val('date');
+        const rawItems = val('items');
+
+        if (!id || !hn || !date || !rawItems) {
+          errorCount++;
+          return;
+        }
+
+        const patientExists = patients.some(p => p.hn === hn);
+        if (!patientExists) {
+          invalidHnCount++;
+          return;
+        }
+
+        const parsedItems = parseItems(rawItems, services || []);
+
+        const receiptData = {
+          id,
+          hn,
+          date,
+          items: parsedItems,
+          discountValue: parseFloat(val('discountValue')) || 0,
+          discountType: val('discountType') || 'flat',
+          discountReason: val('discountReason') || '',
+          promotionId: val('promotionId') || '',
+          paymentMethod: val('paymentMethod') || 'เงินสด',
+          bankAccountId: val('bankAccountId') || '',
+          slipUrl: val('slipUrl') || '',
+          totalAmount: parseFloat(val('totalAmount')) || 0,
+          status: val('status') || 'ชำระเงินแล้ว',
+          createdBy: val('createdBy') || currentUser?.fullname || 'ผู้ดูแลระบบ',
+          created_at: val('created_at') || new Date().toISOString()
+        };
+
+        const existingIdx = currentReceipts.findIndex(r => r.id === id);
+        if (existingIdx !== -1) {
+          currentReceipts[existingIdx] = receiptData;
+          updatedCount++;
+        } else {
+          currentReceipts.push(receiptData);
+          addedCount++;
+        }
+      });
+
       if (setReceipts) {
-        setReceipts(prev => {
-          let currentReceipts = [...prev];
-
-          rows.forEach(row => {
-            if (row.length === 0 || (row.length === 1 && row[0] === '')) return;
-
-            const val = (key) => {
-              const idx = indexMap[key];
-              return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
-            };
-
-            const id = val('id');
-            const hn = val('hn');
-            const date = val('date');
-            const rawItems = val('items');
-
-            if (!id || !hn || !date || !rawItems) {
-              errorCount++;
-              return;
-            }
-
-            const patientExists = patients.some(p => p.hn === hn);
-            if (!patientExists) {
-              invalidHnCount++;
-              return;
-            }
-
-            const parsedItems = parseItems(rawItems, services || []);
-
-            const receiptData = {
-              id,
-              hn,
-              date,
-              items: parsedItems,
-              discountValue: parseFloat(val('discountValue')) || 0,
-              discountType: val('discountType') || 'flat',
-              discountReason: val('discountReason') || '',
-              promotionId: val('promotionId') || '',
-              paymentMethod: val('paymentMethod') || 'เงินสด',
-              bankAccountId: val('bankAccountId') || '',
-              slipUrl: val('slipUrl') || '',
-              totalAmount: parseFloat(val('totalAmount')) || 0,
-              status: val('status') || 'ชำระเงินแล้ว',
-              createdBy: val('createdBy') || currentUser?.fullname || 'ผู้ดูแลระบบ',
-              created_at: val('created_at') || new Date().toISOString()
-            };
-
-            const existingIdx = currentReceipts.findIndex(r => r.id === id);
-            if (existingIdx !== -1) {
-              currentReceipts[existingIdx] = receiptData;
-              updatedCount++;
-            } else {
-              currentReceipts.push(receiptData);
-              addedCount++;
-            }
-          });
-
-          return currentReceipts;
-        });
+        setReceipts(currentReceipts);
       }
 
       Swal.fire({
