@@ -32,7 +32,8 @@ const headersMap = {
   bankName: ['bankname', 'ชื่อธนาคาร', 'ธนาคาร'],
   bankAccountNo: ['bankaccountno', 'เลขบัญชี', 'เลขบัญชีธนาคาร', 'เลขที่บัญชี'],
   avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url', 'รูปโปรไฟล์ (profile url)'],
-  userFolderUrl: ['userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน', 'โฟลเดอร์พนักงาน', 'folder url', 'user folder url', 'userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน (userfolderurl)']
+  userFolderUrl: ['userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน', 'โฟลเดอร์พนักงาน', 'folder url', 'user folder url', 'userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน (userfolderurl)'],
+  contractDoc: ['contractdoc', 'สัญญาจ้าง', 'เอกสารสัญญาจ้าง', 'contract doc', 'contract_doc', 'contractdoc']
 };
 
 const getNextEmployeeId = (userList) => {
@@ -85,6 +86,7 @@ export default function Users({ users, setUsers, setPrintView }) {
   const [uHouseRegDoc, setUHouseRegDoc] = useState(null);
   const [uBankBookDoc, setUBankBookDoc] = useState(null);
   const [uLicenseDoc, setULicenseDoc] = useState(null);
+  const [uContractDoc, setUContractDoc] = useState(null);
   const [uOtherDoc, setUOtherDoc] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,8 +102,8 @@ export default function Users({ users, setUsers, setPrintView }) {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      Swal.fire('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 2MB เพื่อเซฟเนื้อที่ระบบ', 'error');
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB เพื่อเซฟเนื้อที่ระบบ', 'error');
       e.target.value = '';
       return;
     }
@@ -306,6 +308,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUHouseRegDoc(null);
     setUBankBookDoc(null);
     setULicenseDoc(null);
+    setUContractDoc(null);
     setUOtherDoc(null);
     setUUserFolderUrl('');
   };
@@ -337,6 +340,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUHouseRegDoc(u.houseRegDoc || null);
     setUBankBookDoc(u.bankBookDoc || null);
     setULicenseDoc(u.licenseDoc || null);
+    setUContractDoc(u.contractDoc || null);
     setUOtherDoc(u.otherDoc || null);
     setUUserFolderUrl(u.userFolderUrl || '');
     setShowUserModal(true);
@@ -370,6 +374,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       houseRegDoc: uHouseRegDoc,
       bankBookDoc: uBankBookDoc,
       licenseDoc: uLicenseDoc,
+      contractDoc: uContractDoc,
       otherDoc: uOtherDoc,
       userFolderUrl: uUserFolderUrl
     };
@@ -420,7 +425,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       'ชื่อผู้ใช้ (Username)', 'รหัสผ่าน (Password)', 'รหัสพนักงาน', 'คำนำหน้า', 'ชื่อ-นามสกุล', 'ชื่อเล่น',
       'สิทธิ์การใช้งาน (Admin/OT/Staff)', 'ประเภทพนักงาน', 'ตำแหน่งงาน', 'เลขบัตรประชาชน', 'เพศ',
       'วันเกิด (YYYY-MM-DD)', 'วันที่เริ่มงาน (YYYY-MM-DD)', 'เบอร์โทรศัพท์', 'อีเมล', 'เงินเดือนพื้นฐาน',
-      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)', 'ลิงก์โฟลเดอร์พนักงาน (UserFolderURL)'
+      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)', 'ลิงก์โฟลเดอร์พนักงาน (UserFolderURL)', 'สัญญาจ้าง (ContractDoc)'
     ];
 
     let rows;
@@ -456,7 +461,8 @@ export default function Users({ users, setUsers, setPrintView }) {
         u.bankName || '',
         u.bankAccountNo || '',
         u.avatarUrl || '',
-        u.userFolderUrl || ''
+        u.userFolderUrl || '',
+        u.contractDoc ? JSON.stringify(u.contractDoc) : ''
       ]);
     }
 
@@ -573,6 +579,13 @@ export default function Users({ users, setUsers, setPrintView }) {
           if (val('bankAccountNo')) updatedUserData.bankAccountNo = val('bankAccountNo');
           if (val('avatarUrl')) updatedUserData.avatarUrl = val('avatarUrl');
           if (val('userFolderUrl')) updatedUserData.userFolderUrl = val('userFolderUrl');
+          if (val('contractDoc')) {
+            try {
+              updatedUserData.contractDoc = JSON.parse(val('contractDoc'));
+            } catch(e) {
+              updatedUserData.contractDoc = null;
+            }
+          }
 
           currentUsersList[existingUserIndex] = updatedUserData;
           updatedCount++;
@@ -635,7 +648,14 @@ export default function Users({ users, setUsers, setPrintView }) {
             bankName: val('bankName') || 'กสิกรไทย',
             bankAccountNo: val('bankAccountNo'),
             avatarUrl: val('avatarUrl') || '',
-            userFolderUrl: val('userFolderUrl') || ''
+            userFolderUrl: val('userFolderUrl') || '',
+            contractDoc: (() => {
+              try {
+                return val('contractDoc') ? JSON.parse(val('contractDoc')) : null;
+              } catch(e) {
+                return null;
+              }
+            })()
           };
 
           currentUsersList.push(userData);
@@ -1119,6 +1139,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uCitizenIdDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uCitizenIdDoc.name}>{uCitizenIdDoc.name} ({uCitizenIdDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uCitizenIdDoc.path || uCitizenIdDoc.data, '_blank')}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uCitizenIdDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUCitizenIdDoc(null)}>ลบ</button>
                           </div>
@@ -1136,6 +1157,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uHouseRegDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uHouseRegDoc.name}>{uHouseRegDoc.name} ({uHouseRegDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uHouseRegDoc.path || uHouseRegDoc.data, '_blank')}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uHouseRegDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUHouseRegDoc(null)}>ลบ</button>
                           </div>
@@ -1153,6 +1175,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uBankBookDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uBankBookDoc.name}>{uBankBookDoc.name} ({uBankBookDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uBankBookDoc.path || uBankBookDoc.data, '_blank')}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uBankBookDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUBankBookDoc(null)}>ลบ</button>
                           </div>
@@ -1170,8 +1193,27 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uLicenseDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uLicenseDoc.name}>{uLicenseDoc.name} ({uLicenseDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uLicenseDoc.path || uLicenseDoc.data, '_blank')}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uLicenseDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setULicenseDoc(null)}>ลบ</button>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--dark-light)', fontSize: '0.75rem' }}>ยังไม่ได้แนบเอกสาร</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* เอกสารสัญญาจ้าง */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0f0f0', paddingBottom: '0.4rem' }}>
+                      <span style={{ fontWeight: 600, width: '180px' }}>เอกสารสัญญาจ้าง:</span>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1 }}>
+                        <input type="file" onChange={(e) => handleFileUpload(e, setUContractDoc, 'เอกสารสัญญาจ้าง')} style={{ fontSize: '0.75rem', width: '150px' }} />
+                        {uContractDoc ? (
+                          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                            <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uContractDoc.name}>{uContractDoc.name} ({uContractDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uContractDoc.path || uContractDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uContractDoc)}>ดาวน์โหลด</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUContractDoc(null)}>ลบ</button>
                           </div>
                         ) : (
                           <span style={{ color: 'var(--dark-light)', fontSize: '0.75rem' }}>ยังไม่ได้แนบเอกสาร</span>
@@ -1187,6 +1229,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uOtherDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uOtherDoc.name}>{uOtherDoc.name} ({uOtherDoc.size})</span>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uOtherDoc.path || uOtherDoc.data, '_blank')}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uOtherDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUOtherDoc(null)}>ลบ</button>
                           </div>
