@@ -30,12 +30,15 @@ export default async function handler(req, res) {
               return res.status(200).json({ url: result.url });
             } else {
               console.error('GAS file upload returned error:', result.message);
+              return res.status(500).json({ error: `GAS Error: ${result.message}` });
             }
           } else {
             console.error('GAS Web App response was not ok:', response.statusText);
+            return res.status(500).json({ error: `Google Apps Script Web App returned status ${response.status}: ${response.statusText}` });
           }
         } catch (gasErr) {
-          console.error('Failed to upload to Google Drive via GAS, falling back to server storage:', gasErr);
+          console.error('Failed to upload to Google Drive via GAS:', gasErr);
+          return res.status(500).json({ error: `Failed to connect to Google Apps Script: ${gasErr.message}` });
         }
       }
       

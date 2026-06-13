@@ -121,6 +121,17 @@ export default function Settings({
     return `// Google Apps Script (GAS) - สำหรับใช้งานเป็นฐานข้อมูลของคลินิกผ่าน Google Sheets
 // คัดลอกโค้ดนี้ไปวางใน Extensions > Apps Script ใน Google Sheet ของคุณ
 
+// ฟังก์ชันสำหรับทดสอบสิทธิ์การเข้าถึง Google Drive
+// เมื่อคัดลอกโค้ดไปวางแล้ว ให้กดเลือกฟังก์ชันนี้แล้วกดปุ่ม "Run (เรียกใช้)" ด้านบนเพื่อกดยอมรับสิทธิ์ครั้งแรก
+function testDrivePermission() {
+  try {
+    DriveApp.getRootFolder();
+    Logger.log("Drive App is authorized and working!");
+  } catch(e) {
+    Logger.log("Error: " + e.toString());
+  }
+}
+
 function doGet(e) {
   try {
     const action = e.parameter.action || 'get_all';
@@ -1416,9 +1427,27 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '0.75rem' }}>
                   3. รหัสโปรแกรม Google Apps Script (GAS Script)
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginBottom: '0.75rem' }}>
-                  นำรหัสโปรแกรมนี้ไปใส่ใน Google Sheet ของคุณ โดยคลิกเมนู <strong>Extensions (ส่วนขยาย) &gt; Apps Script</strong> วางรหัสลงไปแล้วเลือก <strong>Deploy (การใช้งานได้จริง) &gt; New deployment &gt; Web app</strong> และอนุญาตสิทธิ์การเข้าถึงให้เรียบร้อย
+                <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginBottom: '0.5rem' }}>
+                  นำรหัสโปรแกรมนี้ไปใส่ใน Google Sheet ของคุณ โดยคลิกเมนู <strong>Extensions (ส่วนขยาย) &gt; Apps Script</strong> แล้วนำรหัสโปรแกรมนี้ไปวางแทนที่ของเดิมทั้งหมด
                 </p>
+                <div style={{ 
+                  fontSize: '0.8rem', 
+                  backgroundColor: 'rgba(220, 53, 69, 0.08)', 
+                  borderLeft: '4px solid var(--danger)', 
+                  padding: '0.75rem', 
+                  borderRadius: '4px', 
+                  marginBottom: '1rem',
+                  color: '#842029'
+                }}>
+                  <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--danger)' }}>⚠️ สำคัญมาก! ต้องเปิดใช้งานสิทธิ์ Google Drive ครั้งแรกดังนี้:</strong>
+                  <ol style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                    <li>หลังจากวางโค้ดใน Apps Script ให้กดปุ่ม <strong>Save (บันทึกโครงการ - รูปแผ่นดิสก์)</strong> ด้านบน</li>
+                    <li>ที่กล่องเลือกฟังก์ชันด้านบน ให้เปลี่ยนจาก <code style={{ background: '#eee', padding: '1px 4px' }}>doGet</code> เป็น <code style={{ background: '#eee', padding: '1px 4px' }}>testDrivePermission</code></li>
+                    <li>กดปุ่ม <strong>Run (เรียกใช้)</strong> ถัดจากปุ่มบันทึก</li>
+                    <li>จะมีหน้าต่างป๊อปอัปแจ้งเตือนสิทธิ์ ให้คลิก <strong>ตรวจสอบสิทธิ์ (Review Permissions)</strong> &gt; เลือกบัญชีอีเมลของคุณ &gt; คลิก <strong>ขั้นสูง (Advanced)</strong> &gt; คลิก <strong>ไปยัง [ชื่อโครงการ] (ไม่ปลอดภัย)</strong> &gt; คลิก <strong>อนุญาต (Allow)</strong></li>
+                    <li>เมื่อข้อความด้านล่างขึ้นว่าเสร็จสิ้นแล้ว ให้ทำการ Deploy ใหม่โดยไปที่: <strong>Deploy (การใช้งานได้จริง) &gt; Manage deployments (จัดการการทำให้ใช้งานได้)</strong> &gt; คลิกปุ่มดินสอแก้ไข &gt; เลือกเวอร์ชันเป็น <strong>New version (เวอร์ชันใหม่)</strong> &gt; กด <strong>Deploy (ทำให้ใช้งานได้)</strong> แล้วนำลิงก์ Web App ล่าสุดมาตั้งค่าด้านบน</li>
+                  </ol>
+                </div>
                 <div style={{ position: 'relative' }}>
                   <textarea 
                     className="form-control" 

@@ -139,8 +139,11 @@ export default function Users({ users, setUsers, setPrintView }) {
           parentFolderId: parentFolderId
         })
       })
-      .then(res => {
-        if (!res.ok) throw new Error('อัปโหลดล้มเหลว');
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'อัปโหลดล้มเหลว');
+        }
         return res.json();
       })
       .then(data => {
@@ -161,7 +164,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       })
       .catch(err => {
         console.error(err);
-        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+        Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
       });
     };
     reader.readAsDataURL(file);
