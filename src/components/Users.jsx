@@ -114,13 +114,19 @@ export default function Users({ users, setUsers, setPrintView }) {
       const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
-      // ดึง Google Apps Script URL และ Google Drive Folder ID
+      // ดึง Google Apps Script URL และ Google Drive Folder ID (ให้ความสำคัญกับ folderId จาก Settings ก่อน)
       const gasUrl = localStorage.getItem('hdh_gas_url') || '';
       const clinicDataStr = localStorage.getItem('hdh_clinic_info');
       const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
-      const folderUrl = clinicData.folderUrl || '';
-      const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
-      const parentFolderId = match ? match[1] : null;
+      
+      let parentFolderId = clinicData.folderId || '';
+      if (!parentFolderId && clinicData.folderUrl) {
+        const match = clinicData.folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+        parentFolderId = match ? match[1] : null;
+      }
+      if (!parentFolderId) {
+        parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
+      }
 
       fetch('/api/upload', {
         method: 'POST',
@@ -921,20 +927,22 @@ export default function Users({ users, setUsers, setPrintView }) {
                   {(() => {
                     const clinicDataStr = localStorage.getItem('hdh_clinic_info');
                     const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
-                    const folderUrl = clinicData.folderUrl || 'https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J';
+                    
+                    let parentId = clinicData.folderId || '';
+                    if (!parentId && clinicData.folderUrl) {
+                      const match = clinicData.folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+                      parentId = match ? match[1] : null;
+                    }
+                    if (!parentId) {
+                      parentId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
+                    }
+                    
                     const fname = (uFullname || '').trim().split(/\s+/)[0] || 'Unknown';
                     const lname = (uFullname || '').trim().split(/\s+/)[1] || 'Unknown';
                     const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
-                    let targetFolderUrl = folderUrl;
-                    const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
-                    const parentId = match ? match[1] : null;
-                    if (parentId) {
-                      const query = `'${parentId}' in parents and name contains '${folderName}'`;
-                      targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
-                    } else {
-                      const query = `name contains '${folderName}'`;
-                      targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
-                    }
+                    
+                    const query = `'${parentId}' in parents and name contains '${folderName}'`;
+                    const targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
                     return (
                       <div style={{ 
                         backgroundColor: '#fbf7f2', 
