@@ -44,9 +44,14 @@ export default function ServiceSummary({
       counts[t.id] = 0;
     });
 
-    // กรองและนับ
+    // กรองและนับ (เฉพาะ 'ประเมินพัฒนาการครั้งแรก' และ 'ฝึกกระตุ้นพัฒนาการ' ที่มีสถานะ 'รับบริการแล้ว')
     appointments.forEach(app => {
-      if (app.status === 'รับบริการแล้ว' && app.date >= startDate && app.date <= endDate) {
+      if (
+        app.status === 'รับบริการแล้ว' && 
+        (app.type === 'ประเมินพัฒนาการครั้งแรก' || app.type === 'ฝึกกระตุ้นพัฒนาการ') &&
+        app.date >= startDate && 
+        app.date <= endDate
+      ) {
         if (counts[app.therapistId] !== undefined) {
           counts[app.therapistId]++;
         }
@@ -82,9 +87,10 @@ export default function ServiceSummary({
   const aggregatedTeachingRows = useMemo(() => {
     const groups = {};
 
-    // กรองเฉพาะนัดหมายที่สอนสำเร็จในรอบวันที่เลือก
+    // กรองเฉพาะนัดหมายที่สอนสำเร็จในรอบวันที่เลือก (เฉพาะ 'ประเมินพัฒนาการครั้งแรก' และ 'ฝึกกระตุ้นพัฒนาการ')
     const servedApps = appointments.filter(app => 
       app.status === 'รับบริการแล้ว' && 
+      (app.type === 'ประเมินพัฒนาการครั้งแรก' || app.type === 'ฝึกกระตุ้นพัฒนาการ') &&
       app.date >= startDate && 
       app.date <= endDate
     );
@@ -135,12 +141,13 @@ export default function ServiceSummary({
 
   // 3. คลิกดูข้อมูลเปิด Modal
   const handleViewDetailClick = (row) => {
-    // ดึงนัดหมายที่เป็นของครูคนนี้ในวันนั้นและมีสถานะรับบริการแล้ว
+    // ดึงนัดหมายที่เป็นของครูคนนี้ในวันนั้นและมีสถานะรับบริการแล้ว (เฉพาะ 'ประเมินพัฒนาการครั้งแรก' และ 'ฝึกกระตุ้นพัฒนาการ')
     const dailyApps = appointments
       .filter(app => 
         app.therapistId === row.therapistId && 
         app.date === row.date && 
-        app.status === 'รับบริการแล้ว'
+        app.status === 'รับบริการแล้ว' &&
+        (app.type === 'ประเมินพัฒนาการครั้งแรก' || app.type === 'ฝึกกระตุ้นพัฒนาการ')
       )
       .map(app => {
         const patient = patients.find(p => String(p.hn) === String(app.hn));
