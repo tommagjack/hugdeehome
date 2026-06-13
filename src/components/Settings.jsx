@@ -374,8 +374,12 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
   const blob = Utilities.newBlob(decoded, contentType, filename);
   const file = targetFolder.createFile(blob);
   
-  // ปรับสิทธิ์การแชร์ให้ทุกคนที่มีลิงก์สามารถดูได้ เพื่อที่จะเข้าถึงไฟล์ผ่านโปรแกรมได้โดยไม่ติดสิทธิ์
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  // ปรับสิทธิ์การแชร์ให้ทุกคนที่มีลิงก์สามารถดูได้
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch(e) {
+    // ข้ามหากติดขัดเรื่องนโยบายแชร์ขององค์กร (Google Workspace Admin Policy)
+  }
   
   return file.getUrl();
 }
@@ -401,7 +405,11 @@ function createUserFolder(parentFolderId, folderName) {
     targetFolder = parentFolder.createFolder(folderName);
   }
   
-  targetFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  try {
+    targetFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch(e) {
+    // ข้ามหากติดขัดเรื่องนโยบายแชร์ขององค์กร
+  }
   return targetFolder.getUrl();
 }`;
   };
