@@ -155,6 +155,15 @@ function doPost(e) {
       const data = getAllDataFromSheets();
       return ContentService.createTextOutput(JSON.stringify({ status: "success", data: data }))
         .setMimeType(ContentService.MimeType.JSON);
+    } else if (action === 'upload_file') {
+      const parentFolderId = payload.parentFolderId;
+      const folderName = payload.folder;
+      const filename = payload.filename;
+      const base64Data = payload.base64Data;
+      
+      const fileUrl = uploadFileToDrive(parentFolderId, folderName, filename, base64Data);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", url: fileUrl }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "ไม่พบการทำงานที่ระบุ" }))
@@ -299,6 +308,56 @@ function saveTableToSheet(key, list) {
   sheet.autoResizeColumns(1, headers.length);
   
   return 'บันทึกข้อมูลลง ' + tabName + ' จำนวน ' + rows.length + ' แถวสำเร็จ';
+}
+
+// ฟังก์ชันสำหรับอัปโหลดไฟล์ไปยัง Google Drive
+function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
+  let parentFolder;
+  if (parentFolderId) {
+    try {
+      parentFolder = DriveApp.getFolderById(parentFolderId);
+    } catch(e) {
+      parentFolder = DriveApp.getRootFolder();
+    }
+  } else {
+    parentFolder = DriveApp.getRootFolder();
+  }
+  
+  // ค้นหาหรือสร้างโฟลเดอร์เก็บไฟล์ย่อย (เช่น โฟลเดอร์ของครูคนนั้น)
+  const folders = parentFolder.getFoldersByName(folderName);
+  let targetFolder;
+  if (folders.hasNext()) {
+    targetFolder = folders.next();
+  } else {
+    targetFolder = parentFolder.createFolder(folderName);
+  }
+  
+  // ลบไฟล์เก่าที่มีชื่อเดียวกันออก เพื่อหลีกเลี่ยงการสะสมไฟล์ซ้ำซาก
+  const existingFiles = targetFolder.getFilesByName(filename);
+  while (existingFiles.hasNext()) {
+    existingFiles.next().setTrashed(true);
+  }
+  
+  // แปลง base64 เป็น binary byte array
+  const base64Content = base64Data.includes(';base64,') 
+    ? base64Data.split(';base64,').pop() 
+    : base64Data;
+  const decoded = Utilities.base64Decode(base64Content);
+  
+  // หา Content-Type
+  let contentType = "application/octet-stream";
+  const match = base64Data.match(/^data:(.*);base64,/);
+  if (match) {
+    contentType = match[1];
+  }
+  
+  const blob = Utilities.newBlob(decoded, contentType, filename);
+  const file = targetFolder.createFile(blob);
+  
+  // ปรับสิทธิ์การแชร์ให้ทุกคนที่มีลิงก์สามารถดูได้ เพื่อที่จะเข้าถึงไฟล์ผ่านโปรแกรมได้โดยไม่ติดสิทธิ์
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  
+  return file.getUrl();
 }`;
   };
 
