@@ -966,13 +966,13 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Folder URL (ลิงก์โฟลเดอร์หลักเก็บเอกสาร)</label>
+                    <label className="form-label">ข้อความส่วนท้าย Slip เงินเดือน</label>
                     <input 
-                      type="url" 
+                      type="text" 
                       className="form-control" 
-                      placeholder="ระบุลิงก์ เช่น https://drive.google.com/drive/folders/..." 
-                      value={localClinicInfo?.folderUrl || ''} 
-                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, folderUrl: e.target.value })} 
+                      placeholder="ระบุข้อความแสดงท้ายสลิปเงินเดือน เช่น ขอบคุณที่ร่วมงานกับเรา" 
+                      value={localClinicInfo?.payslipFooter || ''} 
+                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, payslipFooter: e.target.value })} 
                     />
                   </div>
                 </div>

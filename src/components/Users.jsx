@@ -115,7 +115,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
       // ดึง Google Apps Script URL และ Google Drive Folder ID (ให้ความสำคัญกับ folderId จาก Settings ก่อน)
-      const gasUrl = localStorage.getItem('hdh_gas_url') || '';
+      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '';
       const clinicDataStr = localStorage.getItem('hdh_clinic_info');
       const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
       

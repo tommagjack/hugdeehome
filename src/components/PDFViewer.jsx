@@ -1243,7 +1243,7 @@ export default function PDFViewer({
           </div>
 
           <div style={{ textAlign: 'center', fontSize: '11px', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '10px', marginBottom: '40px' }}>
-            "{clinicInfo.receiptFooter || 'ขอบคุณที่ร่วมงานกับเรา'}"
+            "{clinicInfo.payslipFooter || 'ขอบคุณที่ร่วมงานกับเรา'}"
           </div>
 
           <div className="print-avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', textAlign: 'center', fontSize: '11px' }}>
