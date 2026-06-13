@@ -242,9 +242,8 @@ export default function Users({ users, setUsers, setPrintView }) {
         Swal.fire({
           icon: 'success',
           title: 'เชื่อมต่อโฟลเดอร์สำเร็จ',
-          text: 'ระบบสร้าง/เชื่อมโยงโฟลเดอร์ Google Drive เรียบร้อยแล้ว',
-          timer: 1500,
-          showConfirmButton: false
+          text: 'สร้างโฟลเดอร์ Google Drive เรียบร้อยแล้ว (⚠️ กรุณากดปุ่ม "บันทึก" ด้านล่างสุดเพื่อบันทึกข้อมูลพนักงานลงระบบ)',
+          confirmButtonColor: '#b0895a'
         });
       }
     })
