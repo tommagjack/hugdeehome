@@ -175,6 +175,13 @@ function doPost(e) {
       const fileUrl = uploadFileToDrive(parentFolderId, folderName, filename, base64Data);
       return ContentService.createTextOutput(JSON.stringify({ status: "success", url: fileUrl }))
         .setMimeType(ContentService.MimeType.JSON);
+    } else if (action === 'create_folder') {
+      const parentFolderId = payload.parentFolderId;
+      const folderName = payload.folder;
+      
+      const folderUrl = createUserFolder(parentFolderId, folderName);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", url: folderUrl }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "ไม่พบการทำงานที่ระบุ" }))
@@ -334,13 +341,15 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
     parentFolder = DriveApp.getRootFolder();
   }
   
-  // ค้นหาหรือสร้างโฟลเดอร์เก็บไฟล์ย่อย (เช่น โฟลเดอร์ของครูคนนั้น)
-  const folders = parentFolder.getFoldersByName(folderName);
-  let targetFolder;
-  if (folders.hasNext()) {
-    targetFolder = folders.next();
-  } else {
-    targetFolder = parentFolder.createFolder(folderName);
+  let targetFolder = parentFolder;
+  if (folderName) {
+    // ค้นหาหรือสร้างโฟลเดอร์เก็บไฟล์ย่อย (เช่น โฟลเดอร์ของครูคนนั้น)
+    const folders = parentFolder.getFoldersByName(folderName);
+    if (folders.hasNext()) {
+      targetFolder = folders.next();
+    } else {
+      targetFolder = parentFolder.createFolder(folderName);
+    }
   }
   
   // ลบไฟล์เก่าที่มีชื่อเดียวกันออก เพื่อหลีกเลี่ยงการสะสมไฟล์ซ้ำซาก
@@ -369,6 +378,31 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
   return file.getUrl();
+}
+
+// ฟังก์ชันสร้างโฟลเดอร์พนักงานและคืนค่าลิงก์
+function createUserFolder(parentFolderId, folderName) {
+  let parentFolder;
+  if (parentFolderId) {
+    try {
+      parentFolder = DriveApp.getFolderById(parentFolderId);
+    } catch(e) {
+      parentFolder = DriveApp.getRootFolder();
+    }
+  } else {
+    parentFolder = DriveApp.getRootFolder();
+  }
+  
+  const folders = parentFolder.getFoldersByName(folderName);
+  let targetFolder;
+  if (folders.hasNext()) {
+    targetFolder = folders.next();
+  } else {
+    targetFolder = parentFolder.createFolder(folderName);
+  }
+  
+  targetFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return targetFolder.getUrl();
 }`;
   };
 

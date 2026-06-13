@@ -5,7 +5,38 @@ export default async function handler(req, res) {
   // บังคับสิทธิ์ให้เฉพาะการทำ POST อัปโหลด
   if (req.method === 'POST') {
     try {
-      const { folder, filename, base64Data, gasUrl, parentFolderId } = req.body;
+      const { action, folder, filename, base64Data, gasUrl, parentFolderId } = req.body;
+      
+      // การสร้างโฟลเดอร์สำหรับพนักงาน
+      if (action === 'create_folder') {
+        if (!folder || !gasUrl) {
+          return res.status(400).json({ error: 'Missing folder or gasUrl' });
+        }
+        try {
+          const response = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'create_folder',
+              parentFolderId,
+              folder
+            })
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.status === 'success' && result.url) {
+              return res.status(200).json({ url: result.url });
+            } else {
+              return res.status(500).json({ error: `GAS Error: ${result.message}` });
+            }
+          } else {
+            return res.status(500).json({ error: `Google Apps Script Web App returned status ${response.status}: ${response.statusText}` });
+          }
+        } catch (gasErr) {
+          return res.status(500).json({ error: `Failed to connect to Google Apps Script: ${gasErr.message}` });
+        }
+      }
+      
       if (!folder || !filename || !base64Data) {
         return res.status(400).json({ error: 'Missing required fields' });
       }

@@ -31,7 +31,8 @@ const headersMap = {
   status: ['status', 'สถานะ', 'สถานะการใช้งาน', 'สถานะ (active/inactive)'],
   bankName: ['bankname', 'ชื่อธนาคาร', 'ธนาคาร'],
   bankAccountNo: ['bankaccountno', 'เลขบัญชี', 'เลขบัญชีธนาคาร', 'เลขที่บัญชี'],
-  avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url', 'รูปโปรไฟล์ (profile url)']
+  avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url', 'รูปโปรไฟล์ (profile url)'],
+  userFolderUrl: ['userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน', 'โฟลเดอร์พนักงาน', 'folder url', 'user folder url', 'userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน (userfolderurl)']
 };
 
 const getNextEmployeeId = (userList) => {
@@ -75,6 +76,8 @@ export default function Users({ users, setUsers, setPrintView }) {
   const [uBankName, setUBankName] = useState('กสิกรไทย');
   const [uBankAccountNo, setUBankAccountNo] = useState('');
   const [uAvatarUrl, setUAvatarUrl] = useState('');
+  const [uUserFolderUrl, setUUserFolderUrl] = useState('');
+  const [uIsConnectingFolder, setUIsConnectingFolder] = useState(false);
 
   // ฟิลด์ไฟล์แนบจำลองเอกสาร
   const [uAvatarFile, setUAvatarFile] = useState(null);
@@ -114,16 +117,31 @@ export default function Users({ users, setUsers, setPrintView }) {
       const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
-      // ดึง Google Apps Script URL และ Google Drive Folder ID (ให้ความสำคัญกับ folderId จาก Settings ก่อน)
+      // ดึง Google Apps Script URL และ Google Drive Folder ID
       const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '';
       const clinicDataStr = localStorage.getItem('hdh_clinic_info');
       const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
       
-      let parentFolderId = clinicData.folderId || '';
-      if (!parentFolderId && clinicData.folderUrl) {
-        const match = clinicData.folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
-        parentFolderId = match ? match[1] : null;
+      let parentFolderId = '';
+      let folderNameParam = folderName;
+      
+      // ถ้ามีการตั้งค่าโฟลเดอร์พนักงานโดยเฉพาะ ให้ใช้โฟลเดอร์นั้นและเขียนลงไปตรงๆ (ไม่ต้องสร้างโฟลเดอร์พนักงานซ้ำซ้อนด้านใน)
+      if (uUserFolderUrl) {
+        const match = uUserFolderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+        if (match) {
+          parentFolderId = match[1];
+          folderNameParam = '';
+        }
       }
+      
+      if (!parentFolderId) {
+        parentFolderId = clinicData.folderId || '';
+        if (!parentFolderId && clinicData.folderUrl) {
+          const match = clinicData.folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+          parentFolderId = match ? match[1] : null;
+        }
+      }
+      
       if (!parentFolderId) {
         parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
       }
@@ -132,7 +150,7 @@ export default function Users({ users, setUsers, setPrintView }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          folder: folderName,
+          folder: folderNameParam,
           filename: fileName,
           base64Data: reader.result,
           gasUrl: gasUrl,
@@ -168,6 +186,75 @@ export default function Users({ users, setUsers, setPrintView }) {
       });
     };
     reader.readAsDataURL(file);
+  };
+
+  // ฟังก์ชันสร้างและเชื่อมต่อโฟลเดอร์พนักงานบน Google Drive
+  const handleConnectFolder = () => {
+    const parts = String(uFullname || '').trim().split(/\s+/);
+    const fname = parts[0] || '';
+    if (!uEmployeeId || !fname) {
+      Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาระบุรหัสพนักงานและชื่อ-นามสกุลก่อนเพื่อใช้ตั้งชื่อโฟลเดอร์', 'warning');
+      return;
+    }
+    
+    const folderName = `${uEmployeeId}-${fname}-${parts[1] || ''}`.trim().replace(/-$/, '');
+    
+    // ดึง GAS URL และ Parent Folder ID ของระบบ
+    const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '';
+    if (!gasUrl) {
+      Swal.fire('ไม่พบ GAS URL', 'กรุณาตั้งค่า Google Apps Script Web App URL ในหน้าตั้งค่าระบบก่อน', 'warning');
+      return;
+    }
+    
+    const clinicDataStr = localStorage.getItem('hdh_clinic_info');
+    const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
+    let parentFolderId = clinicData.folderId || '';
+    if (!parentFolderId && clinicData.folderUrl) {
+      const match = clinicData.folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+      parentFolderId = match ? match[1] : null;
+    }
+    if (!parentFolderId) {
+      parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
+    }
+
+    setUIsConnectingFolder(true);
+    
+    fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create_folder',
+        folder: folderName,
+        gasUrl: gasUrl,
+        parentFolderId: parentFolderId
+      })
+    })
+    .then(async res => {
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'สร้างโฟลเดอร์ล้มเหลว');
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.url) {
+        setUUserFolderUrl(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'เชื่อมต่อโฟลเดอร์สำเร็จ',
+          text: 'ระบบสร้าง/เชื่อมโยงโฟลเดอร์ Google Drive เรียบร้อยแล้ว',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      Swal.fire('เชื่อมต่อล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อโฟลเดอร์', 'error');
+    })
+    .finally(() => {
+      setUIsConnectingFolder(false);
+    });
   };
 
   // ฟังก์ชันดาวน์โหลดไฟล์แบบจำลอง
@@ -221,6 +308,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUBankBookDoc(null);
     setULicenseDoc(null);
     setUOtherDoc(null);
+    setUUserFolderUrl('');
   };
 
   const handleEditUser = (u) => {
@@ -251,6 +339,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUBankBookDoc(u.bankBookDoc || null);
     setULicenseDoc(u.licenseDoc || null);
     setUOtherDoc(u.otherDoc || null);
+    setUUserFolderUrl(u.userFolderUrl || '');
     setShowUserModal(true);
   };
 
@@ -282,7 +371,8 @@ export default function Users({ users, setUsers, setPrintView }) {
       houseRegDoc: uHouseRegDoc,
       bankBookDoc: uBankBookDoc,
       licenseDoc: uLicenseDoc,
-      otherDoc: uOtherDoc
+      otherDoc: uOtherDoc,
+      userFolderUrl: uUserFolderUrl
     };
 
     if (editingUsername) {
@@ -331,7 +421,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       'ชื่อผู้ใช้ (Username)', 'รหัสผ่าน (Password)', 'รหัสพนักงาน', 'คำนำหน้า', 'ชื่อ-นามสกุล', 'ชื่อเล่น',
       'สิทธิ์การใช้งาน (Admin/OT/Staff)', 'ประเภทพนักงาน', 'ตำแหน่งงาน', 'เลขบัตรประชาชน', 'เพศ',
       'วันเกิด (YYYY-MM-DD)', 'วันที่เริ่มงาน (YYYY-MM-DD)', 'เบอร์โทรศัพท์', 'อีเมล', 'เงินเดือนพื้นฐาน',
-      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)'
+      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)', 'ลิงก์โฟลเดอร์พนักงาน (UserFolderURL)'
     ];
 
     let rows;
@@ -366,7 +456,8 @@ export default function Users({ users, setUsers, setPrintView }) {
         u.status || 'Active',
         u.bankName || '',
         u.bankAccountNo || '',
-        u.avatarUrl || ''
+        u.avatarUrl || '',
+        u.userFolderUrl || ''
       ]);
     }
 
@@ -482,6 +573,7 @@ export default function Users({ users, setUsers, setPrintView }) {
           if (val('bankName')) updatedUserData.bankName = val('bankName');
           if (val('bankAccountNo')) updatedUserData.bankAccountNo = val('bankAccountNo');
           if (val('avatarUrl')) updatedUserData.avatarUrl = val('avatarUrl');
+          if (val('userFolderUrl')) updatedUserData.userFolderUrl = val('userFolderUrl');
 
           currentUsersList[existingUserIndex] = updatedUserData;
           updatedCount++;
@@ -543,7 +635,8 @@ export default function Users({ users, setUsers, setPrintView }) {
             status,
             bankName: val('bankName') || 'กสิกรไทย',
             bankAccountNo: val('bankAccountNo'),
-            avatarUrl: val('avatarUrl') || ''
+            avatarUrl: val('avatarUrl') || '',
+            userFolderUrl: val('userFolderUrl') || ''
           };
 
           currentUsersList.push(userData);
@@ -945,26 +1038,74 @@ export default function Users({ users, setUsers, setPrintView }) {
                     const folderName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}`;
                     
                     const query = `'${parentId}' in parents and name contains '${folderName}'`;
-                    const targetFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
+                    const targetFolderUrl = uUserFolderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(query)}`;
                     return (
-                      <div style={{ 
-                        backgroundColor: '#fbf7f2', 
-                        border: '1px solid #f1e4d7', 
-                        borderRadius: 'var(--radius-md)', 
-                        padding: '0.6rem 0.75rem', 
-                        fontSize: '0.8rem', 
-                        marginBottom: '0.75rem', 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        {/* ช่องกรอกและสร้างโฟลเดอร์พนักงาน */}
                         <div>
-                          <span style={{ fontWeight: 600, color: '#8b5a2b' }}>พาธเก็บไฟล์ (Cloud Path): </span>
-                          <span style={{ fontFamily: 'monospace', color: 'var(--dark)' }}>{folderName}</span>
+                          <label className="form-label" style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--dark)' }}>
+                            ลิงก์โฟลเดอร์ Google Drive พนักงาน (UserFolderURL)
+                          </label>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              placeholder="ระบุลิงก์โฟลเดอร์ หรือกดปุ่มด้านขวาเพื่อสร้างอัตโนมัติ..." 
+                              value={uUserFolderUrl} 
+                              onChange={(e) => setUUserFolderUrl(e.target.value)} 
+                              style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem' }}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn btn-primary" 
+                              onClick={handleConnectFolder} 
+                              disabled={uIsConnectingFolder}
+                              style={{ 
+                                padding: '0.3rem 0.75rem', 
+                                fontSize: '0.75rem', 
+                                whiteSpace: 'nowrap',
+                                backgroundColor: '#b0895a',
+                                borderColor: '#b0895a',
+                                color: '#fff'
+                              }}
+                            >
+                              {uIsConnectingFolder ? 'กำลังเชื่อม...' : 'สร้าง/เชื่อมต่อโฟลเดอร์'}
+                            </button>
+                          </div>
                         </div>
-                        <a href={targetFolderUrl} target="_blank" rel="noopener noreferrer" className="btn btn-light" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', textDecoration: 'none', border: '1px solid var(--border)' }}>
-                          เปิดโฟลเดอร์เก็บไฟล์
-                        </a>
+
+                        <div style={{ 
+                          backgroundColor: '#fbf7f2', 
+                          border: '1px solid #f1e4d7', 
+                          borderRadius: 'var(--radius-md)', 
+                          padding: '0.6rem 0.75rem', 
+                          fontSize: '0.8rem', 
+                          display: 'flex', 
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div>
+                            <span style={{ fontWeight: 600, color: '#8b5a2b' }}>พาธเก็บไฟล์ (Cloud Path): </span>
+                            <span style={{ fontFamily: 'monospace', color: 'var(--dark)' }}>{folderName}</span>
+                            <div style={{ marginTop: '0.2rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <span style={{ 
+                                width: '6px', 
+                                height: '6px', 
+                                borderRadius: '50%', 
+                                backgroundColor: uUserFolderUrl ? '#28a745' : '#ffc107',
+                                display: 'inline-block'
+                              }} />
+                              <span style={{ color: 'var(--dark-light)' }}>
+                                {uUserFolderUrl ? 'เชื่อมต่อโฟลเดอร์เฉพาะรายบุคคลแล้ว' : 'ยังไม่ได้เชื่อมโยง (ระบบจะใช้โฟลเดอร์ส่วนกลางในการเก็บ/ค้นหาไฟล์)'}
+                              </span>
+                            </div>
+                          </div>
+                          {targetFolderUrl && (
+                            <a href={targetFolderUrl} target="_blank" rel="noopener noreferrer" className="btn btn-light" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem', textDecoration: 'none', border: '1px solid var(--border)' }}>
+                              เปิดโฟลเดอร์เก็บไฟล์
+                            </a>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
