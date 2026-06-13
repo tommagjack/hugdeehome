@@ -16,7 +16,8 @@ export default function Dashboard({
   appointments, 
   receipts, 
   therapists, 
-  onUpdateAppointmentStatus 
+  onUpdateAppointmentStatus,
+  currentUser
 }) {
   const todayLocalDateString = getLocalDateString(new Date());
 
@@ -41,8 +42,18 @@ export default function Dashboard({
   }, [patients, totalPatients]);
 
   const todayAppointmentsCount = useMemo(() => {
-    return appointments.filter(app => app.date && getLocalDateString(app.date) === todayLocalDateString && app.status !== 'ยกเลิก').length;
-  }, [appointments, todayLocalDateString]);
+    let list = appointments.filter(app => app.date && getLocalDateString(app.date) === todayLocalDateString && app.status !== 'ยกเลิก');
+    if (currentUser?.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      list = list.filter(app => app.therapistId === myTherapistId);
+    }
+    return list.length;
+  }, [appointments, todayLocalDateString, currentUser, therapists]);
 
   const monthlySales = useMemo(() => {
     const currentMonth = todayLocalDateString.slice(0, 7); // YYYY-MM
@@ -55,25 +66,48 @@ export default function Dashboard({
 
   // 2. ตารางนัดหมายตามวันที่เลือก
   const filteredAppointments = useMemo(() => {
-    return appointments
-      .filter(app => app.date && getLocalDateString(app.date) === selectedDate)
-      .map(app => {
-        const patient = patients.find(p => p.hn === app.hn);
-        const therapist = therapists.find(t => t.id === app.therapistId);
-        return {
-          ...app,
-          patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูลผู้ป่วย',
-          patientNickname: patient ? patient.nickname : '',
-          therapistNickname: therapist ? formatTherapistName(therapist.nickname) : 'ไม่พบชื่อครู'
-        };
-      });
-  }, [appointments, selectedDate, patients, therapists]);
+    let list = appointments.filter(app => app.date && getLocalDateString(app.date) === selectedDate);
+    if (currentUser?.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      list = list.filter(app => app.therapistId === myTherapistId);
+    }
+    return list.map(app => {
+      const patient = patients.find(p => String(p.hn) === String(app.hn));
+      const therapist = therapists.find(t => t.id === app.therapistId);
+      return {
+        ...app,
+        patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูลผู้ป่วย',
+        patientNickname: patient ? patient.nickname : '',
+        therapistNickname: therapist ? formatTherapistName(therapist.nickname) : 'ไม่พบชื่อครู'
+      };
+    }).sort((a, b) => String(a.timeSlot || '').localeCompare(String(b.timeSlot || '')));
+  }, [appointments, selectedDate, patients, therapists, currentUser]);
 
   // 3. ตารางคอร์สใกล้หมด (Active Patients, คอร์สเหลือ <= 2)
   // คำนวณคอร์สคงเหลือของแต่ละคน: ยอดซื้อบริการสะสม (Paid) - ยอดใช้งาน (Served)
   // เรียงจากใหม่ไปเก่า (ตามวันที่ลงทะเบียน/HN)
   const courseAlerts = useMemo(() => {
-    return activePatients
+    let list = activePatients;
+    if (currentUser?.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      const myHns = new Set(
+        appointments
+          .filter(app => app.therapistId === myTherapistId)
+          .map(app => app.hn)
+      );
+      list = activePatients.filter(p => myHns.has(p.hn));
+    }
+    return list
       .map(patient => {
         // ยอดซื้อสะสม (เฉพาะบิลชำระเงินแล้ว)
         const patientReceipts = receipts.filter(r => r.hn === patient.hn && r.status === 'ชำระเงินแล้ว');
@@ -85,6 +119,8 @@ export default function Dashboard({
                 totalPurchased -= item.quantity;
               } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
                 totalPurchased += item.quantity;
+              } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+                // ไม่เอา ประเมินพัฒนาการครั้งแรกมานับ
               } else {
                 const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
                 totalPurchased += item.quantity * sessionsPerUnit;
@@ -94,7 +130,7 @@ export default function Dashboard({
         });
 
         // ยอดใช้สะสม (สถานะ รับบริการแล้ว)
-        const totalUsed = appointments.filter(app => app.hn === patient.hn && app.status === 'รับบริการแล้ว').length;
+        const totalUsed = appointments.filter(app => String(app.hn) === String(patient.hn) && app.status === 'รับบริการแล้ว' && app.type === 'ฝึกกระตุ้นพัฒนาการ').length;
         
         const balance = totalPurchased - totalUsed;
 
@@ -108,7 +144,7 @@ export default function Dashboard({
           created_at: patient.created_at || ''
         };
       })
-      .filter(alert => alert.balance <= 2)
+      .filter(alert => alert.purchased > 0 && alert.balance <= 2)
       .sort((a, b) => {
         // เรียงจากใหม่ไปเก่า (created_at desc, then hn desc)
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -116,7 +152,7 @@ export default function Dashboard({
         if (timeB !== timeA) return timeB - timeA;
         return String(b.hn).localeCompare(String(a.hn));
       });
-  }, [activePatients, receipts, appointments]);
+  }, [activePatients, receipts, appointments, currentUser, therapists]);
 
   const alertsPerPage = 5;
   const maxAlertPages = useMemo(() => {
@@ -192,22 +228,24 @@ export default function Dashboard({
           </div>
         </div>
 
-        <div className="card-2xl stat-card">
-          <div className="stat-title">
-            ยอดขายเดือนนี้ ({(() => {
-              const m = parseInt(todayLocalDateString.split('-')[1], 10);
-              const thaiMonthAbbrs = [
-                'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-              ];
-              return thaiMonthAbbrs[m - 1];
-            })()})
+        {!['OT', 'Staff'].includes(currentUser?.role) && (
+          <div className="card-2xl stat-card">
+            <div className="stat-title">
+              ยอดขายเดือนนี้ ({(() => {
+                const m = parseInt(todayLocalDateString.split('-')[1], 10);
+                const thaiMonthAbbrs = [
+                  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+                ];
+                return thaiMonthAbbrs[m - 1];
+              })()})
+            </div>
+            <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>฿{monthlySales.toLocaleString()}</span>
+              <CircleDollarSign size={32} color="var(--secondary)" />
+            </div>
           </div>
-          <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>฿{monthlySales.toLocaleString()}</span>
-            <CircleDollarSign size={32} color="var(--secondary)" />
-          </div>
-        </div>
+        )}
 
         <div className="card-2xl stat-card">
           <div className="stat-title">สัดส่วนเพศผู้รับบริการ</div>

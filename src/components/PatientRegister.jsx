@@ -43,7 +43,9 @@ export default function PatientRegister({
   onUpdatePatient, 
   onDeletePatient,
   onPrintPatient,
-  currentUser
+  currentUser,
+  appointments = [],
+  therapists = []
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,7 +163,24 @@ export default function PatientRegister({
 
   // 5. ค้นหาและกรองผู้ป่วย
   const filteredPatients = useMemo(() => {
-    return (patients || [])
+    let list = patients || [];
+
+    if (currentUser?.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      const myHns = new Set(
+        (appointments || [])
+          .filter(app => app.therapistId === myTherapistId)
+          .map(app => app.hn)
+      );
+      list = list.filter(p => p && myHns.has(p.hn));
+    }
+
+    return list
       .filter(p => {
         if (!p) return false;
         // ค้นหาเรียลไทม์
@@ -179,7 +198,7 @@ export default function PatientRegister({
         return matchesQuery && matchesStatus;
       })
       .sort((a, b) => String(b.hn || '').localeCompare(String(a.hn || ''))); // เรียง HN จากมากไปน้อย
-  }, [patients, searchQuery, statusFilter]);
+  }, [patients, searchQuery, statusFilter, currentUser, appointments, therapists]);
 
   const paginatedPatients = useMemo(() => {
     const itemsPerPage = 20;
@@ -568,16 +587,20 @@ export default function PatientRegister({
           ทะเบียนประวัติผู้รับบริการ
         </h1>
         <div className="page-actions">
-          <button className="btn btn-primary" onClick={() => { resetForm(); setShowRegisterModal(true); }} title="ลงทะเบียนผู้รับบริการรายใหม่">
-            <Plus size={16} /> ลงทะเบียนรายใหม่
-          </button>
+          {currentUser?.role !== 'OT' && (
+            <button className="btn btn-primary" onClick={() => { resetForm(); setShowRegisterModal(true); }} title="ลงทะเบียนผู้รับบริการรายใหม่">
+              <Plus size={16} /> ลงทะเบียนรายใหม่
+            </button>
+          )}
           <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกข้อมูลรายชื่อผู้รับบริการเป็นไฟล์ CSV">
             <Download size={16} /> Export CSV
           </button>
-          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าข้อมูลรายชื่อผู้รับบริการผ่านไฟล์ CSV">
-            <Upload size={16} /> Import CSV
-            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-          </label>
+          {currentUser?.role !== 'OT' && (
+            <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าข้อมูลรายชื่อผู้รับบริการผ่านไฟล์ CSV">
+              <Upload size={16} /> Import CSV
+              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+            </label>
+          )}
         </div>
       </div>
 
@@ -613,10 +636,22 @@ export default function PatientRegister({
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">เพศ</label>
-                    <select className="form-control" value={gender} onChange={(e) => setStatus(e.target.value)}>
-                      <option value="ชาย">ชาย</option>
-                      <option value="หญิง">หญิง</option>
-                    </select>
+                     <select 
+                       className="form-control" 
+                       value={gender} 
+                       onChange={(e) => {
+                         const val = e.target.value;
+                         setGender(val);
+                         if (val === 'ชาย') {
+                           setTitle('เด็กชาย');
+                         } else {
+                           setTitle('เด็กหญิง');
+                         }
+                       }}
+                     >
+                       <option value="ชาย">ชาย</option>
+                       <option value="หญิง">หญิง</option>
+                     </select>
                   </div>
                   
                   <div className="form-group">
@@ -867,14 +902,16 @@ export default function PatientRegister({
                             <Eye size={16} color="var(--dark)" />
                           </button>
                           
-                          <button 
-                            className="btn btn-light btn-icon-only" 
-                            title="แก้ไขข้อมูล"
-                            onClick={() => handleEditClick(p)}
-                            type="button"
-                          >
-                            <Edit2 size={16} color="var(--secondary)" />
-                          </button>
+                          {currentUser?.role !== 'OT' && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title="แก้ไขข้อมูล"
+                              onClick={() => handleEditClick(p)}
+                              type="button"
+                            >
+                              <Edit2 size={16} color="var(--secondary)" />
+                            </button>
+                          )}
 
                           <button 
                             className="btn btn-light btn-icon-only" 

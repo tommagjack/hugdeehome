@@ -7,7 +7,8 @@ import {
   User, 
   Eye, 
   Award,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 
 export default function ServiceSummary({ 
@@ -142,7 +143,7 @@ export default function ServiceSummary({
         app.status === 'รับบริการแล้ว'
       )
       .map(app => {
-        const patient = patients.find(p => p.hn === app.hn);
+        const patient = patients.find(p => String(p.hn) === String(app.hn));
         return {
           ...app,
           patientName: patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูล',
@@ -161,6 +162,59 @@ export default function ServiceSummary({
     setShowDetailModal(true);
   };
 
+  const getThaiDayOfWeek = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = String(dateStr).split('-');
+    if (parts.length !== 3) return '';
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, month, day);
+    const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    return days[d.getDay()] || '';
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['นักกิจกรรมบำบัด', 'วันที่', 'วันที่ในสัปดาห์', 'จำนวนเคสที่ฝึก'];
+    const csvRows = [headers.join(',')];
+    
+    aggregatedTeachingRows.forEach(row => {
+      const therapistName = `${row.therapistFullname} (${row.therapistNickname})`;
+      
+      const parts = String(row.date || '').split('-');
+      let formattedDate = row.date;
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        formattedDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+      }
+      
+      const dayOfWeek = getThaiDayOfWeek(row.date);
+      const caseCount = row.hours;
+      
+      const line = [
+        `"${therapistName.replace(/"/g, '""')}"`,
+        `"${formattedDate.replace(/"/g, '""')}"`,
+        `"${dayOfWeek.replace(/"/g, '""')}"`,
+        caseCount
+      ].join(',');
+      csvRows.push(line);
+    });
+    
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `รายงานชั่วโมงสอนครู_${startDate}_ถึง_${endDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="page-header">
@@ -168,7 +222,13 @@ export default function ServiceSummary({
           <BarChart3 size={28} />
           สรุปการให้บริการและชั่วโมงสอนครู {currentUser?.role === 'Admin' ? '(Admin Only)' : ''}
         </h1>
-
+        {currentUser?.role === 'Admin' && (
+          <div className="page-actions">
+            <button className="btn btn-primary" onClick={handleExportCSV}>
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
+        )}
       </div>
 
       {/* เลือกช่วงเวลาอัจฉริยะ (เริ่มต้น 26 เดือนก่อนหน้า - 25 เดือนปัจจุบัน) */}

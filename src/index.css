@@ -1458,6 +1458,19 @@ button, input, select, textarea {
 }
 
 /* Print Specific overrides */
+@page repeating_header_page {
+  size: A4;
+  margin-top: 15mm;
+  margin-bottom: 15mm;
+  margin-left: 15mm;
+  margin-right: 15mm;
+}
+
+@page opd_page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
   html, body, #root, .app-container {
     height: auto !important;
@@ -1471,8 +1484,13 @@ button, input, select, textarea {
   .app-container {
     display: block !important;
   }
-  .sidebar, .main-content, .pdf-preview-toolbar, .modal-overlay, #pdf-preview-overlay > *:not(.a4-document) {
+  .sidebar, .main-content, .pdf-preview-toolbar, .modal-overlay, #pdf-preview-overlay > *:not(.a4-document):not(#printable-a4-area) {
     display: none !important;
+  }
+  #printable-a4-area {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
   }
   #pdf-preview-overlay {
     position: absolute !important;
@@ -1481,8 +1499,9 @@ button, input, select, textarea {
     margin: 0 !important;
     top: 0 !important;
     left: 0 !important;
-    width: 210mm !important;
-    height: 297mm !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 297mm !important;
     overflow: visible !important;
   }
   .a4-document {
@@ -1490,8 +1509,46 @@ button, input, select, textarea {
     padding: 0 !important;
     margin: 0 !important;
     width: 210mm !important;
-    height: 297mm !important;
+    height: auto !important;
+    min-height: 297mm !important;
     page-break-after: always;
+  }
+  .repeating-header-doc {
+    page: repeating_header_page;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 297mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .print-layout-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: none;
+    margin: 0;
+    padding: 0;
+  }
+  .print-layout-table > thead > tr > td,
+  .print-layout-table > tbody > tr > td {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  .print-layout-table > thead {
+    display: table-header-group;
+  }
+  .print-avoid-break,
+  .a4-receipt-signatures {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .opd-doc {
+    page: opd_page;
+    width: 210mm !important;
+    height: 297mm !important;
+    padding: 30px 40px 20px 40px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
   }
 }
 

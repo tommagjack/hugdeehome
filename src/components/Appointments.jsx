@@ -74,7 +74,7 @@ export default function Appointments({
   // Sync patientSearchText when selectedHn updates
   useEffect(() => {
     if (selectedHn) {
-      const p = activePatients.find(item => item.hn === selectedHn);
+      const p = activePatients.find(item => String(item.hn) === String(selectedHn));
       if (p) {
         setPatientSearchText(`HN: ${p.hn} | น้อง${p.nickname} (${p.title}${p.firstname} ${p.lastname})`);
       } else {
@@ -168,10 +168,6 @@ export default function Appointments({
   }, [selectedTherapistId, therapistBookedSlots, clinicHoliday, therapistWorkDayStatus, therapists]);
 
 
-  // ล้างการเลือกเวลาถ้าหากเปลี่ยนวันที่หรือเปลี่ยนครู
-  useEffect(() => {
-    setSelectedTimeSlot('');
-  }, [bookingDate, selectedTherapistId]);
 
   // 5. บันทึกคิวจอง
   const handleBooking = (e) => {
@@ -267,7 +263,7 @@ export default function Appointments({
 
   // ดูรายละเอียดคิวนัดหมาย
   const handleViewDetails = (app) => {
-    const patient = patients.find(p => p.hn === app.hn) || {};
+    const patient = patients.find(p => String(p.hn) === String(app.hn)) || {};
     const therapist = therapists.find(t => t.id === app.therapistId) || {};
     
     Swal.fire({
@@ -330,9 +326,21 @@ export default function Appointments({
 
   // 7. รายการนัดหมายทั้งหมดที่จะแสดงในตารางพร้อมตัวกรอง
   const filteredAppointments = useMemo(() => {
-    return (appointments || [])
+    let list = appointments || [];
+
+    if (currentUser?.role === 'OT' && therapists) {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
+      list = list.filter(app => app.therapistId === myTherapistId);
+    }
+
+    return list
       .map(app => {
-        const patient = (patients || []).find(p => p.hn === app.hn);
+        const patient = (patients || []).find(p => String(p.hn) === String(app.hn));
         const therapist = (therapists || []).find(t => t.id === app.therapistId);
         let tNickname = 'ไม่ระบุชื่อครู';
         if (therapist) {
@@ -361,7 +369,7 @@ export default function Appointments({
       })
       // เรียงจากวันที่นัดหมายล่าสุดและเวลานัดหมายล่าสุด
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.timeSlot).localeCompare(String(a.timeSlot)));
-  }, [appointments, patients, therapists, statusFilter, searchQuery, filterDate]);
+  }, [appointments, patients, therapists, statusFilter, searchQuery, filterDate, currentUser]);
 
   const paginatedAppointments = useMemo(() => {
     const itemsPerPage = 20;
@@ -548,16 +556,20 @@ export default function Appointments({
           ตารางนัดหมายและการตรวจสอบคิว
         </h1>
         <div className="page-actions">
-          <button className="btn btn-primary" onClick={() => { setEditingAppointmentId(null); setSelectedHn(''); setSelectedTimeSlot(''); setAppointmentType('ฝึกกระตุ้นพัฒนาการ'); setShowBookingModal(true); }}>
-            <Plus size={16} /> จองคิวใหม่
-          </button>
+          {currentUser?.role !== 'OT' && (
+            <button className="btn btn-primary" onClick={() => { setEditingAppointmentId(null); setSelectedHn(''); setSelectedTimeSlot(''); setAppointmentType('ฝึกกระตุ้นพัฒนาการ'); setShowBookingModal(true); }}>
+              <Plus size={16} /> จองคิวใหม่
+            </button>
+          )}
           <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกตารางนัดหมายเป็นไฟล์ CSV">
             <Download size={16} /> Export CSV
           </button>
-          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าตารางนัดหมายจากไฟล์ CSV">
-            <Upload size={16} /> Import CSV
-            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-          </label>
+          {currentUser?.role !== 'OT' && (
+            <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าตารางนัดหมายจากไฟล์ CSV">
+              <Upload size={16} /> Import CSV
+              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+            </label>
+          )}
         </div>
       </div>
 
@@ -664,7 +676,10 @@ export default function Appointments({
                     <select 
                       className="form-control" 
                       value={selectedTherapistId} 
-                      onChange={(e) => setSelectedTherapistId(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedTherapistId(e.target.value);
+                        setSelectedTimeSlot('');
+                      }}
                       required
                     >
                       {therapists.map(t => (
@@ -681,7 +696,10 @@ export default function Appointments({
                       type="date" 
                       className="form-control" 
                       value={bookingDate} 
-                      onChange={(e) => setBookingDate(e.target.value)}
+                      onChange={(e) => {
+                        setBookingDate(e.target.value);
+                        setSelectedTimeSlot('');
+                      }}
                       required 
                     />
                   </div>
@@ -897,6 +915,7 @@ export default function Appointments({
                           value={app.status}
                           onChange={(e) => handleStatusChange(app.id, e.target.value)}
                           style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem', width: '130px' }}
+                          disabled={currentUser?.role === 'OT'}
                         >
                           <option value="จองแล้ว">จองแล้ว</option>
                           <option value="ยืนยันแล้ว">ยืนยันแล้ว</option>
@@ -914,14 +933,16 @@ export default function Appointments({
                           >
                             <Eye size={14} color="var(--dark)" />
                           </button>
-                          <button 
-                            className="btn btn-light btn-icon-only" 
-                            onClick={() => handleEditClick(app)}
-                            title="แก้ไข"
-                            type="button"
-                          >
-                            <Edit2 size={14} color="var(--secondary)" />
-                          </button>
+                          {currentUser?.role !== 'OT' && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              onClick={() => handleEditClick(app)}
+                              title="แก้ไข"
+                              type="button"
+                            >
+                              <Edit2 size={14} color="var(--secondary)" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button 
                               className="btn btn-light btn-icon-only" 

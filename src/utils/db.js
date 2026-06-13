@@ -104,7 +104,19 @@ export const db = {
   getAppointments: () => get(KEYS.APPOINTMENTS, mock.INITIAL_APPOINTMENTS),
   setAppointments: (data) => set(KEYS.APPOINTMENTS, data),
 
-  getAssessments: () => get(KEYS.ASSESSMENTS, mock.INITIAL_ASSESSMENTS),
+  getAssessments: () => {
+    const data = get(KEYS.ASSESSMENTS, mock.INITIAL_ASSESSMENTS);
+    if (Array.isArray(data)) {
+      return data.map(item => ({
+        ...item,
+        gm: item.gm === 'ล่าช้า' ? 'ไม่สมวัย' : (item.gm || 'สมวัย'),
+        fm: item.fm === 'ล่าช้า' ? 'ไม่สมวัย' : (item.fm || 'สมวัย'),
+        language: item.language === 'ล่าช้า' ? 'ไม่สมวัย' : (item.language || 'สมวัย'),
+        social: item.social === 'ล่าช้า' ? 'ไม่สมวัย' : (item.social || 'สมวัย'),
+      }));
+    }
+    return data;
+  },
   setAssessments: (data) => set(KEYS.ASSESSMENTS, data),
 
   getSalaryRules: () => get(KEYS.SALARY_RULES, mock.INITIAL_SALARY_RULES),
@@ -134,6 +146,8 @@ export const syncFromSupabase = async () => {
 
     const result = await response.json();
     if (result.status === 'success' && result.data) {
+      const therapistsList = result.data[KEYS.THERAPISTS] || result.data['hdh_therapists'] || get(KEYS.THERAPISTS, []);
+
       // อัปเดตข้อมูลลง LocalStorage
       Object.keys(result.data).forEach(key => {
         let val = result.data[key];
@@ -141,6 +155,36 @@ export const syncFromSupabase = async () => {
           const earnings = val.filter(row => row.ruleType === 'earning' || (row.id && String(row.id).startsWith('earn'))).map(({ ruleType, ...rest }) => rest);
           const deductions = val.filter(row => row.ruleType === 'deduction' || (row.id && String(row.id).startsWith('ded'))).map(({ ruleType, ...rest }) => rest);
           val = { earnings, deductions };
+        } else if ((key === KEYS.APPOINTMENTS || key === 'hdh_appointments' || key === 'appointments') && Array.isArray(val)) {
+          val = val.map(row => {
+            const id = row.ApptID || row.id || '';
+            const date = row.RawDate || row.date || '';
+            const timeSlot = row.Time || row.timeSlot || '';
+            const hn = row.HN || row.hn || '';
+            const type = row.Type || row.type || '';
+            const status = row.Status || row.status || '';
+            
+            let therapistId = row.therapistId || '';
+            if (!therapistId && row.Kru) {
+              const cleanKru = row.Kru.replace(/^ครู/, '');
+              const foundTherapist = therapistsList.find(t => t.nickname === cleanKru || t.fullname === row.Kru || t.fullname === cleanKru);
+              if (foundTherapist) {
+                therapistId = foundTherapist.id;
+              } else {
+                therapistId = row.Kru;
+              }
+            }
+
+            return {
+              id,
+              hn: String(hn),
+              therapistId,
+              date,
+              timeSlot,
+              type,
+              status
+            };
+          });
         }
         localStorage.setItem(key, JSON.stringify(val));
       });
@@ -165,13 +209,55 @@ export const syncToSupabase = async (key, value) => {
       const deductionsRows = (value.deductions || []).map(item => ({ ...item, ruleType: 'deduction' }));
       finalValue = [...earningsRows, ...deductionsRows];
     }
+  } else if ((key === KEYS.APPOINTMENTS || key === 'hdh_appointments' || key === 'appointments') && Array.isArray(value)) {
+    const patientsList = get(KEYS.PATIENTS, []);
+    const therapistsList = get(KEYS.THERAPISTS, []);
+    
+    // Format Thai Date
+    const getThaiDateString = (dateStr) => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      
+      const yearBE = d.getFullYear() + 543;
+      const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${yearBE}`;
+    };
+
+    finalValue = value.map(app => {
+      const p = patientsList.find(pat => String(pat.hn) === String(app.hn)) || {};
+      const t = therapistsList.find(ther => ther.id === app.therapistId) || {};
+      
+      const cleanTitle = (p.title || '').replace(/\$/g, '');
+      const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
+      const cleanLastname = (p.lastname || '').replace(/\$/g, '');
+      const patientFullName = p.firstname ? `${cleanTitle}${cleanFirstname} ${cleanLastname}` : '';
+      const patientNick = p.nickname ? `น้อง${p.nickname.replace(/\$/g, '')}` : '';
+      const therapistNick = t.nickname ? `ครู${t.nickname}` : t.fullname || '';
+
+      return {
+        ApptID: app.id,
+        RawDate: app.date,
+        Date: getThaiDateString(app.date),
+        Time: app.timeSlot,
+        HN: app.hn,
+        Nick: patientNick,
+        Name: patientFullName,
+        Type: app.type || 'ฝึกกระตุ้นพัฒนาการ',
+        Kru: therapistNick,
+        Status: app.status
+      };
+    });
   }
 
   try {
     const response = await fetch(gasUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8' // ป้องกันการทำ preflight request (CORS) ในเบราว์เซอร์
+        'Content-Type': 'text/plain' // ป้องกันการทำ preflight request (CORS) ในเบราว์เซอร์
       },
       body: JSON.stringify({
         action: 'sync_table',

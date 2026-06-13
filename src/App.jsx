@@ -18,6 +18,7 @@ import Transactions from './components/Transactions';
 import OPD from './components/OPD';
 import GuestRegister from './components/GuestRegister';
 import UserProfile from './components/UserProfile';
+import ErrorBoundary from './components/ErrorBoundary';
 import { RefreshCw } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -73,14 +74,30 @@ export default function App() {
       const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
       
       if (gasUrl) {
-        Swal.fire({
-          title: 'กำลังซิงค์ข้อมูล...',
-          text: 'กำลังโหลดข้อมูลล่าสุดจากระบบคลาวด์',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          }
-        });
+        // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
+        const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
+        
+        if (isFirstRun) {
+          Swal.fire({
+            title: 'กำลังซิงค์ข้อมูล...',
+            text: 'กำลังโหลดข้อมูลล่าสุดจากระบบคลาวด์เป็นครั้งแรก',
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+        } else {
+          // หากมีข้อมูลเดิมอยู่แล้ว ให้ซิงค์เบื้องหลังแบบไม่ขัดจังหวะการใช้งานของครู/แอดมิน
+          Swal.fire({
+            icon: 'info',
+            title: 'กำลังซิงค์ข้อมูลเบื้องหลัง...',
+            text: 'กำลังดึงข้อมูลล่าสุดจากระบบคลาวด์',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2500
+          });
+        }
         
         try {
           const success = await syncFromSupabase();
@@ -112,18 +129,35 @@ export default function App() {
               timer: 2000
             });
           } else {
-            Swal.fire({
-              icon: 'warning',
-              title: 'ซิงค์ข้อมูลล้มเหลว',
-              text: 'ระบบจะสลับไปใช้ข้อมูลภายในเครื่องชั่วคราว',
-              toast: true,
-              position: 'top-end',
-              showConfirmButton: false,
-              timer: 3500
-            });
+            if (isFirstRun) {
+              Swal.fire({
+                icon: 'error',
+                title: 'ซิงค์ข้อมูลล้มเหลว',
+                text: 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL',
+                confirmButtonColor: 'var(--secondary)'
+              });
+            } else {
+              Swal.fire({
+                icon: 'warning',
+                title: 'ซิงค์ข้อมูลล้มเหลว',
+                text: 'ไม่สามารถซิงค์ข้อมูลล่าสุดได้ กำลังใช้งานข้อมูลภายในเครื่องชั่วคราว',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3500
+              });
+            }
           }
         } catch (e) {
           console.error('Initial sync error:', e);
+          if (isFirstRun) {
+            Swal.fire({
+              icon: 'error',
+              title: 'เกิดข้อผิดพลาดในการซิงค์',
+              text: 'เกิดความล้มเหลว: ' + e.message,
+              confirmButtonColor: 'var(--secondary)'
+            });
+          }
         }
         
         setTimeout(() => {
@@ -136,80 +170,97 @@ export default function App() {
     runInitialSync();
   }, []);
 
+  const syncData = async (key, value) => {
+    if (isSyncing) return;
+    const success = await syncToSupabase(key, value);
+    if (!success) {
+      console.warn(`[Sync Failed] Key: ${key}`);
+      Swal.fire({
+        icon: 'warning',
+        title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
+        text: 'ระบบได้บันทึกข้อมูลไว้ในคอมพิวเตอร์เครื่องนี้แล้ว แต่ไม่สามารถอัปเดตไปยัง Google Sheets ได้ชั่วคราว (โปรดตรวจสอบอินเทอร์เน็ตหรือปิดตัวบล็อกโฆษณา)',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 5000
+      });
+    }
+  };
+
   // บันทึก State ลง LocalStorage และ Supabase เมื่อมีค่าเปลี่ยนแปลง
   useEffect(() => { 
     db.setClinicInfo(clinicInfo); 
-    if (!isSyncing) syncToSupabase('hdh_clinic_info', clinicInfo);
+    syncData('hdh_clinic_info', clinicInfo);
   }, [clinicInfo]);
 
   useEffect(() => { 
     db.setUsers(users); 
-    if (!isSyncing) syncToSupabase('hdh_users', users);
+    syncData('hdh_users', users);
   }, [users]);
 
   useEffect(() => { 
     db.setTherapists(therapists); 
-    if (!isSyncing) syncToSupabase('hdh_therapists', therapists);
+    syncData('hdh_therapists', therapists);
   }, [therapists]);
 
   useEffect(() => { 
     db.setServices(services); 
-    if (!isSyncing) syncToSupabase('hdh_services', services);
+    syncData('hdh_services', services);
   }, [services]);
 
   useEffect(() => { 
     db.setPromotions(promotions); 
-    if (!isSyncing) syncToSupabase('hdh_promotions', promotions);
+    syncData('hdh_promotions', promotions);
   }, [promotions]);
 
   useEffect(() => { 
     db.setBankAccounts(bankAccounts); 
-    if (!isSyncing) syncToSupabase('hdh_bank_accounts', bankAccounts);
+    syncData('hdh_bank_accounts', bankAccounts);
   }, [bankAccounts]);
 
   useEffect(() => { 
     db.setHolidays(holidays); 
-    if (!isSyncing) syncToSupabase('hdh_holidays', holidays);
+    syncData('hdh_holidays', holidays);
   }, [holidays]);
 
   useEffect(() => { 
     db.setPatients(patients); 
-    if (!isSyncing) syncToSupabase('hdh_patients', patients);
+    syncData('hdh_patients', patients);
   }, [patients]);
 
   useEffect(() => { 
     db.setAppointments(appointments); 
-    if (!isSyncing) syncToSupabase('hdh_appointments', appointments);
+    syncData('hdh_appointments', appointments);
   }, [appointments]);
 
   useEffect(() => { 
     db.setReceipts(receipts); 
-    if (!isSyncing) syncToSupabase('hdh_receipts', receipts);
+    syncData('hdh_receipts', receipts);
   }, [receipts]);
 
   useEffect(() => { 
     db.setAssessments(assessments); 
-    if (!isSyncing) syncToSupabase('hdh_assessments', assessments);
+    syncData('hdh_assessments', assessments);
   }, [assessments]);
 
   useEffect(() => { 
     db.setSalaryRules(salaryRules); 
-    if (!isSyncing) syncToSupabase('hdh_salary_rules', salaryRules);
+    syncData('hdh_salary_rules', salaryRules);
   }, [salaryRules]);
 
   useEffect(() => { 
     db.setPayrolls(payrolls); 
-    if (!isSyncing) syncToSupabase('hdh_payrolls', payrolls);
+    syncData('hdh_payrolls', payrolls);
   }, [payrolls]);
 
   useEffect(() => { 
     db.setTransactions(transactions); 
-    if (!isSyncing) syncToSupabase('hdh_transactions', transactions);
+    syncData('hdh_transactions', transactions);
   }, [transactions]);
 
   useEffect(() => { 
     db.setOpdRecords(opdRecords); 
-    if (!isSyncing) syncToSupabase('hdh_opd_records', opdRecords);
+    syncData('hdh_opd_records', opdRecords);
   }, [opdRecords]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
@@ -897,13 +948,15 @@ export default function App() {
           </button>
         </div>
         
-        {activeTab === 'dashboard' && (
+        <ErrorBoundary key={activeTab}>
+          {activeTab === 'dashboard' && (
           <Dashboard 
             patients={patients} 
             appointments={appointments} 
             receipts={receipts} 
             therapists={therapists}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+            currentUser={currentUser}
           />
         )}
 
@@ -919,6 +972,8 @@ export default function App() {
               const p = patients.find(item => item.hn === hn);
               setPrintView({ show: true, type: 'patient', data: p });
             }}
+            appointments={appointments}
+            therapists={therapists}
           />
         )}
 
@@ -1102,6 +1157,7 @@ export default function App() {
             users={users}
           />
         )}
+        </ErrorBoundary>
 
       </div>
 

@@ -63,6 +63,11 @@ export default function DevelopmentalAssessment({
   const [language, setLanguage] = useState('สมวัย');
   const [social, setSocial] = useState('สมวัย');
 
+  // ประเภทแบบประเมินที่เลือกประเมิน (เลือกได้หลายแบบ)
+  const [hasDevelopmental, setHasDevelopmental] = useState(true);
+  const [hasSensory, setHasSensory] = useState(true);
+  const [hasSnap, setHasSnap] = useState(true);
+
   // Sensory Test 6 ด้าน (คะแนน 1-50 ต่อด้าน)
   const [tactile, setTactile] = useState(0);
   const [vestibular, setVestibular] = useState(0);
@@ -126,8 +131,8 @@ export default function DevelopmentalAssessment({
     };
   }, [selectedPatient, evalDate]);
 
-  // ตรวจสอบสิทธิ์ Sensory Test (เฉพาะเด็กอายุ 6 ปีขึ้นไป ถ้าน้อยกว่าให้ Disabled)
-  const isSensoryEnabled = useMemo(() => {
+  // ตรวจสอบว่าเด็กอายุตั้งแต่ 6 ปีขึ้นไปหรือไม่ (ใช้สำหรับช่องคะแนนเด็ก 6 ปี+)
+  const isChild6YearsPlus = useMemo(() => {
     return patientAgeInfo.years >= 6;
   }, [patientAgeInfo]);
 
@@ -137,7 +142,7 @@ export default function DevelopmentalAssessment({
     return patients.find(p => p.hn === viewingAssessment.hn);
   }, [viewingAssessment, patients]);
 
-  const isViewingSensoryEnabled = useMemo(() => {
+  const isViewingChild6YearsPlus = useMemo(() => {
     if (!viewingAssessment || !viewingPatient) return false;
     const birthDate = parseDateToAD(viewingPatient.dob);
     if (!birthDate) return false;
@@ -150,18 +155,12 @@ export default function DevelopmentalAssessment({
     return years >= 6;
   }, [viewingAssessment, viewingPatient]);
 
-  // ปิดช่อง Sensory Test และเซ็ตค่าเป็น 0 หากผู้ป่วยอายุน้อยกว่า 6 ปี
+  // ปิดช่อง คะแนน (เด็ก 6 ปี+) และเซ็ตค่าเป็น 0 หากผู้ป่วยอายุน้อยกว่า 6 ปี
   useEffect(() => {
-    if (!isSensoryEnabled) {
-      setTactile(0);
-      setVestibular(0);
-      setProprioceptive(0);
-      setVisual(0);
-      setAuditory(0);
-      setMovement(0);
+    if (patientAgeInfo.years < 6) {
       setScore6YearsPlus(0);
     }
-  }, [isSensoryEnabled]);
+  }, [patientAgeInfo.years]);
 
   // ซิงค์คำค้นตาม selectedHn
   useEffect(() => {
@@ -220,6 +219,9 @@ export default function DevelopmentalAssessment({
     setSnapHyperactivity(0);
     setSnapOppositional(0);
     setComment('');
+    setHasDevelopmental(true);
+    setHasSensory(true);
+    setHasSnap(true);
   };
 
 
@@ -234,10 +236,10 @@ export default function DevelopmentalAssessment({
     setSelectedHn(item.hn);
     setTherapistId(item.therapistId || '');
     setEvalDate(item.date);
-    setGm(item.gm);
-    setFm(item.fm);
-    setLanguage(item.language);
-    setSocial(item.social);
+    setGm(item.gm === 'ล่าช้า' ? 'ไม่สมวัย' : (item.gm || 'สมวัย'));
+    setFm(item.fm === 'ล่าช้า' ? 'ไม่สมวัย' : (item.fm || 'สมวัย'));
+    setLanguage(item.language === 'ล่าช้า' ? 'ไม่สมวัย' : (item.language || 'สมวัย'));
+    setSocial(item.social === 'ล่าช้า' ? 'ไม่สมวัย' : (item.social || 'สมวัย'));
     setTactile(item.sensoryScores?.tactile ?? 0);
     setVestibular(item.sensoryScores?.vestibular ?? 0);
     setProprioceptive(item.sensoryScores?.proprioceptive ?? 0);
@@ -249,6 +251,9 @@ export default function DevelopmentalAssessment({
     setSnapHyperactivity(item.snapIV?.hyperactivity ?? 0);
     setSnapOppositional(item.snapIV?.oppositional ?? 0);
     setComment(item.comment || '');
+    setHasDevelopmental(item.hasDevelopmental !== false);
+    setHasSensory(item.hasSensory !== false);
+    setHasSnap(item.hasSnap !== false);
     setIsEditing(true);
     setEditingId(item.id);
     setShowFormModal(true);
@@ -260,6 +265,16 @@ export default function DevelopmentalAssessment({
     e.preventDefault();
     if (!selectedHn) {
       Swal.fire({ icon: 'warning', title: 'กรุณาเลือกผู้รับบริการ', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+
+    if (!hasDevelopmental && !hasSensory && !hasSnap) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาเลือกประเภทแบบประเมิน',
+        text: 'กรุณาเลือกประเภทแบบประเมินอย่างน้อย 1 ประเภท',
+        confirmButtonColor: 'var(--secondary)'
+      });
       return;
     }
 
@@ -278,11 +293,11 @@ export default function DevelopmentalAssessment({
       hn: selectedHn,
       therapistId: therapistId,
       date: evalDate,
-      gm,
-      fm,
-      language,
-      social,
-      sensoryScores: {
+      gm: hasDevelopmental ? gm : '',
+      fm: hasDevelopmental ? fm : '',
+      language: hasDevelopmental ? language : '',
+      social: hasDevelopmental ? social : '',
+      sensoryScores: hasSensory ? {
         tactile: Number(tactile),
         vestibular: Number(vestibular),
         proprioceptive: Number(proprioceptive),
@@ -290,17 +305,20 @@ export default function DevelopmentalAssessment({
         auditory: Number(auditory),
         movement: Number(movement),
         total: sensoryTotal,
-        score6YearsPlus: isSensoryEnabled ? Number(score6YearsPlus) || 0 : 0
-      },
-      snapIV: {
+        score6YearsPlus: isChild6YearsPlus ? Number(score6YearsPlus) || 0 : 0
+      } : null,
+      snapIV: hasSnap ? {
         inattention: Number(snapInattention),
         hyperactivity: Number(snapHyperactivity),
         oppositional: Number(snapOppositional),
         inattentionStatus: snapEvaluation.inattentionStatus,
         hyperactivityStatus: snapEvaluation.hyperactivityStatus,
         oppositionalStatus: snapEvaluation.oppositionalStatus
-      },
+      } : null,
       comment,
+      hasDevelopmental,
+      hasSensory,
+      hasSnap,
       created_at: new Date().toISOString()
     };
 
@@ -312,10 +330,10 @@ export default function DevelopmentalAssessment({
       title: isEditing ? 'แก้ไขผลการประเมินสำเร็จ' : 'บันทึกผลการประเมินสำเร็จ',
       text: `เลขที่เอกสาร: ${docId}`,
       confirmButtonColor: 'var(--secondary)'
+    }).then(() => {
+      resetForm();
+      setShowFormModal(false);
     });
-
-    resetForm();
-    setShowFormModal(false);
   };
 
   // ค้นหารายละเอียดประวัติที่บันทึก
@@ -485,10 +503,14 @@ export default function DevelopmentalAssessment({
           return;
         }
 
-        const gm = val('gm') || 'สมวัย';
-        const fm = val('fm') || 'สมวัย';
-        const language = val('language') || 'สมวัย';
-        const social = val('social') || 'สมวัย';
+        let gm = val('gm') || 'สมวัย';
+        if (gm === 'ล่าช้า') gm = 'ไม่สมวัย';
+        let fm = val('fm') || 'สมวัย';
+        if (fm === 'ล่าช้า') fm = 'ไม่สมวัย';
+        let language = val('language') || 'สมวัย';
+        if (language === 'ล่าช้า') language = 'ไม่สมวัย';
+        let social = val('social') || 'สมวัย';
+        if (social === 'ล่าช้า') social = 'ไม่สมวัย';
 
         const tactile = Number(val('tactile')) || 0;
         const vestibular = Number(val('vestibular')) || 0;
@@ -652,11 +674,15 @@ export default function DevelopmentalAssessment({
                       <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {item.hn} ({formatPatientNickname(item.patientNickname)})</div>
                     </td>
                     <td>
-                      <div style={{ fontSize: '0.8rem' }}>
-                        สมาธิ: <strong style={{ color: item.snapIV.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.inattention} ({item.snapIV.inattentionStatus})</strong><br/>
-                        ซน: <strong style={{ color: item.snapIV.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.hyperactivity} ({item.snapIV.hyperactivityStatus})</strong><br/>
-                        ดื้อ: <strong style={{ color: item.snapIV.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.oppositional} ({item.snapIV.oppositionalStatus})</strong>
-                      </div>
+                      {item.hasSnap !== false && item.snapIV ? (
+                        <div style={{ fontSize: '0.8rem' }}>
+                          สมาธิ: <strong style={{ color: item.snapIV.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.inattention} ({item.snapIV.inattentionStatus})</strong><br/>
+                          ซน: <strong style={{ color: item.snapIV.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.hyperactivity} ({item.snapIV.hyperactivityStatus})</strong><br/>
+                          ดื้อ: <strong style={{ color: item.snapIV.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' }}>{item.snapIV.oppositional} ({item.snapIV.oppositionalStatus})</strong>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontStyle: 'italic' }}>ไม่ได้ประเมิน SNAP-IV</span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
@@ -874,207 +900,240 @@ export default function DevelopmentalAssessment({
                   </div>
                 )}
 
-                {/* 1. พัฒนาการ 4 ด้าน */}
-                <div>
-                  <div className="assessment-section-title">พัฒนาการ 4 ด้านพื้นฐาน</div>
-                  <div className="development-grid">
-                    <div className="form-group">
-                      <label className="form-label">กล้ามเนื้อมัดใหญ่ (GM)</label>
-                      <select className="form-control" value={gm} onChange={(e) => setGm(e.target.value)}>
-                        <option value="สมวัย">สมวัย</option>
-                        <option value="ล่าช้า">ล่าช้า</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">กล้ามเนื้อมัดเล็ก (FM)</label>
-                      <select className="form-control" value={fm} onChange={(e) => setFm(e.target.value)}>
-                        <option value="สมวัย">สมวัย</option>
-                        <option value="ล่าช้า">ล่าช้า</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">ด้านภาษา (Language)</label>
-                      <select className="form-control" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                        <option value="สมวัย">สมวัย</option>
-                        <option value="ล่าช้า">ล่าช้า</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">ด้านสังคม (Social)</label>
-                      <select className="form-control" value={social} onChange={(e) => setSocial(e.target.value)}>
-                        <option value="สมวัย">สมวัย</option>
-                        <option value="ล่าช้า">ล่าช้า</option>
-                      </select>
-                    </div>
+                {/* เลือกประเภทแบบประเมิน */}
+                <div style={{
+                  backgroundColor: 'var(--white)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1rem',
+                  marginBottom: '1.5rem',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <label className="form-label" style={{ fontWeight: 700, color: 'var(--dark)', display: 'block', marginBottom: '0.75rem' }}>
+                    ประเภทแบบประเมินที่ต้องการบันทึก <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={hasDevelopmental} 
+                        onChange={(e) => setHasDevelopmental(e.target.checked)} 
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      พัฒนาการ 4 ด้านพื้นฐาน
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={hasSensory} 
+                        onChange={(e) => setHasSensory(e.target.checked)} 
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      Sensory Test 6 ด้าน
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={hasSnap} 
+                        onChange={(e) => setHasSnap(e.target.checked)} 
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      แบบประเมินพฤติกรรม SNAP-IV
+                    </label>
                   </div>
                 </div>
+
+                {/* 1. พัฒนาการ 4 ด้าน */}
+                {hasDevelopmental && (
+                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
+                    <div className="assessment-section-title">พัฒนาการ 4 ด้านพื้นฐาน</div>
+                    <div className="development-grid">
+                      <div className="form-group">
+                        <label className="form-label">กล้ามเนื้อมัดใหญ่ (GM)</label>
+                        <select className="form-control" value={gm} onChange={(e) => setGm(e.target.value)}>
+                          <option value="สมวัย">สมวัย</option>
+                          <option value="ไม่สมวัย">ไม่สมวัย</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">กล้ามเนื้อมัดเล็ก (FM)</label>
+                        <select className="form-control" value={fm} onChange={(e) => setFm(e.target.value)}>
+                          <option value="สมวัย">สมวัย</option>
+                          <option value="ไม่สมวัย">ไม่สมวัย</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">ด้านภาษา (Language)</label>
+                        <select className="form-control" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                          <option value="สมวัย">สมวัย</option>
+                          <option value="ไม่สมวัย">ไม่สมวัย</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">ด้านสังคม (Social)</label>
+                        <select className="form-control" value={social} onChange={(e) => setSocial(e.target.value)}>
+                          <option value="สมวัย">สมวัย</option>
+                          <option value="ไม่สมวัย">ไม่สมวัย</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 2. Sensory Test */}
-                <div style={{ opacity: isSensoryEnabled ? 1 : 0.6 }}>
-                  <div className="assessment-section-title">
-                    Sensory Test 6 ด้าน {!isSensoryEnabled && '(เฉพาะเด็กอายุ 6 ปีขึ้นไป)'}
-                  </div>
-                  <div className="sensory-grid">
-                    <div className="form-group">
-                      <label className="form-label">การมองเห็น (Visual)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={visual} 
-                        onChange={(e) => setVisual(e.target.value)} 
-                      />
+                {hasSensory && (
+                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
+                    <div className="assessment-section-title">
+                      Sensory Test 6 ด้าน
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">การได้ยิน (Auditory)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={auditory} 
-                        onChange={(e) => setAuditory(e.target.value)} 
-                      />
+                    <div className="sensory-grid">
+                      <div className="form-group">
+                        <label className="form-label">การมองเห็น (Visual)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={visual} 
+                          onChange={(e) => setVisual(e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">การได้ยิน (Auditory)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={auditory} 
+                          onChange={(e) => setAuditory(e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">การเคลื่อนไหว (Movement)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={movement} 
+                          onChange={(e) => setMovement(e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">รักษาสมดุล (Vestibular)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={vestibular} 
+                          onChange={(e) => setVestibular(e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">รับรส/กลิ่น (Proprio)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={proprioceptive} 
+                          onChange={(e) => setProprioceptive(e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">การตอบสนอง (Tactile)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="50"
+                          value={tactile} 
+                          onChange={(e) => setTactile(e.target.value)} 
+                        />
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">การเคลื่อนไหว (Movement)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={movement} 
-                        onChange={(e) => setMovement(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">รักษาสมดุล (Vestibular)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={vestibular} 
-                        onChange={(e) => setVestibular(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">รับรส/กลิ่น (Proprio)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={proprioceptive} 
-                        onChange={(e) => setProprioceptive(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">การตอบสนอง (Tactile)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="50"
-                        disabled={!isSensoryEnabled} 
-                        value={tactile} 
-                        onChange={(e) => setTactile(e.target.value)} 
-                      />
-                    </div>
-                  </div>
 
-                  
-                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
-                      <label className="form-label">คะแนนรวมประสาทสัมผัส</label>
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        readOnly 
-                        value={sensoryTotal}
-                        style={{ backgroundColor: '#f5f5f5', fontWeight: 700, color: 'var(--secondary)' }} 
-                      />
-                    </div>
-                    <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
-                      <label className="form-label">คะแนน (เด็ก 6 ปี+)</label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0"
-                        disabled={!isSensoryEnabled} 
-                        value={score6YearsPlus} 
-                        onChange={(e) => setScore6YearsPlus(e.target.value)} 
-                        placeholder="กรอกคะแนนเด็ก 6 ปีขึ้นไป"
-                      />
+                    
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
+                        <label className="form-label">คะแนน (เด็ก 6 ปี+)</label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0"
+                          disabled={!isChild6YearsPlus} 
+                          value={score6YearsPlus} 
+                          onChange={(e) => setScore6YearsPlus(e.target.value)} 
+                          placeholder={isChild6YearsPlus ? "กรอกคะแนนเด็ก 6 ปีขึ้นไป" : "เปิดกรอกสำหรับเด็ก 6 ปีขึ้นไป"}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* 3. SNAP-IV */}
-                <div>
-                  <div className="assessment-section-title">แบบประเมินพฤติกรรม SNAP-IV (คะแนนดิบ)</div>
-                  <div className="snap-grid">
-                    <div className="form-group">
-                      <label className="form-label">
-                        ขาดสมาธิ (Inattention) 
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          display: 'block', 
-                          color: snapEvaluation.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
-                        }}>
-                          แปลผล: {snapEvaluation.inattentionStatus} (เกณฑ์ ≥16)
-                        </span>
-                      </label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="27"
-                        value={snapInattention} 
-                        onChange={(e) => setSnapInattention(Number(e.target.value))} 
-                      />
-                    </div>
+                {hasSnap && (
+                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
+                    <div className="assessment-section-title">แบบประเมินพฤติกรรม SNAP-IV (คะแนนดิบ)</div>
+                    <div className="snap-grid">
+                      <div className="form-group">
+                        <label className="form-label">
+                          ขาดสมาธิ (Inattention) 
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            display: 'block', 
+                            color: snapEvaluation.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
+                          }}>
+                            แปลผล: {snapEvaluation.inattentionStatus} (เกณฑ์ ≥16)
+                          </span>
+                        </label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="27"
+                          value={snapInattention} 
+                          onChange={(e) => setSnapInattention(Number(e.target.value))} 
+                        />
+                      </div>
 
-                    <div className="form-group">
-                      <label className="form-label">
-                        ซน/วู่วาม (Hyperactive)
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          display: 'block', 
-                          color: snapEvaluation.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
-                        }}>
-                          แปลผล: {snapEvaluation.hyperactivityStatus} (เกณฑ์ ≥13)
-                        </span>
-                      </label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="27"
-                        value={snapHyperactivity} 
-                        onChange={(e) => setSnapHyperactivity(Number(e.target.value))} 
-                      />
-                    </div>
+                      <div className="form-group">
+                        <label className="form-label">
+                          ซน/วู่วาม (Hyperactive)
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            display: 'block', 
+                            color: snapEvaluation.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
+                          }}>
+                            แปลผล: {snapEvaluation.hyperactivityStatus} (เกณฑ์ ≥13)
+                          </span>
+                        </label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="27"
+                          value={snapHyperactivity} 
+                          onChange={(e) => setSnapHyperactivity(Number(e.target.value))} 
+                        />
+                      </div>
 
-                    <div className="form-group">
-                      <label className="form-label">
-                        ดื้อ/ต่อต้าน (Oppositional)
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          display: 'block', 
-                          color: snapEvaluation.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
-                        }}>
-                          แปลผล: {snapEvaluation.oppositionalStatus} (เกณฑ์ ≥15)
-                        </span>
-                      </label>
-                      <input 
-                        type="number" 
-                        className="form-control" 
-                        min="0" max="24"
-                        value={snapOppositional} 
-                        onChange={(e) => setSnapOppositional(Number(e.target.value))} 
-                      />
+                      <div className="form-group">
+                        <label className="form-label">
+                          ดื้อ/ต่อต้าน (Oppositional)
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            display: 'block', 
+                            color: snapEvaluation.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)' 
+                          }}>
+                            แปลผล: {snapEvaluation.oppositionalStatus} (เกณฑ์ ≥15)
+                          </span>
+                        </label>
+                        <input 
+                          type="number" 
+                          className="form-control" 
+                          min="0" max="24"
+                          value={snapOppositional} 
+                          onChange={(e) => setSnapOppositional(Number(e.target.value))} 
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* 4. ความเห็นเพิ่มเติม */}
                 <div className="form-group">
@@ -1106,144 +1165,145 @@ export default function DevelopmentalAssessment({
       )}
 
       {/* --- modal ดูข้อมูลการประเมินแบบอ่านอย่างเดียว --- */}
-      {showViewModal && viewingAssessment && (
-        <div className="modal-overlay">
-          <div className="modal-content-wrapper" style={{ maxWidth: '750px' }}>
-            <div className="modal-header">
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--secondary)' }}>
-                รายละเอียดผลการประเมินพัฒนาการ ({viewingAssessment.id})
-              </h2>
-              <button className="close-modal-btn" onClick={() => setShowViewModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              
-              {/* ข้อมูลทั่วไปผู้รับบริการ */}
-              <div className="card-2xl" style={{ backgroundColor: 'var(--light)', border: '1px solid var(--border)' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--dark)' }}>
-                  ข้อมูลทั่วไปผู้รับบริการ
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.9rem' }}>
-                  <div><strong>ชื่อ-สกุล:</strong> {viewingAssessment.patientName}</div>
-                  <div><strong>ชื่อเล่น:</strong> {formatPatientNickname(viewingAssessment.patientNickname) || '-'}</div>
-                  <div><strong>รหัส HN:</strong> {viewingAssessment.hn}</div>
-                  <div><strong>วันที่ประเมิน:</strong> {new Date(viewingAssessment.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                </div>
+      {showViewModal && viewingAssessment && (() => {
+        let viewSectionCounter = 1;
+        return (
+          <div className="modal-overlay">
+            <div className="modal-content-wrapper" style={{ maxWidth: '750px' }}>
+              <div className="modal-header">
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--secondary)' }}>
+                  รายละเอียดผลการประเมินพัฒนาการ ({viewingAssessment.id})
+                </h2>
+                <button className="close-modal-btn" onClick={() => setShowViewModal(false)}>
+                  <X size={18} />
+                </button>
               </div>
-
-              {/* 1. พัฒนาการ 4 ด้าน */}
-              <div>
-                <h3 className="assessment-section-title">สรุปผลพัฒนาการ 4 ด้านพื้นฐาน</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>กล้ามเนื้อมัดใหญ่ (GM)</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.gm === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.gm}</div>
-                  </div>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>กล้ามเนื้อมัดเล็ก (FM)</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.fm === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.fm}</div>
-                  </div>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ด้านภาษา (Language)</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.language === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.language}</div>
-                  </div>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ด้านสังคม (Social)</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.social === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.social}</div>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                
+                {/* ข้อมูลทั่วไปผู้รับบริการ */}
+                <div className="card-2xl" style={{ backgroundColor: 'var(--light)', border: '1px solid var(--border)' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--dark)' }}>
+                    ข้อมูลทั่วไปผู้รับบริการ
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.9rem' }}>
+                    <div><strong>ชื่อ-สกุล:</strong> {viewingAssessment.patientName}</div>
+                    <div><strong>ชื่อเล่น:</strong> {formatPatientNickname(viewingAssessment.patientNickname) || '-'}</div>
+                    <div><strong>รหัส HN:</strong> {viewingAssessment.hn}</div>
+                    <div><strong>วันที่ประเมิน:</strong> {new Date(viewingAssessment.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                   </div>
                 </div>
-              </div>
 
-              {/* 2. Sensory Test */}
-              <div>
-                <h3 className="assessment-section-title">สรุปผลการประเมินระบบประสาทสัมผัส (Sensory Profile Test)</h3>
-                {isViewingSensoryEnabled ? (
+                {/* 1. พัฒนาการ 4 ด้าน */}
+                {viewingAssessment.hasDevelopmental !== false && (
                   <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การมองเห็น (Visual):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.visual ?? 0} / 50</strong>
+                    <h3 className="assessment-section-title">ส่วนที่ {viewSectionCounter++}: สรุปผลพัฒนาการ 4 ด้านพื้นฐาน</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>กล้ามเนื้อมัดใหญ่ (GM)</div>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.gm === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.gm}</div>
                       </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การได้ยิน (Auditory):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.auditory ?? 0} / 50</strong>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>กล้ามเนื้อมัดเล็ก (FM)</div>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.fm === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.fm}</div>
                       </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การเคลื่อนไหว (Movement):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.movement ?? 0} / 50</strong>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ด้านภาษา (Language)</div>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.language === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.language}</div>
                       </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รักษาสมดุล (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.vestibular ?? 0} / 50</strong>
-                      </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รับรส/กลิ่น (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.proprioceptive ?? 0} / 50</strong>
-                      </div>
-                      <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การตอบสนอง (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.tactile ?? 0} / 50</strong>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                      <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <strong style={{ color: 'var(--dark)', fontSize: '0.85rem' }}>คะแนนรวมระบบประสาทสัมผัส:</strong>
-                        <strong style={{ color: 'var(--secondary)', fontSize: '1.15rem' }}>{viewingAssessment.sensoryScores?.total ?? 0} / 300</strong>
-                      </div>
-                      <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <strong style={{ color: 'var(--dark)', fontSize: '0.85rem' }}>คะแนน (เด็ก 6 ปี+):</strong>
-                        <strong style={{ color: 'var(--secondary)', fontSize: '1.15rem' }}>{viewingAssessment.sensoryScores?.score6YearsPlus ?? 0}</strong>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ด้านสังคม (Social)</div>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 700, color: viewingAssessment.social === 'สมวัย' ? 'var(--success)' : 'var(--danger)', marginTop: '0.25rem' }}>{viewingAssessment.social}</div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--dark-light)', backgroundColor: '#fcfcfc', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
-                    * ผู้รับการประเมินอายุน้อยกว่า 6 ปี ณ วันที่ประเมิน จึงไม่ได้ทำการประเมินระบบประสาทสัมผัส (Sensory Profile Test)
                   </div>
                 )}
-              </div>
 
-              {/* 3. SNAP-IV */}
-              <div>
-                <h3 className="assessment-section-title">แบบประเมินพฤติกรรมเสี่ยง SNAP-IV</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>สมาธิสั้น (Inattention)</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.inattention} / 27</div>
-                    <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
-                      แปลผล: {viewingAssessment.snapIV?.inattentionStatus} (เกณฑ์ ≥16)
+                {/* 2. Sensory Test */}
+                {viewingAssessment.hasSensory !== false && (
+                  <div>
+                    <h3 className="assessment-section-title">ส่วนที่ {viewSectionCounter++}: สรุปผลการประเมินระบบประสาทสัมผัส (Sensory Profile Test)</h3>
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การมองเห็น (Visual):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.visual ?? 0}</strong>
+                        </div>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การได้ยิน (Auditory):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.auditory ?? 0}</strong>
+                        </div>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การเคลื่อนไหว (Movement):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.movement ?? 0}</strong>
+                        </div>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รักษาสมดุล (Vestibular):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.vestibular ?? 0}</strong>
+                        </div>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รับรส/กลิ่น (Proprio):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.proprioceptive ?? 0}</strong>
+                        </div>
+                        <div style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>การตอบสนอง (Tactile):</span> <strong style={{ float: 'right' }}>{viewingAssessment.sensoryScores?.tactile ?? 0}</strong>
+                        </div>
+                      </div>
+
+                      {isViewingChild6YearsPlus && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                          <div style={{ backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <strong style={{ color: 'var(--dark)', fontSize: '0.85rem' }}>คะแนน (เด็ก 6 ปี+):</strong>
+                            <strong style={{ color: 'var(--secondary)', fontSize: '1.15rem' }}>{viewingAssessment.sensoryScores?.score6YearsPlus ?? 0}</strong>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ซน/วู่วาม (Hyperactive)</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.hyperactivity} / 27</div>
-                    <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
-                      แปลผล: {viewingAssessment.snapIV?.hyperactivityStatus} (เกณฑ์ ≥13)
+                )}
+
+                {/* 3. SNAP-IV */}
+                {viewingAssessment.hasSnap !== false && (
+                  <div>
+                    <h3 className="assessment-section-title">ส่วนที่ {viewSectionCounter++}: แบบประเมินพฤติกรรมเสี่ยง SNAP-IV</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>สมาธิสั้น (Inattention)</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.inattention} / 27</div>
+                        <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.inattentionStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
+                          แปลผล: {viewingAssessment.snapIV?.inattentionStatus} (เกณฑ์ ≥16)
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ซน/วู่วาม (Hyperactive)</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.hyperactivity} / 27</div>
+                        <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.hyperactivityStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
+                          แปลผล: {viewingAssessment.snapIV?.hyperactivityStatus} (เกณฑ์ ≥13)
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ดื้อ/ต่อต้าน (Oppositional)</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.oppositional} / 24</div>
+                        <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
+                          แปลผล: {viewingAssessment.snapIV?.oppositionalStatus} (เกณฑ์ ≥15)
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--white)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', fontWeight: 600 }}>ดื้อ/ต่อต้าน (Oppositional)</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>{viewingAssessment.snapIV?.oppositional} / 24</div>
-                    <div style={{ fontSize: '0.8rem', color: viewingAssessment.snapIV?.oppositionalStatus === 'เสี่ยง' ? 'var(--danger)' : 'var(--success)', fontWeight: 700, marginTop: '0.25rem' }}>
-                      แปลผล: {viewingAssessment.snapIV?.oppositionalStatus} (เกณฑ์ ≥15)
-                    </div>
+                )}
+
+                {/* 4. ความเห็นเพิ่มเติม */}
+                <div>
+                  <h3 className="assessment-section-title">ส่วนที่ {viewSectionCounter++}: ความเห็นเพิ่มเติม (Comments)</h3>
+                  <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--light)', border: '1px solid var(--border)', minHeight: '60px', whiteSpace: 'pre-wrap' }}>
+                    {viewingAssessment.comment || '-'}
                   </div>
                 </div>
-              </div>
 
-              {/* 4. ความเห็นเพิ่มเติม */}
-              <div>
-                <h3 className="assessment-section-title">ความเห็นเพิ่มเติม (Comments)</h3>
-                <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--light)', border: '1px solid var(--border)', minHeight: '60px', whiteSpace: 'pre-wrap' }}>
-                  {viewingAssessment.comment || '-'}
-                </div>
               </div>
-
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-light" onClick={() => setShowViewModal(false)}>
-                ปิดหน้าต่าง
-              </button>
+              <div className="modal-footer">
+                <button className="btn btn-light" onClick={() => setShowViewModal(false)}>
+                  ปิดหน้าต่าง
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

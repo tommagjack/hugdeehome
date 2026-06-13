@@ -59,7 +59,8 @@ const formatDateBE = (dateStr) => {
 // แปลงปี พ.ศ. ค.ศ.
 const getYearBE = (dateStr) => {
   if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  const str = String(dateStr);
+  const parts = str.split('-');
   if (parts.length === 3) {
     return String(parseInt(parts[0], 10) + 543);
   }
@@ -69,7 +70,8 @@ const getYearBE = (dateStr) => {
 // แปลงเดือนเป็นชื่อเดือนไทย
 const getMonthThai = (dateStr) => {
   if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  const str = String(dateStr);
+  const parts = str.split('-');
   if (parts.length === 3) {
     const monthIdx = parseInt(parts[1], 10) - 1;
     return monthThaiNames[monthIdx] || '';
@@ -78,12 +80,17 @@ const getMonthThai = (dateStr) => {
 };
 
 export default function Transactions({ 
-  transactions = [], 
+  transactions: propTransactions = [], 
   setTransactions, 
-  receipts = [], 
-  payrolls = [], 
-  patients = [] 
+  receipts: propReceipts = [], 
+  payrolls: propPayrolls = [], 
+  patients: propPatients = [] 
 }) {
+  const transactions = Array.isArray(propTransactions) ? propTransactions : [];
+  const receipts = Array.isArray(propReceipts) ? propReceipts : [];
+  const payrolls = Array.isArray(propPayrolls) ? propPayrolls : [];
+  const patients = Array.isArray(propPatients) ? propPatients : [];
+
   const [searchQuery, setSearchQuery] = useState('');
   const [yearFilter, setYearFilter] = useState('All');
   const [monthFilter, setMonthFilter] = useState('All');
@@ -112,12 +119,13 @@ export default function Transactions({
     setCurrentPage(1);
   }, [searchQuery, yearFilter, monthFilter, typeFilter]);
 
-  // ซิงค์บิลและรายจ่ายเงินเดือนพนักงานโดยอัตโนมัติ และกำจัดตัวซ้ำ
+  // ซิงค์บิลและรายจ่ายเงินเดือนพนักงานโดยอัตโนมัติ และกำจัดตัวซ้ำ พร้อมอัปเดตยอดเงินถ้าเปลี่ยนไป
   useEffect(() => {
     setTransactions(prev => {
-      // 1. กำจัดรายการซ้ำที่มีอยู่เดิมใน prev ก่อน (Self-Healing)
+      const prevList = Array.isArray(prev) ? prev : [];
+      // 1. กำจัดรายการซ้ำที่มีอยู่เดิมใน prevList ก่อน (Self-Healing)
       const uniquePrevMap = new Map();
-      prev.forEach(t => {
+      prevList.forEach(t => {
         const key = t.refId || t.id;
         if (!uniquePrevMap.has(key)) {
           uniquePrevMap.set(key, t);
@@ -131,11 +139,34 @@ export default function Transactions({
       const existingRefIds = new Set(cleanedPrev.map(t => t.refId).filter(Boolean));
       const existingIds = new Set(cleanedPrev.map(t => t.id));
       const newSynced = [];
+      let hasUpdates = false;
 
       paidReceipts.forEach(r => {
-        const cleanDate = r.date.split('T')[0];
+        const cleanDate = r.date ? String(r.date).split('T')[0] : '';
         const txId = `TX-RC-${r.id}`;
-        if (!existingRefIds.has(r.id) && !existingIds.has(txId)) {
+        
+        const existingTx = uniquePrevMap.get(r.id) || uniquePrevMap.get(txId);
+        if (existingTx) {
+          const patient = patients.find(p => p.hn === r.hn);
+          const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
+          const expectedDesc = `อ้างอิงใบเสร็จ ${r.id} ของ ${patientName} (${r.hn})`;
+          
+          if (
+            existingTx.amount !== r.totalAmount ||
+            existingTx.date !== cleanDate ||
+            existingTx.description !== expectedDesc ||
+            existingTx.slipUrl !== (r.slipUrl || '')
+          ) {
+            uniquePrevMap.set(r.id || txId, {
+              ...existingTx,
+              amount: r.totalAmount,
+              date: cleanDate,
+              description: expectedDesc,
+              slipUrl: r.slipUrl || ''
+            });
+            hasUpdates = true;
+          }
+        } else {
           const patient = patients.find(p => p.hn === r.hn);
           const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
           newSynced.push({
@@ -156,20 +187,36 @@ export default function Transactions({
 
       validPayrolls.forEach(p => {
         const txId = `TX-PR-${p.id}`;
-        if (!existingRefIds.has(p.id) && !existingIds.has(txId)) {
-          let txDate;
-          if (p.created_at) {
-            txDate = p.created_at.split('T')[0];
-          } else {
-            const mNum = monthThaiToNum[p.month] || 5;
-            txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
-          }
+        let txDate;
+        if (p.created_at) {
+          txDate = String(p.created_at).split('T')[0];
+        } else {
+          const mNum = monthThaiToNum[p.month] || 5;
+          txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
+        }
+        const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 
+        const existingTx = uniquePrevMap.get(p.id) || uniquePrevMap.get(txId);
+        if (existingTx) {
+          if (
+            existingTx.amount !== p.netPay ||
+            existingTx.date !== txDate ||
+            existingTx.description !== expectedDesc
+          ) {
+            uniquePrevMap.set(p.id || txId, {
+              ...existingTx,
+              amount: p.netPay,
+              date: txDate,
+              description: expectedDesc
+            });
+            hasUpdates = true;
+          }
+        } else {
           newSynced.push({
             id: txId,
             date: txDate,
             type: 'expense',
-            description: `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`,
+            description: expectedDesc,
             category: 'รายจ่ายคงที่',
             amount: p.netPay,
             refId: p.id,
@@ -181,12 +228,12 @@ export default function Transactions({
         }
       });
 
-      if (newSynced.length > 0 || cleanedPrev.length !== prev.length) {
-        return [...cleanedPrev, ...newSynced];
+      if (newSynced.length > 0 || hasUpdates || !Array.isArray(prev) || cleanedPrev.length !== prev.length) {
+        return [...Array.from(uniquePrevMap.values()), ...newSynced];
       }
       return prev;
     });
-  }, [receipts, payrolls, patients, setTransactions]);
+  }, [propReceipts, propPayrolls, propPatients, setTransactions]);
 
   // เปลี่ยนหมวดหมู่ตัวเลือกอัตโนมัติเมื่อเลือกประเภท
   const handleTypeChange = (typeVal) => {
@@ -208,7 +255,7 @@ export default function Transactions({
     // เพิ่มปีปัจจุบัน พ.ศ. 2569 เป็นทางเลือก
     years.add('2569');
     return Array.from(years).sort((a, b) => b - a); // ใหม่ไปเก่า
-  }, [transactions]);
+  }, [propTransactions]);
 
   // คัดกรองและค้นหาข้อมูลธุรกรรม
   const filteredTransactions = useMemo(() => {
@@ -235,7 +282,7 @@ export default function Transactions({
         return matchesQuery && matchesYear && matchesMonth && matchesType;
       })
       .sort((a, b) => new Date(b.date) - new Date(a.date) || b.id.localeCompare(a.id)); // เรียงวันที่ใหม่ไปเก่า
-  }, [transactions, searchQuery, yearFilter, monthFilter, typeFilter]);
+  }, [propTransactions, searchQuery, yearFilter, monthFilter, typeFilter]);
 
   // คำนวณยอดเงินรวม (รายรับ, รายจ่าย, คงเหลือสุทธิ)
   const financialSummary = useMemo(() => {
@@ -288,7 +335,7 @@ export default function Transactions({
     setTDescription(t.description);
     setTCategory(t.category);
     setTAmount(t.amount);
-    setTSlipName(t.slipUrl ? t.slipUrl.split('/').pop() : '');
+    setTSlipName(t.slipUrl ? String(t.slipUrl).split('/').pop() : '');
     setTSlipAttached(!!t.slipUrl);
     setTSlipUrl(t.slipUrl || '');
     setShowModal(true);
@@ -344,7 +391,7 @@ export default function Transactions({
     resetForm();
   };
 
-  // ซิงค์ข้อมูลจาก POS Receipts และ Payrolls
+  // ซิงค์ข้อมูลจาก POS Receipts และ Payrolls พร้อมอัปเดตข้อมูลธุรกรรมเดิมที่มีอยู่หากมีการเปลี่ยนแปลง
   const handleSyncData = () => {
     // 1. ดึงบิล POS ที่ชำระเงินแล้ว
     const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
@@ -352,18 +399,47 @@ export default function Transactions({
     const validPayrolls = payrolls; // ถือว่าบันทึกจ่ายแล้ว
 
     let syncCount = 0;
-    const newSyncedTransactions = [];
+    let updateCount = 0;
 
-    // ดึงรหัสอ้างอิงและ ID ที่มีอยู่แล้ว
+    const uniquePrevMap = new Map();
+    transactions.forEach(t => {
+      const key = t.refId || t.id;
+      if (!uniquePrevMap.has(key)) {
+        uniquePrevMap.set(key, t);
+      }
+    });
+
     const existingRefIds = new Set(transactions.map(t => t.refId).filter(Boolean));
     const existingIds = new Set(transactions.map(t => t.id));
+    const newSyncedTransactions = [];
 
     // ซิงค์บิล POS -> รายรับ
     paidReceipts.forEach(r => {
-      const cleanDate = r.date.split('T')[0];
+      const cleanDate = r.date ? String(r.date).split('T')[0] : '';
       const txId = `TX-RC-${r.id}`;
-      if (!existingRefIds.has(r.id) && !existingIds.has(txId)) {
-        // หาชื่อคนไข้
+      
+      const existingTx = uniquePrevMap.get(r.id) || uniquePrevMap.get(txId);
+      if (existingTx) {
+        const patient = patients.find(p => p.hn === r.hn);
+        const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
+        const expectedDesc = `อ้างอิงใบเสร็จ ${r.id} ของ ${patientName} (${r.hn})`;
+        
+        if (
+          existingTx.amount !== r.totalAmount ||
+          existingTx.date !== cleanDate ||
+          existingTx.description !== expectedDesc ||
+          existingTx.slipUrl !== (r.slipUrl || '')
+        ) {
+          uniquePrevMap.set(r.id || txId, {
+            ...existingTx,
+            amount: r.totalAmount,
+            date: cleanDate,
+            description: expectedDesc,
+            slipUrl: r.slipUrl || ''
+          });
+          updateCount++;
+        }
+      } else {
         const patient = patients.find(p => p.hn === r.hn);
         const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
         
@@ -387,21 +463,36 @@ export default function Transactions({
     // ซิงค์บัญชีเงินเดือน -> รายจ่าย
     validPayrolls.forEach(p => {
       const txId = `TX-PR-${p.id}`;
-      if (!existingRefIds.has(p.id) && !existingIds.has(txId)) {
-        // หาวันที่ (จาก created_at หรือสร้างวันที่จ่าย 28 ของเดือนนั้น)
-        let txDate;
-        if (p.created_at) {
-          txDate = p.created_at.split('T')[0];
-        } else {
-          const mNum = monthThaiToNum[p.month] || 5;
-          txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
-        }
+      let txDate;
+      if (p.created_at) {
+        txDate = String(p.created_at).split('T')[0];
+      } else {
+        const mNum = monthThaiToNum[p.month] || 5;
+        txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
+      }
+      const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 
+      const existingTx = uniquePrevMap.get(p.id) || uniquePrevMap.get(txId);
+      if (existingTx) {
+        if (
+          existingTx.amount !== p.netPay ||
+          existingTx.date !== txDate ||
+          existingTx.description !== expectedDesc
+        ) {
+          uniquePrevMap.set(p.id || txId, {
+            ...existingTx,
+            amount: p.netPay,
+            date: txDate,
+            description: expectedDesc
+          });
+          updateCount++;
+        }
+      } else {
         newSyncedTransactions.push({
           id: txId,
           date: txDate,
           type: 'expense',
-          description: `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`,
+          description: expectedDesc,
           category: 'รายจ่ายคงที่',
           amount: p.netPay,
           refId: p.id,
@@ -414,19 +505,23 @@ export default function Transactions({
       }
     });
 
-    if (syncCount > 0) {
-      setTransactions([...transactions, ...newSyncedTransactions]);
+    if (syncCount > 0 || updateCount > 0) {
+      let msg = '';
+      if (syncCount > 0) msg += `นำเข้าข้อมูลใหม่สำเร็จ ${syncCount} รายการ\n`;
+      if (updateCount > 0) msg += `อัปเดตข้อมูลธุรกรรมเดิมสำเร็จ ${updateCount} รายการ`;
+      
+      setTransactions([...Array.from(uniquePrevMap.values()), ...newSyncedTransactions]);
       Swal.fire({
         icon: 'success',
-        title: 'ซิงค์ข้อมูลเรียบร้อย',
-        html: `<div style="text-align: left; font-family: var(--font-family);">ดึงรายการธุรกรรมการเงินมาเพิ่มได้ <strong>${syncCount}</strong> รายการสำเร็จ! (แบ่งเป็นรายการบิลและรายจ่ายพนักงานที่ไม่เคยซิงค์มาก่อน)</div>`,
+        title: 'ซิงค์ข้อมูลสำเร็จ',
+        html: `<div style="text-align: left; font-family: var(--font-family); white-space: pre-line;">${msg}</div>`,
         confirmButtonColor: 'var(--secondary)'
       });
     } else {
       Swal.fire({
         icon: 'info',
         title: 'ไม่มีข้อมูลใหม่',
-        text: 'ไม่พบบิลการจ่ายเงินหรือบัญชีเงินเดือนพนักงานใหม่ที่ยังไม่ได้ถูกซิงค์ข้อมูล',
+        text: 'ไม่พบบิลการจ่ายเงินหรือบัญชีเงินเดือนพนักงานใหม่ที่ยังไม่ได้ถูกซิงค์ข้อมูล หรือข้อมูลเป็นปัจจุบันดีแล้ว',
         confirmButtonColor: 'var(--secondary)'
       });
     }
@@ -758,7 +853,7 @@ export default function Transactions({
           <table className="hdh-table">
             <thead>
               <tr>
-                <th style={{ width: '120px' }}>วันที่</th>
+                <th style={{ width: '140px' }}>วันที่</th>
                 <th style={{ width: '110px' }}>ประเภท</th>
                 <th>รายการ</th>
                 <th style={{ width: '150px' }}>หมวดหมู่</th>
@@ -776,7 +871,7 @@ export default function Transactions({
               ) : (
                 paginatedTransactions.map(t => (
                   <tr key={t.id}>
-                    <td>{formatDateBE(t.date)}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{formatDateBE(t.date)}</td>
                     <td>
                       <span className={`badge ${t.type === 'income' ? 'badge-success' : 'badge-danger'}`}>
                         {t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}
@@ -789,7 +884,7 @@ export default function Transactions({
                       </span>
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: t.type === 'income' ? 'var(--success)' : 'var(--danger)', fontSize: '1.05rem' }}>
-                      {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      {t.type === 'income' ? '+' : '-'}{(Number(t.amount) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>

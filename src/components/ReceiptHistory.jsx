@@ -37,7 +37,7 @@ export default function ReceiptHistory({
     const years = new Set();
     receipts.forEach(r => {
       if (r.date) {
-        const yr = r.date.split('-')[0];
+        const yr = String(r.date).split('-')[0];
         if (yr && yr.length === 4) {
           years.add(yr);
         }
@@ -487,7 +487,7 @@ export default function ReceiptHistory({
           (r.patientNickname && String(r.patientNickname).toLowerCase().includes(query));
 
         // กรองปี
-        const dateParts = r.date.split('-'); // YYYY-MM-DD
+        const dateParts = String(r.date || '').split('-'); // YYYY-MM-DD
         const year = dateParts[0];
         const month = dateParts[1];
         
@@ -496,7 +496,7 @@ export default function ReceiptHistory({
 
         return matchesQuery && matchesYear && matchesMonth;
       })
-      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)); // เรียงรหัสใบเสร็จล่าสุดขึ้นก่อน (ใหม่ไปเก่า)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || ''))); // เรียงรหัสใบเสร็จล่าสุดขึ้นก่อน (ใหม่ไปเก่า)
   }, [receipts, patients, searchQuery, filterMonth, filterYear]);
 
   const paginatedReceipts = useMemo(() => {

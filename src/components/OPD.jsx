@@ -34,7 +34,7 @@ export default function OPD({
   
   // สถานะแบ่งหน้าของตารางประวัติ
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 10;
 
   // รีเซ็ตหน้าเมื่อเปลี่ยนคนไข้หรือคำค้นหา
   React.useEffect(() => {
@@ -354,29 +354,34 @@ export default function OPD({
       ? opdRecords.filter(r => r.hn === selectedHn)
       : opdRecords;
     
-    if (recordsToExport.length === 0) {
-      Swal.fire({
-        title: 'ไม่มีข้อมูลส่งออก',
-        text: 'ไม่พบข้อมูลบันทึกผลการฝึกในระบบ',
-        icon: 'info',
-        confirmButtonColor: 'var(--secondary)'
-      });
-      return;
-    }
-
     const headers = [
       'รหัสบันทึก', 'รหัส HN', 'วันที่ฝึก', 'ครูผู้ให้บริการ', 'รายละเอียดผลการฝึก', 'ไฟล์แนบ', 'แสดงต่อผู้ปกครอง'
     ];
 
-    const rows = recordsToExport.map(r => [
-      r.id,
-      r.hn,
-      r.date,
-      r.therapist,
-      r.details,
-      r.fileUrl || '',
-      r.isVisible ? 'ใช่' : 'ไม่ใช่'
-    ]);
+    let rows = [];
+
+    if (recordsToExport.length === 0) {
+      // Export template
+      rows = [
+        ['OPD-1', selectedHn || '68001', '2026-06-05', 'ครูแนน', 'ตัวอย่างบันทึกการฝึกกิจกรรมบำบัด (กรุณาลบแถวนี้ก่อนใช้งานจริง)', '', 'ใช่']
+      ];
+      Swal.fire({
+        title: 'ส่งออกไฟล์เทมเพลต',
+        text: 'เนื่องจากไม่มีข้อมูลบันทึกผลการฝึกในระบบ ระบบจะส่งออกเป็นไฟล์เทมเพลตตัวอย่าง',
+        icon: 'info',
+        confirmButtonColor: 'var(--secondary)'
+      });
+    } else {
+      rows = recordsToExport.map(r => [
+        r.id,
+        r.hn,
+        r.date,
+        r.therapist,
+        r.details,
+        r.fileUrl || '',
+        r.isVisible ? 'ใช่' : 'ไม่ใช่'
+      ]);
+    }
 
     const filename = selectedHn ? `opd_records_${selectedHn}.csv` : 'all_opd_records.csv';
     exportToCSV(filename, headers, rows);

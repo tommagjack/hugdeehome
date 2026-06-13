@@ -68,6 +68,8 @@ export default function CourseBalance({
               purchased -= item.quantity; // โอนออก ลดยอด
             } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
               purchased += item.quantity; // โอนเข้า/แมนนวล เพิ่มยอด
+            } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+              // ไม่เอา ประเมินพัฒนาการครั้งแรกมานับ
             } else {
               const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
               purchased += item.quantity * sessionsPerUnit;
@@ -77,7 +79,7 @@ export default function CourseBalance({
       });
 
       // 2. ยอดใช้ทั้งหมด (รับบริการแล้ว)
-      const used = appointments.filter(app => app.hn === p.hn && app.status === 'รับบริการแล้ว').length;
+      const used = appointments.filter(app => String(app.hn) === String(p.hn) && app.status === 'รับบริการแล้ว' && app.type === 'ฝึกกระตุ้นพัฒนาการ').length;
       
       const balance = purchased - used;
 
@@ -161,6 +163,10 @@ export default function CourseBalance({
     patientReceipts.forEach(r => {
       r.items.forEach(item => {
         if (item.type === 'บริการ') {
+          if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+            return;
+          }
+
           let sessions = item.quantity;
           let typeLabel = 'ซื้อคอร์สบริการ';
           let direction = 'in';
@@ -196,7 +202,7 @@ export default function CourseBalance({
     });
 
     // ดึงนัดหมายที่ใช้บริการแล้ว
-    const patientApps = appointments.filter(app => app.hn === selectedHn && app.status === 'รับบริการแล้ว');
+    const patientApps = appointments.filter(app => String(app.hn) === String(selectedHn) && app.status === 'รับบริการแล้ว' && app.type === 'ฝึกกระตุ้นพัฒนาการ');
     patientApps.forEach(app => {
       list.push({
         date: app.date,

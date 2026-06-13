@@ -320,8 +320,29 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
     const { totalEarnings, totalDeductions, netPay, earningsList, deductionsList } = calculationResults;
 
+    const monthMap = {
+      'มกราคม': '01', 'กุมภาพันธ์': '02', 'มีนาคม': '03', 'เมษายน': '04',
+      'พฤษภาคม': '05', 'มิถุนายน': '06', 'กรกฎาคม': '07', 'สิงหาคม': '08',
+      'กันยายน': '09', 'ตุลาคม': '10', 'พฤศจิกายน': '11', 'ธันวาคม': '12'
+    };
+    const mm = monthMap[calcMonth] || '00';
+
+    let nextSeqNum = 1;
+    const existingMonthSlips = safePayrolls.filter(p => p && Number(p.year) === Number(calcYear) && p.month === calcMonth);
+    if (existingMonthSlips.length > 0) {
+      const seqNums = existingMonthSlips.map(p => {
+        const last3 = p.id ? p.id.slice(-3) : '';
+        const num = Number(last3);
+        return isNaN(num) ? 0 : num;
+      });
+      const maxSeq = Math.max(...seqNums, 0);
+      nextSeqNum = maxSeq + 1;
+    }
+    const xxx = String(nextSeqNum).padStart(3, '0');
+    const generatedId = `PAY-${calcYear}${mm}${xxx}`;
+
     const payrollObj = {
-      id: editingPayrollId || `PAY-${calcYear}${calcMonth}-${selectedEmployee.username}`,
+      id: editingPayrollId || generatedId,
       year: calcYear,
       month: calcMonth,
       employeeUsername: selectedEmployee.username,
