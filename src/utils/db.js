@@ -138,7 +138,11 @@ export const syncFromSupabase = async () => {
   if (!gasUrl) return false;
 
   try {
-    const response = await fetch(gasUrl + (gasUrl.includes('?') ? '&' : '?') + 'action=get_all');
+    const response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'get_all' })
+    });
     if (!response.ok) {
       console.error('Error fetching from Google Sheets:', response.statusText);
       return false;
