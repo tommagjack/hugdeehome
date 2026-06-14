@@ -290,6 +290,7 @@ export default function Dashboard({
                   <tr>
                     <th>เวลา</th>
                     <th>HN (ผู้รับบริการ)</th>
+                    <th>ประเภทนัดหมาย</th>
                     <th>ครูผู้สอน</th>
                     <th>สถานะ</th>
                     <th>เปลี่ยนสถานะ</th>
@@ -303,6 +304,7 @@ export default function Dashboard({
                         <div style={{ fontWeight: 600 }}>{app.patientName}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn} ({formatPatientNickname(app.patientNickname)})</div>
                       </td>
+                      <td>{app.type || 'ฝึกกระตุ้นพัฒนาการ'}</td>
                       <td>{app.therapistNickname}</td>
                       <td>
                         <span className={`badge ${
