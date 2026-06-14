@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { formatTherapistName } from '../utils/format';
+import { getGasUrl } from '../utils/db';
 import { 
   Building2, 
   Tag, 
@@ -62,7 +63,7 @@ export default function Settings({
 
   // integration states
   const [sheetId, setSheetId] = useState(localStorage.getItem('hdh_sheet_id') || import.meta.env.VITE_SHEET_ID || '');
-  const [gasUrl, setGasUrl] = useState(localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec');
+  const [gasUrl, setGasUrl] = useState(getGasUrl());
   const [isTestingBackup, setIsTestingBackup] = useState(false);
 
   const handleSaveIntegration = (e) => {

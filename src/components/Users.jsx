@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
+import { getGasUrl } from '../utils/db';
 
 const formatDateToInputDate = (dateStr) => {
   if (!dateStr) return '';
@@ -143,7 +144,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
       // ดึง Google Apps Script URL และ Google Drive Folder ID
-      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+      const gasUrl = getGasUrl();
       const clinicDataStr = localStorage.getItem('hdh_clinic_info');
       const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
       
@@ -272,7 +273,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     const folderName = `${uEmployeeId}-${fname}-${parts[1] || ''}`.trim().replace(/-$/, '');
     
     // ดึง GAS URL และ Parent Folder ID ของระบบ
-    const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+    const gasUrl = getGasUrl();
     if (!gasUrl) {
       Swal.fire('ไม่พบ GAS URL', 'กรุณาตั้งค่า Google Apps Script Web App URL ในหน้าตั้งค่าระบบก่อน', 'warning');
       return;

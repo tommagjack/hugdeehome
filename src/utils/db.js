@@ -132,9 +132,22 @@ export const db = {
   setOpdRecords: (data) => set(KEYS.OPD_RECORDS, data),
 };
 
+// --- ฟังก์ชันดึง Google Apps Script URL ที่ถูกต้อง ---
+export const getGasUrl = () => {
+  const localUrl = localStorage.getItem('hdh_gas_url');
+  if (localUrl && localUrl.trim()) {
+    return localUrl.trim();
+  }
+  const envUrl = import.meta.env.VITE_GAS_URL;
+  if (envUrl && envUrl.trim() && !envUrl.includes('AKfycbz2A08')) {
+    return envUrl.trim();
+  }
+  return 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+};
+
 // --- ฟังก์ชันซิงค์ข้อมูลกับ Google Sheets (ใช้ชื่อเดิมเพื่อป้องกันการกระทบโค้ดอื่น) ---
 export const syncFromSupabase = async (customUrl) => {
-  const gasUrl = customUrl || localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+  const gasUrl = customUrl || getGasUrl();
   if (!gasUrl) return false;
 
   try {
@@ -201,7 +214,7 @@ export const syncFromSupabase = async (customUrl) => {
 };
 
 export const syncToSupabase = async (key, value) => {
-  const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+  const gasUrl = getGasUrl();
   if (!gasUrl) return false;
 
   let finalValue = value;

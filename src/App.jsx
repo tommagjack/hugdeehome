@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { initDatabase, db, syncFromSupabase, syncToSupabase } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncToSupabase, getGasUrl } from './utils/db';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PatientRegister from './components/PatientRegister';
@@ -71,7 +71,7 @@ export default function App() {
   useEffect(() => {
     const runInitialSync = async () => {
       initDatabase();
-      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+      const gasUrl = getGasUrl();
       
       const handleSyncFailurePrompt = (currentGasUrl, errorMsg) => {
         Swal.fire({
