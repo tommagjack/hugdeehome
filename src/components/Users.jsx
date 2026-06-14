@@ -11,6 +11,29 @@ import {
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
 
+const formatDateToInputDate = (dateStr) => {
+  if (!dateStr) return '';
+  let cleanStr = String(dateStr).trim().split('T')[0].split(' ')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+    return cleanStr;
+  }
+  const dmyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const ymdMatch = cleanStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = ymdMatch[2].padStart(2, '0');
+    const day = ymdMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+};
+
 const headersMap = {
   username: ['username', 'ชื่อผู้ใช้', 'ชื่อบัญชีผู้ใช้ (username)', 'ชื่อบัญชี', 'ชื่อบัญชีผู้ใช้', 'ชื่อผู้ใช้ (username)'],
   password: ['password', 'รหัสผ่าน', 'รหัสผ่าน (password)'],
@@ -375,9 +398,9 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUNickname(u.nickname || '');
     setUCitizenId(u.citizenId || '');
     setUGender(u.gender || 'ชาย');
-    setUDob(u.dob || '');
+    setUDob(formatDateToInputDate(u.dob));
     setUPosition(u.position || '');
-    setUStartDate(u.startDate || '');
+    setUStartDate(formatDateToInputDate(u.startDate));
     setUPhone(u.phone || '');
     setUEmail(u.email || '');
     setUBasicSalary(u.basicSalary || '');
@@ -500,16 +523,16 @@ export default function Users({ users, setUsers, setPrintView }) {
         u.role,
         u.employeeType || '',
         u.position || '',
-        u.citizenId || '',
+        u.citizenId ? (String(u.citizenId).trim().match(/^\d+$/) ? "'" + String(u.citizenId).trim() : u.citizenId) : '',
         u.gender || '',
         u.dob || '',
         u.startDate || '',
-        u.phone || '',
+        u.phone ? (String(u.phone).trim().match(/^\d+$/) ? "'" + String(u.phone).trim() : u.phone) : '',
         u.email || '',
         u.basicSalary || 0,
         u.status || 'Active',
         u.bankName || '',
-        u.bankAccountNo || '',
+        u.bankAccountNo ? (String(u.bankAccountNo).trim().match(/^\d+$/) ? "'" + String(u.bankAccountNo).trim() : u.bankAccountNo) : '',
         u.avatarUrl || '',
         u.userFolderUrl || '',
         u.contractDoc ? JSON.stringify(u.contractDoc) : ''
@@ -576,7 +599,15 @@ export default function Users({ users, setUsers, setPrintView }) {
 
         const val = (key) => {
           const idx = indexMap[key];
-          return idx !== undefined && row[idx] !== undefined ? row[idx].trim() : '';
+          if (idx === undefined || row[idx] === undefined) return '';
+          let cleanVal = row[idx].trim();
+          if (cleanVal.startsWith('="') && cleanVal.endsWith('"')) {
+            cleanVal = cleanVal.slice(2, -1);
+          }
+          if (cleanVal.startsWith("'") || cleanVal.startsWith('\t')) {
+            cleanVal = cleanVal.slice(1);
+          }
+          return cleanVal;
         };
 
         const username = val('username');
