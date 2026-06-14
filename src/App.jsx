@@ -1218,6 +1218,7 @@ export default function App() {
             onPrintAnnualHolidays={(year, list) => {
               setPrintView({ show: true, type: 'holidays_annual', data: { year, list } });
             }}
+            receipts={receipts}
           />
         )}
 
