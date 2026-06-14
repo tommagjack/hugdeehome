@@ -143,7 +143,21 @@ export default function App() {
         }
         
         try {
-          const success = await syncFromSupabase();
+          const defaultUrl = 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+          const localUrl = localStorage.getItem('hdh_gas_url');
+          
+          let success = await syncFromSupabase();
+          
+          // หากใช้ URL ในเครื่องแล้วล้มเหลว แต่ URL ดังกล่าวไม่ใช่ค่าเริ่มต้น ให้ลองทดสอบซิงค์ด้วยลิงก์เริ่มต้นระบบดู
+          if (!success && localUrl && localUrl !== defaultUrl) {
+            console.log('Sync failed with localUrl, trying silent fallback to defaultUrl...');
+            success = await syncFromSupabase(defaultUrl);
+            if (success) {
+              // หากการซิงค์ด้วย defaultUrl สำเร็จ ให้ทำการเขียนทับบันทึกความจำเครื่องเป็น defaultUrl ทันทีเพื่อความลื่นไหลในครั้งต่อไป
+              localStorage.setItem('hdh_gas_url', defaultUrl);
+            }
+          }
+
           if (success) {
             // โหลดสเตทใหม่จาก LocalStorage ทันที
             setClinicInfo(db.getClinicInfo());
@@ -172,8 +186,9 @@ export default function App() {
               timer: 2000
             });
           } else {
+            const activeGasUrl = localStorage.getItem('hdh_gas_url') || defaultUrl;
             if (isFirstRun) {
-              handleSyncFailurePrompt(gasUrl, 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL');
+              handleSyncFailurePrompt(activeGasUrl, 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL');
             } else {
               Swal.fire({
                 icon: 'warning',
@@ -188,8 +203,10 @@ export default function App() {
           }
         } catch (e) {
           console.error('Initial sync error:', e);
+          const defaultUrl = 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+          const activeGasUrl = localStorage.getItem('hdh_gas_url') || defaultUrl;
           if (isFirstRun) {
-            handleSyncFailurePrompt(gasUrl, 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + e.message);
+            handleSyncFailurePrompt(activeGasUrl, 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + e.message);
           }
         }
         
