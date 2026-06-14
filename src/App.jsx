@@ -71,8 +71,51 @@ export default function App() {
   useEffect(() => {
     const runInitialSync = async () => {
       initDatabase();
-      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL;
+      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
       
+      const handleSyncFailurePrompt = (currentGasUrl, errorMsg) => {
+        Swal.fire({
+          icon: 'error',
+          title: 'ซิงค์ข้อมูลล้มเหลว',
+          text: errorMsg || 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL',
+          showCancelButton: true,
+          confirmButtonText: 'ลองซิงค์ใหม่',
+          cancelButtonText: 'ระบุ GAS URL ใหม่',
+          confirmButtonColor: 'var(--secondary)',
+          cancelButtonColor: '#b0895a',
+          allowOutsideClick: false
+        }).then((result) => {
+          if (result.dismiss === Swal.DismissReason.cancel) {
+            Swal.fire({
+              title: 'ระบุ Google Apps Script Web App URL',
+              input: 'text',
+              inputValue: currentGasUrl || '',
+              inputPlaceholder: 'https://script.google.com/macros/s/.../exec',
+              showCancelButton: true,
+              confirmButtonText: 'บันทึกและซิงค์ใหม่',
+              cancelButtonText: 'ยกเลิก',
+              confirmButtonColor: '#b0895a',
+              allowOutsideClick: false,
+              inputValidator: (value) => {
+                if (!value) {
+                  return 'กรุณาระบุ URL';
+                }
+                if (!value.trim().startsWith('https://script.google.com/')) {
+                  return 'รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย https://script.google.com/)';
+                }
+              }
+            }).then((inputResult) => {
+              if (inputResult.isConfirmed) {
+                localStorage.setItem('hdh_gas_url', inputResult.value.trim());
+                window.location.reload();
+              }
+            });
+          } else if (result.isConfirmed) {
+            window.location.reload();
+          }
+        });
+      };
+
       if (gasUrl) {
         // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
         const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
@@ -130,12 +173,7 @@ export default function App() {
             });
           } else {
             if (isFirstRun) {
-              Swal.fire({
-                icon: 'error',
-                title: 'ซิงค์ข้อมูลล้มเหลว',
-                text: 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL',
-                confirmButtonColor: 'var(--secondary)'
-              });
+              handleSyncFailurePrompt(gasUrl, 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL');
             } else {
               Swal.fire({
                 icon: 'warning',
@@ -151,12 +189,7 @@ export default function App() {
         } catch (e) {
           console.error('Initial sync error:', e);
           if (isFirstRun) {
-            Swal.fire({
-              icon: 'error',
-              title: 'เกิดข้อผิดพลาดในการซิงค์',
-              text: 'เกิดความล้มเหลว: ' + e.message,
-              confirmButtonColor: 'var(--secondary)'
-            });
+            handleSyncFailurePrompt(gasUrl, 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + e.message);
           }
         }
         
@@ -164,7 +197,45 @@ export default function App() {
           setIsSyncing(false);
         }, 1000);
       } else {
-        setIsSyncing(false);
+        // ถ้าไม่มี gasUrl และไม่มีข้อมูลในเครื่องเลย (First Run ของเครื่องใหม่ที่ยังไม่ได้ตั้งค่าอะไรเลย)
+        const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
+        if (isFirstRun) {
+          Swal.fire({
+            icon: 'info',
+            title: 'ต้องการการตั้งค่าเริ่มต้น',
+            text: 'ไม่พบ URL เชื่อมต่อระบบคลาวด์ (Google Apps Script) กรุณาระบุเพื่อเริ่มต้นใช้งาน',
+            confirmButtonText: 'ระบุ GAS URL',
+            confirmButtonColor: '#b0895a',
+            allowOutsideClick: false
+          }).then((result) => {
+            if (result.isConfirmed) {
+              Swal.fire({
+                title: 'ระบุ Google Apps Script Web App URL',
+                input: 'text',
+                inputPlaceholder: 'https://script.google.com/macros/s/.../exec',
+                showCancelButton: false,
+                confirmButtonText: 'บันทึกและซิงค์',
+                confirmButtonColor: '#b0895a',
+                allowOutsideClick: false,
+                inputValidator: (value) => {
+                  if (!value) {
+                    return 'กรุณาระบุ URL';
+                  }
+                  if (!value.trim().startsWith('https://script.google.com/')) {
+                    return 'รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย https://script.google.com/)';
+                  }
+                }
+              }).then((inputResult) => {
+                if (inputResult.isConfirmed) {
+                  localStorage.setItem('hdh_gas_url', inputResult.value.trim());
+                  window.location.reload();
+                }
+              });
+            }
+          });
+        } else {
+          setIsSyncing(false);
+        }
       }
     };
     runInitialSync();

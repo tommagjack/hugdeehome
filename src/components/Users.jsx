@@ -120,7 +120,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       const fileName = `${uEmployeeId || 'TEMP'}-${fname}-${lname}-${docType}${ext}`;
 
       // ดึง Google Apps Script URL และ Google Drive Folder ID
-      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '';
+      const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
       const clinicDataStr = localStorage.getItem('hdh_clinic_info');
       const clinicData = clinicDataStr ? JSON.parse(clinicDataStr) : {};
       
@@ -148,44 +148,91 @@ export default function Users({ users, setUsers, setPrintView }) {
         parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
       }
 
-      fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folder: folderNameParam,
-          filename: fileName,
-          base64Data: reader.result,
-          gasUrl: gasUrl,
-          parentFolderId: parentFolderId
+      if (gasUrl) {
+        // Direct browser upload to Google Apps Script Web App to bypass Vercel's 4.5MB payload limit.
+        // Use Content-Type: 'text/plain' to avoid CORS preflight OPTIONS request.
+        fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'upload_file',
+            parentFolderId: parentFolderId,
+            folder: folderNameParam,
+            filename: fileName,
+            base64Data: reader.result
+          })
         })
-      })
-      .then(async res => {
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'อัปโหลดล้มเหลว');
-        }
-        return res.json();
-      })
-      .then(data => {
-        setDocState({
-          name: origName,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          path: data.url,
-          data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
-          uploadedAt: new Date().toISOString()
+        .then(async res => {
+          if (!res.ok) {
+            throw new Error(`Google Apps Script returned status ${res.status}`);
+          }
+          const data = await res.json();
+          if (data.status !== 'success') {
+            throw new Error(data.message || 'อัปโหลดไปยัง Google Drive ล้มเหลว');
+          }
+          return data;
+        })
+        .then(data => {
+          setDocState({
+            name: origName,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            path: data.url,
+            data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
+            uploadedAt: new Date().toISOString()
+          });
+          Swal.fire({
+            icon: 'success',
+            title: 'อัปโหลดสำเร็จ',
+            text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
+            timer: 1200,
+            showConfirmButton: false
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
         });
-        Swal.fire({
-          icon: 'success',
-          title: 'อัปโหลดสำเร็จ',
-          text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
-          timer: 1200,
-          showConfirmButton: false
+      } else {
+        // Fallback to local /api/upload (for local dev environments)
+        fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            folder: folderNameParam,
+            filename: fileName,
+            base64Data: reader.result,
+            gasUrl: gasUrl,
+            parentFolderId: parentFolderId
+          })
+        })
+        .then(async res => {
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'อัปโหลดล้มเหลว');
+          }
+          return res.json();
+        })
+        .then(data => {
+          setDocState({
+            name: origName,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            path: data.url,
+            data: data.url,
+            uploadedAt: new Date().toISOString()
+          });
+          Swal.fire({
+            icon: 'success',
+            title: 'อัปโหลดสำเร็จ',
+            text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
+            timer: 1200,
+            showConfirmButton: false
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
         });
-      })
-      .catch(err => {
-        console.error(err);
-        Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
-      });
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -202,7 +249,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     const folderName = `${uEmployeeId}-${fname}-${parts[1] || ''}`.trim().replace(/-$/, '');
     
     // ดึง GAS URL และ Parent Folder ID ของระบบ
-    const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || '';
+    const gasUrl = localStorage.getItem('hdh_gas_url') || import.meta.env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
     if (!gasUrl) {
       Swal.fire('ไม่พบ GAS URL', 'กรุณาตั้งค่า Google Apps Script Web App URL ในหน้าตั้งค่าระบบก่อน', 'warning');
       return;
@@ -221,22 +268,25 @@ export default function Users({ users, setUsers, setPrintView }) {
 
     setUIsConnectingFolder(true);
     
-    fetch('/api/upload', {
+    // Direct browser fetch to Google Apps Script Web App to bypass Vercel and prevent CORS preflight OPTIONS request
+    fetch(gasUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'create_folder',
         folder: folderName,
-        gasUrl: gasUrl,
         parentFolderId: parentFolderId
       })
     })
     .then(async res => {
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'สร้างโฟลเดอร์ล้มเหลว');
+        throw new Error(`Google Apps Script returned status ${res.status}`);
       }
-      return res.json();
+      const data = await res.json();
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'สร้างโฟลเดอร์ล้มเหลว');
+      }
+      return data;
     })
     .then(data => {
       if (data.url) {
