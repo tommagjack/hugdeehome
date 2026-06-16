@@ -85,9 +85,10 @@ export default function ReceiptPOS({
     );
   }, [activePatients, patientSearchText]);
 
-  // กรองสินค้า/บริการที่ Active จากวันที่ปัจจุบัน (5 มิ.ย. 2026)
+  // กรองสินค้า/บริการที่ Active จากวันที่ปัจจุบัน
   const activeServices = useMemo(() => {
-    const todayStr = '2026-06-05';
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     return services.filter(s => {
       const start = s.startDate || '1970-01-01';
       const end = s.endDate || '2999-12-31';
@@ -97,7 +98,8 @@ export default function ReceiptPOS({
 
   // กรองโปรโมชั่นที่ Active
   const activePromotions = useMemo(() => {
-    const todayStr = '2026-06-05';
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     return promotions.filter(p => {
       const start = p.startDate || '1970-01-01';
       const end = p.endDate || '2999-12-31';
