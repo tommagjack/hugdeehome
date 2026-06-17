@@ -66,6 +66,7 @@ export default function App() {
   const [payrolls, setPayrolls] = useState(() => db.getPayrolls());
   const [transactions, setTransactions] = useState(() => db.getTransactions());
   const [opdRecords, setOpdRecords] = useState(() => db.getOpdRecords());
+  const [rewards, setRewards] = useState(() => db.getRewards());
 
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase (ถ้ามีการตั้งค่าไว้)
   useEffect(() => {
@@ -175,6 +176,7 @@ export default function App() {
             setPayrolls(db.getPayrolls());
             setTransactions(db.getTransactions());
             setOpdRecords(db.getOpdRecords());
+            setRewards(db.getRewards());
             
             Swal.fire({
               icon: 'success',
@@ -350,6 +352,11 @@ export default function App() {
     db.setOpdRecords(opdRecords); 
     syncData('hdh_opd_records', opdRecords);
   }, [opdRecords]);
+
+  useEffect(() => { 
+    db.setRewards(rewards); 
+    syncData('hdh_rewards', rewards);
+  }, [rewards]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
@@ -1226,6 +1233,8 @@ export default function App() {
             setServices={setServices}
             promotions={promotions}
             setPromotions={setPromotions}
+            rewards={rewards}
+            setRewards={setRewards}
             bankAccounts={bankAccounts}
             setBankAccounts={setBankAccounts}
             therapists={therapists}

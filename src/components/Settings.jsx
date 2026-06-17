@@ -15,7 +15,8 @@ import {
   Upload,
   Eye,
   Printer,
-  Database
+  Database,
+  Gift
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -26,6 +27,8 @@ export default function Settings({
   setServices,
   promotions,
   setPromotions,
+  rewards,
+  setRewards,
   bankAccounts,
   setBankAccounts,
   therapists,
@@ -445,6 +448,21 @@ function createUserFolder(parentFolderId, folderName) {
   const [promoType, setPromoType] = useState('flat'); // flat, percentage
   const [promoValue, setPromoValue] = useState(0);
 
+  // 2.5 ฟอร์มเพิ่ม/แก้ไข คะแนนสะสมและของรางวัล
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [editingRewardCode, setEditingRewardCode] = useState(null);
+  const [rewardCode, setRewardCode] = useState('');
+  const [rewardName, setRewardName] = useState('');
+  const [rewardDesc, setRewardDesc] = useState('');
+  const [rewardFullPrice, setRewardFullPrice] = useState(0);
+  const [rewardPoints, setRewardPoints] = useState(0);
+  const [rewardLimit, setRewardLimit] = useState(100);
+  const [rewardStart, setRewardStart] = useState('2026-01-01');
+  const [rewardEnd, setRewardEnd] = useState('2026-12-31');
+  const [rewardType, setRewardType] = useState('สินค้า'); // สินค้า, ส่วนลด
+  const [rewardCondition, setRewardCondition] = useState('แลกสินค้าฟรี'); // แลกสินค้าฟรี, ส่วนลดเงินสด, ส่วนลดเป็นเปอร์เซ็นต์
+  const [rewardValue, setRewardValue] = useState(0);
+
   // 3. ฟอร์มเพิ่ม/แก้ไข บัญชีธนาคาร
   const [showBankModal, setShowBankModal] = useState(false);
   const [editingBankId, setEditingBankId] = useState(null);
@@ -628,6 +646,85 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setPromotions(promotions.filter(p => p.code !== code));
+      }
+    });
+  };
+
+  // --- จัดการคะแนนสะสมและของรางวัล ---
+  const handleSaveReward = (e) => {
+    e.preventDefault();
+    const newReward = {
+      code: rewardCode.trim(),
+      name: rewardName.trim(),
+      description: rewardDesc.trim(),
+      fullPrice: Number(rewardFullPrice),
+      points: Number(rewardPoints),
+      maxUses: Number(rewardLimit),
+      startDate: rewardStart,
+      endDate: rewardEnd,
+      type: rewardType, // สินค้า, ส่วนลด
+      condition: rewardCondition, // แลกสินค้าฟรี, ส่วนลดเงินสด, ส่วนลดเป็นเปอร์เซ็นต์
+      value: Number(rewardValue)
+    };
+
+    if (editingRewardCode) {
+      if (rewardCode.trim() !== editingRewardCode && (rewards || []).some(r => r.code === rewardCode.trim())) {
+        Swal.fire('รหัสของรางวัลซ้ำ', 'รหัสของรางวัลนี้มีอยู่ในระบบแล้ว', 'error');
+        return;
+      }
+      setRewards((rewards || []).map(r => r.code === editingRewardCode ? newReward : r));
+    } else {
+      if ((rewards || []).find(r => r.code === rewardCode.trim())) {
+        Swal.fire('รหัสของรางวัลซ้ำ', 'รหัสของรางวัลนี้มีอยู่ในระบบแล้ว', 'error');
+        return;
+      }
+      setRewards([...(rewards || []), newReward]);
+    }
+    setShowRewardModal(false);
+    resetRewardForm();
+  };
+
+  const resetRewardForm = () => {
+    setEditingRewardCode(null);
+    setRewardCode('');
+    setRewardName('');
+    setRewardDesc('');
+    setRewardFullPrice(0);
+    setRewardPoints(0);
+    setRewardLimit(100);
+    setRewardStart('2026-01-01');
+    setRewardEnd('2026-12-31');
+    setRewardType('สินค้า');
+    setRewardCondition('แลกสินค้าฟรี');
+    setRewardValue(0);
+  };
+
+  const handleEditReward = (r) => {
+    setEditingRewardCode(r.code);
+    setRewardCode(r.code);
+    setRewardName(r.name);
+    setRewardDesc(r.description || '');
+    setRewardFullPrice(r.fullPrice || 0);
+    setRewardPoints(r.points || 0);
+    setRewardLimit(r.maxUses || 100);
+    setRewardStart(r.startDate);
+    setRewardEnd(r.endDate);
+    setRewardType(r.type || 'สินค้า');
+    setRewardCondition(r.condition || 'แลกสินค้าฟรี');
+    setRewardValue(r.value || 0);
+    setShowRewardModal(true);
+  };
+
+  const handleDeleteReward = (code) => {
+    Swal.fire({
+      title: 'ลบของรางวัลนี้?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: 'var(--danger)',
+      confirmButtonText: 'ลบ'
+    }).then(res => {
+      if (res.isConfirmed) {
+        setRewards((rewards || []).filter(r => r.code !== code));
       }
     });
   };
@@ -944,6 +1041,9 @@ function createUserFolder(parentFolderId, folderName) {
             <a className={`settings-link ${activeSubMenu === 'promos' ? 'active' : ''}`} onClick={() => setActiveSubMenu('promos')}>
               <Tag size={16} /> โปรโมชั่นและส่วนลด
             </a>
+            <a className={`settings-link ${activeSubMenu === 'rewards' ? 'active' : ''}`} onClick={() => setActiveSubMenu('rewards')}>
+              <Gift size={16} /> คะแนนสะสมและของรางวัล
+            </a>
             <a className={`settings-link ${activeSubMenu === 'banks' ? 'active' : ''}`} onClick={() => setActiveSubMenu('banks')}>
               <CreditCard size={16} /> บัญชีธนาคาร
             </a>
@@ -1164,6 +1264,83 @@ function createUserFolder(parentFolderId, folderName) {
                                 <Edit3 size={14} color="var(--secondary)" />
                               </button>
                               <button className="btn btn-light btn-icon-only" onClick={() => handleDeletePromo(p.code)}>
+                                <Trash2 size={14} color="var(--danger)" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 3.5 คะแนนสะสมและของรางวัล */}
+          {activeSubMenu === 'rewards' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>คะแนนสะสมและของรางวัล</h2>
+                <button className="btn btn-primary" onClick={() => { resetRewardForm(); setShowRewardModal(true); }}>
+                  <Plus size={16} /> เพิ่มของรางวัลใหม่
+                </button>
+              </div>
+
+              <div className="table-container">
+                <table className="hdh-table">
+                  <thead>
+                    <tr>
+                      <th>รหัสของรางวัล</th>
+                      <th>ชื่อของรางวัล</th>
+                      <th>ประเภทของรางวัล</th>
+                      <th>ราคาเต็ม</th>
+                      <th>แต้มที่ใช้แลก</th>
+                      <th>จำนวนสิทธิ์</th>
+                      <th>ระยะเวลากิจกรรม</th>
+                      <th>เงื่อนไข</th>
+                      <th>สถานะ</th>
+                      <th>การดำเนินการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(rewards || []).map(r => {
+                      const usedCount = receipts ? receipts.filter(rec => (rec.promotionId === r.code || rec.rewardId === r.code) && rec.status !== 'ยกเลิก').length : 0;
+                      const remaining = Math.max(0, r.maxUses - usedCount);
+                      const isExpired = !(todayStr >= r.startDate && todayStr <= r.endDate);
+                      const isActive = !isExpired && remaining > 0;
+                      return (
+                        <tr key={r.code}>
+                          <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{r.code}</td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{r.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{r.description}</div>
+                          </td>
+                          <td>{r.type}</td>
+                          <td>฿{(r.fullPrice || 0).toLocaleString()}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{r.points.toLocaleString()} แต้ม</td>
+                          <td>คงเหลือ {remaining} / {r.maxUses} สิทธิ์ (ใช้ไป {usedCount})</td>
+                          <td style={{ fontSize: '0.8rem' }}>{r.startDate} ถึง {r.endDate}</td>
+                          <td>
+                            {r.condition === 'แลกสินค้าฟรี' ? (
+                              <span style={{ color: 'green', fontWeight: 600 }}>แลกสินค้าฟรี</span>
+                            ) : (
+                              <span>
+                                {r.condition} ({r.condition === 'ส่วนลดเงินสด' ? `฿${r.value}` : `${r.value}%`})
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`badge ${isActive ? 'badge-success' : 'badge-secondary'}`}>
+                              {isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                              <button className="btn btn-light btn-icon-only" onClick={() => handleEditReward(r)}>
+                                <Edit3 size={14} color="var(--secondary)" />
+                              </button>
+                              <button className="btn btn-light btn-icon-only" onClick={() => handleDeleteReward(r.code)}>
                                 <Trash2 size={14} color="var(--danger)" />
                               </button>
                             </div>
@@ -1687,6 +1864,111 @@ function createUserFolder(parentFolderId, folderName) {
               <div className="modal-footer">
                 <button type="submit" className="btn btn-secondary">บันทึกโปรโมชั่น</button>
                 <button type="button" className="btn btn-light" onClick={() => setShowPromoModal(false)}>ยกเลิก</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2.5: เพิ่ม/แก้ไข คะแนนสะสมและของรางวัล */}
+      {showRewardModal && (
+        <div className="modal-overlay">
+          <div className="modal-content-wrapper" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontWeight: 700 }}>{editingRewardCode ? 'แก้ไขของรางวัล' : 'เพิ่มของรางวัลใหม่'}</h3>
+              <button className="close-modal-btn" onClick={() => setShowRewardModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSaveReward}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">รหัสของรางวัล <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="เช่น RW-TOY" 
+                      value={rewardCode} 
+                      onChange={(e) => setRewardCode(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">จำนวนสิทธิ์จำกัด</label>
+                    <input type="number" className="form-control" min="1" value={rewardLimit} onChange={(e) => setRewardLimit(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">ชื่อของรางวัล <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input type="text" className="form-control" value={rewardName} onChange={(e) => setRewardName(e.target.value)} required />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">รายละเอียด</label>
+                  <input type="text" className="form-control" value={rewardDesc} onChange={(e) => setRewardDesc(e.target.value)} />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">ราคาเต็ม (บาท)</label>
+                    <input type="number" className="form-control" min="0" value={rewardFullPrice} onChange={(e) => setRewardFullPrice(e.target.value)} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">จำนวนแต้มที่ใช้แลก <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="number" className="form-control" min="1" value={rewardPoints} onChange={(e) => setRewardPoints(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">วันที่เริ่มกิจกรรม</label>
+                    <input type="date" className="form-control" value={rewardStart} onChange={(e) => setRewardStart(e.target.value)} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">วันที่สิ้นสุดกิจกรรม</label>
+                    <input type="date" className="form-control" value={rewardEnd} onChange={(e) => setRewardEnd(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">ประเภทของรางวัล</label>
+                    <select className="form-control" value={rewardType} onChange={(e) => setRewardType(e.target.value)}>
+                      <option value="สินค้า">สินค้า</option>
+                      <option value="ส่วนลด">ส่วนลด</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">เงื่อนไข</label>
+                    <select 
+                      className="form-control" 
+                      value={rewardCondition} 
+                      onChange={(e) => {
+                        const cond = e.target.value;
+                        setRewardCondition(cond);
+                        if (cond === 'แลกสินค้าฟรี') {
+                          setRewardValue(0);
+                        }
+                      }}
+                    >
+                      <option value="แลกสินค้าฟรี">แลกสินค้าฟรี</option>
+                      <option value="ส่วนลดเงินสด">ส่วนลดเงินสด (บาท)</option>
+                      <option value="ส่วนลดเป็นเปอร์เซ็นต์">ส่วนลดเป็นเปอร์เซ็นต์ (%)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {rewardCondition !== 'แลกสินค้าฟรี' && (
+                  <div className="form-group">
+                    <label className="form-label">มูลค่าที่ลดตามเงื่อนไข <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input type="number" className="form-control" min="1" value={rewardValue} onChange={(e) => setRewardValue(e.target.value)} required />
+                  </div>
+                )}
+              </div>
+              
+              <div className="modal-footer">
+                <button type="submit" className="btn btn-secondary">บันทึกของรางวัล</button>
+                <button type="button" className="btn btn-light" onClick={() => setShowRewardModal(false)}>ยกเลิก</button>
               </div>
             </form>
           </div>

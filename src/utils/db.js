@@ -16,6 +16,7 @@ const KEYS = {
   PAYROLLS: 'hdh_payrolls',
   TRANSACTIONS: 'hdh_transactions',
   OPD_RECORDS: 'hdh_opd_records',
+  REWARDS: 'hdh_rewards',
 };
 
 // ตรวจสอบและสร้างข้อมูลเริ่มต้นใน localStorage หากไม่มีข้อมูล
@@ -36,6 +37,7 @@ export const initDatabase = (forceReset = false) => {
     localStorage.setItem(KEYS.PAYROLLS, JSON.stringify(mock.INITIAL_PAYROLLS));
     localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(mock.INITIAL_TRANSACTIONS));
     localStorage.setItem(KEYS.OPD_RECORDS, JSON.stringify(mock.INITIAL_OPD_RECORDS));
+    localStorage.setItem(KEYS.REWARDS, JSON.stringify([]));
     return true;
   }
   return false;
@@ -130,6 +132,9 @@ export const db = {
 
   getOpdRecords: () => get(KEYS.OPD_RECORDS, mock.INITIAL_OPD_RECORDS),
   setOpdRecords: (data) => set(KEYS.OPD_RECORDS, data),
+
+  getRewards: () => get(KEYS.REWARDS, []),
+  setRewards: (data) => set(KEYS.REWARDS, data),
 };
 
 // --- ฟังก์ชันดึง Google Apps Script URL ที่ถูกต้อง ---
