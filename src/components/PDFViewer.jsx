@@ -534,9 +534,11 @@ export default function PDFViewer({
                 );
               })()}
               {bill.slipUrl && <span><strong>ไฟล์สลิปอ้างอิง:</strong> {bill.slipUrl}<br/></span>}
-              <div style={{ borderTop: '1px solid #ddd', marginTop: '10px', paddingTop: '5px' }}>
-                <strong>คำชี้แจง:</strong> ใบแจ้งหนี้/ใบเสร็จนี้ออกโดยระบบจัดส่งข้อมูลอัตโนมัติคลินิก บ้านฮักดี หากมีข้อสงสัยหรือต้องการปรับแก้ไขข้อมูล สามารถติดต่อเจ้าหน้าที่การเงินคลินิกได้ทันที
-              </div>
+              {discountAmount > 0 && (
+                <div style={{ borderTop: '1px solid #ddd', marginTop: '10px', paddingTop: '5px' }}>
+                  <strong>หมายเหตุ:</strong> {bill.discountReason || 'ส่วนลดพิเศษ'}
+                </div>
+              )}
             </div>
 
             <div className="a4-receipt-summary-right">
@@ -560,8 +562,13 @@ export default function PDFViewer({
             </div>
           </div>
 
+          {/* คำชี้แจง ย้ายมาอยู่ก่อนข้อความส่วนท้าย */}
+          <div style={{ fontSize: '11px', color: '#555', marginTop: '20px', textAlign: 'left' }}>
+            <strong>คำชี้แจง:</strong> ใบแจ้งหนี้/ใบเสร็จนี้ออกโดยระบบจัดส่งข้อมูลอัตโนมัติคลินิก บ้านฮักดี หากมีข้อสงสัยหรือต้องการปรับแก้ไขข้อมูล สามารถติดต่อเจ้าหน้าที่การเงินคลินิกได้ทันที
+          </div>
+
           {/* ข้อความท้ายใบเสร็จตามสเปก */}
-          <div style={{ textAlign: 'center', fontSize: '11px', color: '#555', marginTop: '30px', borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#555', marginTop: '10px', borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
             "{clinicInfo.receiptFooter || 'ขอบคุณที่ใช้บริการ ฮักดีโฮม คลินิก'}"
           </div>
 
