@@ -62,6 +62,7 @@ export default function ReferralLetter({
   const [editOpinion, setEditOpinion] = useState('');
   const [editReason, setEditReason] = useState('');
   const [editConclusion, setEditConclusion] = useState('หนังสือส่งตัวฉบับนี้จัดทำขึ้นเพื่อประกอบการส่งต่อผู้รับบริการและใช้ร่วมกับรายงานผลการประเมินที่แนบมาพร้อมกัน หากต้องการข้อมูลเพิ่มเติม นักกิจกรรมบำบัดของคลินิกฯ ยินดีให้ข้อมูลเพิ่มเติมเพื่อประกอบการดูแลรักษาอย่างต่อเนื่อง');
+  const [editTherapistId, setEditTherapistId] = useState('');
 
   // Match current user to therapist profile if OT
   const myTherapist = useMemo(() => {
@@ -258,6 +259,7 @@ export default function ReferralLetter({
       opinion: editOpinion.trim(),
       reason: editReason.trim(),
       conclusion: editConclusion.trim(),
+      therapistId: editTherapistId || currentLetter.therapistId,
       updated_at: new Date().toISOString()
     };
 
@@ -291,6 +293,7 @@ export default function ReferralLetter({
     setEditOpinion(letter.opinion || '');
     setEditReason(letter.reason || '');
     setEditConclusion(letter.conclusion || '');
+    setEditTherapistId(letter.therapistId || '');
     setShowEditorModal(true);
   };
 
@@ -765,6 +768,26 @@ export default function ReferralLetter({
                     required
                   />
                 </div>
+
+                {currentUser?.role === 'Admin' && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>นักกิจกรรมบำบัดผู้ประเมิน <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select
+                      value={editTherapistId}
+                      onChange={(e) => setEditTherapistId(e.target.value)}
+                      className="form-control"
+                      style={{ borderRadius: '8px' }}
+                      required
+                    >
+                      <option value="">-- เลือกนักกิจกรรมบำบัดผู้ประเมิน --</option>
+                      {therapists.filter(t => t.status !== 'Inactive' || t.id === editTherapistId).map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.fullname} ({t.nickname})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Pre-filled editable Intro text */}
@@ -904,6 +927,7 @@ export default function ReferralLetter({
                     opinion: editOpinion.trim(),
                     reason: editReason.trim(),
                     conclusion: editConclusion.trim(),
+                    therapistId: editTherapistId || currentLetter.therapistId,
                     updated_at: new Date().toISOString()
                   };
                   setReferrals(referrals.map(r => r.id === updated.id ? updated : r));
