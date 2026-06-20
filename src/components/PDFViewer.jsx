@@ -38,7 +38,29 @@ export default function PDFViewer({
 
   // จัดการพิมพ์โดยตรงผ่านเบราว์เซอร์ (พิมพ์หน้าต่างเว็บบราวเซอร์ที่ถูกล้างเลย์เอาต์ด้วย CSS Print)
   const handlePrint = () => {
+    const originalTitle = document.title;
+    if (documentType === 'referral' && documentData) {
+      document.title = `หนังสือส่งตัว เลขที่ ${documentData.id}`;
+    } else if (documentType === 'receipt' && documentData) {
+      document.title = `ใบเสร็จรับเงิน เลขที่ ${documentData.receiptNo || documentData.id}`;
+    } else if (documentType === 'patient' && documentData) {
+      const cleanTitle = (documentData.title || '').replace(/\$/g, '');
+      const cleanFirstname = (documentData.firstname || '').replace(/\$/g, '');
+      const cleanLastname = (documentData.lastname || '').replace(/\$/g, '');
+      document.title = `ประวัติผู้รับบริการ ${cleanTitle}${cleanFirstname} ${cleanLastname}`;
+    } else if (documentType === 'assessment' && documentData) {
+      const p = patients.find(pat => pat.hn === documentData.hn) || {};
+      const cleanTitle = (p.title || '').replace(/\$/g, '');
+      const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
+      const cleanLastname = (p.lastname || '').replace(/\$/g, '');
+      document.title = `รายงานการประเมิน ${cleanTitle}${cleanFirstname} ${cleanLastname}`;
+    }
+
     window.print();
+
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 100);
   };
 
   // ดึงวันเกิดภาษาไทย
@@ -551,6 +573,13 @@ export default function PDFViewer({
                 <div className="a4-summary-row" style={{ color: 'red' }}>
                   <span className="a4-summary-row-label">ส่วนลด (Discount):</span>
                   <span className="a4-summary-row-val">-฿{discountAmount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {bill.rewardDiscountAmount > 0 && (
+                <div className="a4-summary-row" style={{ color: '#008080' }}>
+                  <span className="a4-summary-row-label">ส่วนลดแลกรางวัล (Reward Discount):</span>
+                  <span className="a4-summary-row-val">-฿{bill.rewardDiscountAmount.toLocaleString()}</span>
                 </div>
               )}
               
@@ -1375,6 +1404,148 @@ export default function PDFViewer({
     );
   };
 
+  // --- 8. เอกสารหนังสือส่งตัวผู้รับบริการ (Referral Letter) ---
+  const renderReferralLetter = () => {
+    const letter = documentData;
+    const pInfo = getPatientInfo(letter.hn);
+    const tInfo = therapists.find(t => t.id === letter.therapistId) || { fullname: letter.therapistId, nickname: '', licenseNo: 'ก.บ. ______' };
+
+    const birthDate = parseDateToAD(pInfo.dob);
+    const today = letter.date ? new Date(letter.date) : new Date();
+    let ageYears = birthDate ? (today.getFullYear() - birthDate.getFullYear()) : 0;
+    if (birthDate && (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate()))) {
+      ageYears--;
+    }
+    const displayAge = ageYears >= 0 ? ageYears : 0;
+
+    return (
+      <div className="a4-document repeating-header-doc referral-doc-print" ref={documentRef} id="printable-a4-area" style={{ padding: '20mm 15mm 20mm 15mm', minHeight: '297mm' }}>
+        <PrintLayout
+          header={
+            <div className="a4-header" style={{ borderBottom: '2px solid #5d4037', paddingBottom: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="a4-header-left" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <div className="a4-logo-circle" style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid #5d4037', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>HUG</span>}
+                </div>
+                <div className="a4-clinic-details" style={{ display: 'flex', flexDirection: 'column' }}>
+                  {renderClinicHeaderLeftText('1.25rem', '0.85rem')}
+                  <span className="a4-clinic-subtext" style={{ fontSize: '0.75rem', color: '#555' }}>ที่อยู่: {clinicInfo.address}</span>
+                  <span className="a4-clinic-subtext" style={{ fontSize: '0.75rem', color: '#555' }}>โทร: {clinicInfo.phone} | อีเมล: {clinicInfo.email || 'hugdeehome@gmail.com'}</span>
+                </div>
+              </div>
+              <div className="a4-header-right" style={{ textAlign: 'right' }}>
+                <span className="a4-doc-type-th" style={{ fontSize: '1.25rem', fontWeight: 700, display: 'block' }}>หนังสือส่งตัวผู้รับบริการ</span>
+                <span className="a4-doc-type-en" style={{ fontSize: '0.75rem', color: '#777', fontWeight: 600 }}>REFERRAL LETTER</span>
+                <div className="a4-doc-meta" style={{ marginTop: '4px', fontSize: '0.85rem' }}>
+                  <span className="a4-doc-meta-label" style={{ whiteSpace: 'nowrap' }}>เลขที่เอกสาร:</span>
+                  <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{letter.id}</span>
+                  <span className="a4-doc-meta-label" style={{ whiteSpace: 'nowrap' }}>วันที่จัดทำ:</span>
+                  <span className="a4-doc-meta-value" style={{ whiteSpace: 'nowrap' }}>{formatDateTh(letter.date)}</span>
+                </div>
+              </div>
+            </div>
+          }
+        >
+          <div style={{ marginBottom: '20px', fontSize: '15px' }}>
+            <p style={{ margin: 0 }}><strong>เรียน</strong> {letter.to}</p>
+          </div>
+
+          <p style={{ textIndent: '2.5em', textAlign: 'justify', margin: '0 0 20px 0', fontSize: '15px', lineHeight: '1.6' }}>
+            {letter.intro}
+          </p>
+
+          <div style={{ padding: '15px', border: '1px solid #e0e0e0', borderRadius: '6px', backgroundColor: '#fafafa', marginBottom: '25px', fontSize: '15px', lineHeight: '1.6' }}>
+            <h5 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#5d4037', borderBottom: '1px solid #ddd', paddingBottom: '5px' }}>
+              <strong>ข้อมูลประวัติทั่วไป</strong>
+            </h5>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '8px 20px' }}>
+                {letter.hn && <div><strong>HN No:</strong> {letter.hn}</div>}
+                {pInfo.fullname && <div><strong>ชื่อ-นามสกุล:</strong> {pInfo.fullname}</div>}
+                {pInfo.nickname && <div><strong>ชื่อเล่น:</strong> {pInfo.nickname ? formatPatientNickname(pInfo.nickname) : '-'}</div>}
+                
+                {pInfo.gender && pInfo.gender !== '-' && <div><strong>เพศ:</strong> {pInfo.gender}</div>}
+                {pInfo.dob && <div><strong>วันเดือนปีเกิด:</strong> {formatDateTh(pInfo.dob)}</div>}
+                {pInfo.dob && <div><strong>อายุ:</strong> {displayAge} ปี</div>}
+              </div>
+
+              {/* ประวัติการแพ้ยา และ โรคประจำตัว อยู่บรรทัดเดียวกัน */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                {pInfo.allergies && pInfo.allergies !== '-' && (
+                  <div><strong>ประวัติการแพ้ยา:</strong> {pInfo.allergies}</div>
+                )}
+                {pInfo.conditions && pInfo.conditions !== '-' && (
+                  <div><strong>โรคประจำตัว:</strong> {pInfo.conditions}</div>
+                )}
+              </div>
+
+              {/* ชื่อผู้ปกครอง และ เบอร์โทรศัพท์ อยู่บรรทัดเดียวกัน ขยับเว้นช่องว่างสวยงาม */}
+              {(pInfo.guardian && pInfo.guardian !== '-') && (
+                <div>
+                  <strong>ผู้ปกครอง:</strong> {pInfo.guardian}
+                  {pInfo.phone && pInfo.phone !== '-' && (
+                    <span style={{ marginLeft: '25px' }}><strong>เบอร์โทรศัพท์:</strong> {pInfo.phone}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4 Clinical Sections - ซ่อนหัวข้อที่ไม่มีข้อมูล และขยับหัวข้อ+เนื้อหาไม่ให้ตกหน้า */}
+          <div style={{ marginBottom: '25px', fontSize: '15px', lineHeight: '1.6' }}>
+            {letter.interview && letter.interview.trim() && (
+              <div className="print-avoid-break" style={{ marginBottom: '18px' }}>
+                <p style={{ margin: '0 0 5px 0', color: '#5d4037' }}><strong>ข้อมูลจากการสัมภาษณ์ผู้ปกครอง:</strong></p>
+                <div style={{ paddingLeft: '1.5em', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                  {letter.interview}
+                </div>
+              </div>
+            )}
+
+            {letter.observation && letter.observation.trim() && (
+              <div className="print-avoid-break" style={{ marginBottom: '18px' }}>
+                <p style={{ margin: '0 0 5px 0', color: '#5d4037' }}><strong>ข้อมูลจากการสังเกตทางกิจกรรมบำบัด:</strong></p>
+                <div style={{ paddingLeft: '1.5em', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                  {letter.observation}
+                </div>
+              </div>
+            )}
+
+            {letter.opinion && letter.opinion.trim() && (
+              <div className="print-avoid-break" style={{ marginBottom: '18px' }}>
+                <p style={{ margin: '0 0 5px 0', color: '#5d4037' }}><strong>ความเห็นทางคลินิกของนักกิจกรรมบำบัด:</strong></p>
+                <div style={{ paddingLeft: '1.5em', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                  {letter.opinion}
+                </div>
+              </div>
+            )}
+
+            {letter.reason && letter.reason.trim() && (
+              <div className="print-avoid-break" style={{ marginBottom: '18px' }}>
+                <p style={{ margin: '0 0 5px 0', color: '#5d4037' }}><strong>เหตุผลในการส่งต่อ:</strong></p>
+                <div style={{ paddingLeft: '1.5em', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                  {letter.reason}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <p style={{ textIndent: '2.5em', textAlign: 'justify', margin: '0 0 35px 0', fontSize: '15px', lineHeight: '1.6' }}>
+            {letter.conclusion}
+          </p>
+
+          <div className="print-avoid-break" style={{ textAlign: 'center', marginTop: '40px', fontSize: '15px', lineHeight: '1.6' }}>
+            <p style={{ margin: '0 0 45px 0' }}>ขอแสดงความนับถือ</p>
+            <p style={{ margin: '0 0 5px 0' }}>............................................................</p>
+            <p style={{ margin: '0 0 5px 0' }}>({tInfo.fullname})</p>
+            <p style={{ margin: '0 0 5px 0' }}>นักกิจกรรมบำบัด เลขที่ใบประกอบโรคศิลปะ {tInfo.licenseNo || 'ก.บ. ______'}</p>
+            <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>บ้านฮักดี คลินิกประกอบโรคศิลปะ สาขากิจกรรมบำบัด</p>
+          </div>
+        </PrintLayout>
+      </div>
+    );
+  };
+
   return (
     <div id="pdf-preview-overlay">
       <div className="pdf-preview-toolbar">
@@ -1399,6 +1570,7 @@ export default function PDFViewer({
       {documentType === 'holidays_annual' && renderAnnualHolidays()}
       {documentType === 'payslip' && renderPayslip()}
       {documentType === 'employee' && renderEmployeeProfile()}
+      {documentType === 'referral' && renderReferralLetter()}
     </div>
   );
 }

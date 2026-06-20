@@ -68,6 +68,8 @@ export default function ReceiptHistory({
   const [editDiscountType, setEditDiscountType] = useState('flat');
   const [editDiscountReason, setEditDiscountReason] = useState('');
   const [editItems, setEditItems] = useState([]);
+  const [editVoidReason, setEditVoidReason] = useState('');
+  const [editRewardDiscountAmount, setEditRewardDiscountAmount] = useState(0);
 
   // ซิงค์คำค้นตาม editHn
   React.useEffect(() => {
@@ -105,6 +107,8 @@ export default function ReceiptHistory({
     setEditDiscountType(receipt.discountType || 'flat');
     setEditDiscountReason(receipt.discountReason || '');
     setEditItems(receipt.items ? receipt.items.map(it => ({ ...it })) : []);
+    setEditVoidReason(receipt.voidReason || '');
+    setEditRewardDiscountAmount(receipt.rewardDiscountAmount || 0);
     setShowEditModal(true);
   };
 
@@ -138,6 +142,10 @@ export default function ReceiptHistory({
       Swal.fire('ไม่มีรายการซื้อ', 'กรุณาเพิ่มรายการสินค้าหรือบริการอย่างน้อย 1 รายการ', 'error');
       return;
     }
+    if (editStatus === 'ยกเลิก' && !editVoidReason.trim()) {
+      Swal.fire('กรุณาระบุเหตุผลในการยกเลิก', 'หากปรับสถานะเป็นยกเลิก ต้องระบุเหตุผลการยกเลิกเสมอ', 'error');
+      return;
+    }
 
     const subtotal = editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
     let discount = 0;
@@ -146,7 +154,7 @@ export default function ReceiptHistory({
     } else {
       discount = subtotal * (editDiscountValue / 100);
     }
-    const finalTotal = Math.max(0, subtotal - discount);
+    const finalTotal = Math.max(0, subtotal - discount - editRewardDiscountAmount);
 
     const updatedReceipt = {
       ...editingReceipt,
@@ -158,8 +166,10 @@ export default function ReceiptHistory({
       discountValue: editDiscountValue,
       discountType: editDiscountType,
       discountReason: editDiscountReason,
+      rewardDiscountAmount: editRewardDiscountAmount,
       items: editItems,
-      totalAmount: finalTotal
+      totalAmount: finalTotal,
+      voidReason: editStatus === 'ยกเลิก' ? editVoidReason.trim() : ''
     };
 
     setReceipts(prev => prev.map(r => r.id === editingReceipt.id ? updatedReceipt : r));
@@ -430,15 +440,26 @@ export default function ReceiptHistory({
       title: `ลบใบเสร็จ/ใบแจ้งหนี้ถาวร? [เลขที่: ${id}]`,
       text: "การลบนี้จะลบข้อมูลออกจากระบบอย่างถาวรและไม่สามารถเรียกคืนได้!",
       icon: 'warning',
+      input: 'text',
+      inputPlaceholder: 'กรุณาระบุเหตุผลในการลบ (ห้ามเว้นว่าง)...',
+      inputAttributes: {
+        required: 'true'
+      },
       showCancelButton: true,
       confirmButtonColor: 'var(--danger)',
       cancelButtonColor: 'var(--dark-light)',
       confirmButtonText: 'ยืนยันการลบถาวร',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'กรุณาระบุเหตุผลในการลบใบเสร็จ!';
+        }
+      }
     }).then((result) => {
-      if (result.isConfirmed) {
+      if (result.isConfirmed && result.value) {
+        const reason = result.value.trim();
         if (onDeleteReceipt) {
-          onDeleteReceipt(id);
+          onDeleteReceipt(id, reason);
           Swal.fire({
             title: 'ลบข้อมูลสำเร็จ',
             icon: 'success',
@@ -513,14 +534,25 @@ export default function ReceiptHistory({
       title: `ยกเลิกใบเสร็จนี้? [เลขที่: ${id}]`,
       text: "ยอดขายจะถูกดึงออกจาก Dashboard และจำนวนคอร์สบริการในบิลนี้จะถูกหักล้างออกคืนให้ผู้ป่วยทันที!",
       icon: 'warning',
+      input: 'text',
+      inputPlaceholder: 'กรุณาระบุเหตุผลในการยกเลิก (ห้ามเว้นว่าง)...',
+      inputAttributes: {
+        required: 'true'
+      },
       showCancelButton: true,
       confirmButtonColor: 'var(--danger)',
       cancelButtonColor: 'var(--dark-light)',
       confirmButtonText: 'ยืนยันการยกเลิก (Void)',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return 'กรุณาระบุเหตุผลในการยกเลิก!';
+        }
+      }
     }).then((result) => {
-      if (result.isConfirmed) {
-        onVoidReceipt(id);
+      if (result.isConfirmed && result.value) {
+        const reason = result.value.trim();
+        onVoidReceipt(id, reason);
         Swal.fire({
           title: 'ยกเลิกใบเสร็จเรียบร้อยแล้ว',
           icon: 'success',
@@ -678,6 +710,11 @@ export default function ReceiptHistory({
                         }`}>
                           {r.status}
                         </span>
+                        {r.status === 'ยกเลิก' && r.voidReason && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '0.25rem', maxWidth: '150px', wordBreak: 'break-word', textAlign: 'center' }}>
+                            เหตุผล: {r.voidReason}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
@@ -910,6 +947,22 @@ export default function ReceiptHistory({
                   </div>
                 </div>
 
+                {editStatus === 'ยกเลิก' && (
+                  <div className="form-group" style={{ border: '1px solid var(--danger-light, #fee2e2)', padding: '1rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fff5f5' }}>
+                    <label className="form-label" style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                      เหตุผลในการยกเลิก <span style={{ color: 'var(--danger)' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="กรุณาระบุเหตุผลในการยกเลิกใบเสร็จ (เช่น ลูกค้าเปลี่ยนใจ, คีย์ข้อมูลผิด ฯลฯ)"
+                      value={editVoidReason}
+                      onChange={(e) => setEditVoidReason(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 2fr', gap: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">ส่วนลดเพิ่มเติม</label>
@@ -1023,11 +1076,16 @@ export default function ReceiptHistory({
                         ส่วนลด: -{editDiscountType === 'flat' ? `฿${editDiscountValue}` : `${editDiscountValue}%`}
                       </span>
                     )}
+                    {editRewardDiscountAmount > 0 && (
+                      <span style={{ fontSize: '0.85rem', color: '#008080', marginLeft: '1rem' }}>
+                        ส่วนลดแลกรางวัล: -฿{editRewardDiscountAmount.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>ยอดสุทธิที่จะบันทึก: </span>
                     <strong style={{ fontSize: '1.4rem', color: 'var(--secondary)' }}>
-                      ฿{Math.max(0, editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) - (editDiscountType === 'flat' ? editDiscountValue : editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) * (editDiscountValue / 100))).toLocaleString()}
+                      ฿{Math.max(0, editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) - (editDiscountType === 'flat' ? editDiscountValue : editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) * (editDiscountValue / 100)) - editRewardDiscountAmount).toLocaleString()}
                     </strong>
                   </div>
                 </div>

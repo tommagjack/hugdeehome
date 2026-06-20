@@ -17,7 +17,8 @@ import {
   Users2 as UsersIcon,
   Coins as CoinsIcon,
   Sliders as SlidersIcon,
-  CircleDollarSign
+  CircleDollarSign,
+  FileSymlink
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo }) {
@@ -34,6 +35,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'appointments', label: 'ตารางนัดหมาย', icon: Calendar, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'assessments', label: 'ประเมินพัฒนาการ', icon: ClipboardCheck, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'opd', label: 'บันทึกผลการฝึก', icon: ClipboardList, roles: ['Admin', 'OT', 'Staff'] },
+    { id: 'referrals', label: 'หนังสือส่งตัว', icon: FileSymlink, roles: ['Admin', 'OT'] },
     { id: 'courses', label: 'คอร์สลูกค้า', icon: FileText, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'pos', label: 'ออกใบเสร็จ', icon: ShoppingCart, roles: ['Admin', 'Staff'] },
     { id: 'history', label: 'ประวัติใบเสร็จ', icon: History, roles: ['Admin', 'Staff'] },
@@ -56,7 +58,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'development',
       title: 'พัฒนาการและการประเมิน',
-      items: ['assessments', 'opd']
+      items: ['assessments', 'opd', 'referrals']
     },
     {
       id: 'billing',

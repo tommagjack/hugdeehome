@@ -16,6 +16,7 @@ import SalarySettings from './components/SalarySettings';
 import PDFViewer from './components/PDFViewer';
 import Transactions from './components/Transactions';
 import OPD from './components/OPD';
+import ReferralLetter from './components/ReferralLetter';
 import GuestRegister from './components/GuestRegister';
 import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -67,6 +68,7 @@ export default function App() {
   const [transactions, setTransactions] = useState(() => db.getTransactions());
   const [opdRecords, setOpdRecords] = useState(() => db.getOpdRecords());
   const [rewards, setRewards] = useState(() => db.getRewards());
+  const [referrals, setReferrals] = useState(() => db.getReferrals());
 
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase (ถ้ามีการตั้งค่าไว้)
   useEffect(() => {
@@ -358,6 +360,11 @@ export default function App() {
     syncData('hdh_rewards', rewards);
   }, [rewards]);
 
+  useEffect(() => { 
+    db.setReferrals(referrals); 
+    syncData('hdh_referrals', referrals);
+  }, [referrals]);
+
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('hdh_logged_in_user');
@@ -638,27 +645,55 @@ export default function App() {
     setReceipts([...filtered, data]);
   };
 
-  const handleVoidReceipt = (id) => {
-    // ปรับสถานะเป็น "ยกเลิก"
-    setReceipts(receipts.map(r => r.id === id ? { ...r, status: 'ยกเลิก' } : r));
+  const handleVoidReceipt = (id, reason) => {
+    // ปรับสถานะเป็น "ยกเลิก" และบันทึกเหตุผล
+    setReceipts(receipts.map(r => r.id === id ? { ...r, status: 'ยกเลิก', voidReason: reason || 'ไม่ได้ระบุเหตุผลในการยกเลิก' } : r));
   };
 
-  const handleDeleteReceipt = (id) => {
+  const handleDeleteReceipt = (id, reason) => {
+    // ดึงข้อมูลใบเสร็จก่อนลบ เพื่อทำบันทึก Audit Log
+    const target = receipts.find(r => r.id === id);
+    if (target) {
+      const deletedLog = {
+        id: target.id,
+        hn: target.hn,
+        date: target.date,
+        totalAmount: target.totalAmount,
+        reason: reason || 'ไม่ได้ระบุเหตุผลในการลบ',
+        deletedBy: currentUser?.fullname || 'ผู้ดูแลระบบ',
+        deletedAt: new Date().toISOString(),
+        receiptData: target
+      };
+      try {
+        const logs = JSON.parse(localStorage.getItem('hdh_deleted_receipts') || '[]');
+        logs.push(deletedLog);
+        localStorage.setItem('hdh_deleted_receipts', JSON.stringify(logs));
+      } catch (e) {
+        console.error('Error saving deleted receipt audit log:', e);
+      }
+    }
     setReceipts(receipts.filter(r => r.id !== id));
   };
 
   const handleEditDraftReceipt = (receipt) => {
     // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง
     setPosSelectedHn(receipt.hn);
-    setPosCart(receipt.items.map(item => {
+    setPosCart(receipt.items.filter(item => item.code !== 'REWARD_REDEEM').map(item => {
       // ดึงรายละเอียดราคาและหมวดหมู่อ้างอิงกลับมา
       const orig = services.find(s => s.code === item.code);
+      const isReward = item.name.includes('[แลก');
+      const reward = isReward ? (rewards || []).find(r => r.code === receipt.rewardId) : null;
       return {
         code: item.code,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        category: item.type || (orig ? orig.category : 'บริการ')
+        category: item.type || (orig ? orig.category : 'บริการ'),
+        isReward: isReward,
+        rewardType: reward ? reward.type : (isReward ? (item.price > 0 ? 'สินค้า' : 'ส่วนลด') : ''),
+        pointsCost: reward ? Number(reward.points) : 0,
+        discountVal: reward ? Number(reward.value) : 0,
+        rewardCondition: reward ? reward.condition : ''
       };
     }));
     setPosDiscountType(receipt.discountType);
@@ -779,6 +814,169 @@ export default function App() {
     };
 
     setReceipts([...receipts, receipt1, receipt2]);
+  };
+
+  // ปุ่มลัดเพิ่ม/ลดคะแนนสะสมแบบแมนนวล (Manual Points Adjust: add/deduct)
+  const handleManualAdjustPoints = (hn, points, action, remark) => {
+    const today = new Date();
+    const beYear = today.getFullYear() + 543;
+    const yearSuffix = beYear.toString().slice(-2);
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${today.getFullYear()}-${mm}-${dd}`;
+    
+    const billId = `PTS${yearSuffix}` + Math.floor(1000 + Math.random() * 9000);
+    const isAdd = action === 'add';
+
+    const manualReceipt = {
+      id: billId,
+      hn: hn,
+      date: dateStr,
+      items: [
+        { 
+          code: isAdd ? 'POINT_ADD_MANUAL' : 'POINT_DEDUCT_MANUAL', 
+          name: `ปรับปรุงแต้มแมนนวล (${isAdd ? 'เพิ่ม' : 'ลด'}) (${remark})`, 
+          price: 0, 
+          quantity: points, 
+          type: 'คะแนน' 
+        }
+      ],
+      discountType: 'flat',
+      discountValue: 0,
+      discountReason: remark,
+      promotionId: '',
+      paymentMethod: 'เงินสด',
+      bankAccountId: '',
+      slipUrl: '',
+      status: 'ชำระเงินแล้ว',
+      totalAmount: 0,
+      created_at: new Date().toISOString(),
+      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ สุดหล่อ'
+    };
+
+    setReceipts([...receipts, manualReceipt]);
+  };
+
+  // ลบรายการคะแนนสะสมแบบกำหนดเอง (Delete Manual Points)
+  const handleDeleteManualPoints = (id) => {
+    setReceipts(receipts.filter(r => r.id !== id));
+  };
+
+  // แก้ไขรายการคะแนนสะสมแบบกำหนดเอง (Edit Manual Points)
+  const handleEditManualPoints = (id, points, action, remark) => {
+    const isAdd = action === 'add';
+    setReceipts(receipts.map(r => {
+      if (r.id === id) {
+        return {
+          ...r,
+          items: [
+            { 
+              code: isAdd ? 'POINT_ADD_MANUAL' : 'POINT_DEDUCT_MANUAL', 
+              name: `ปรับปรุงแต้มแมนนวล (${isAdd ? 'เพิ่ม' : 'ลด'}) (${remark})`, 
+              price: 0, 
+              quantity: points, 
+              type: 'คะแนน' 
+            }
+          ],
+          discountReason: remark
+        };
+      }
+      return r;
+    }));
+  };
+
+  // ปุ่มลัดโอนคะแนน (Transfer Points)
+  const handleTransferPoints = (transferorHn, transfereeHn, points, remark) => {
+    const today = new Date();
+    const beYear = today.getFullYear() + 543;
+    const yearSuffix = beYear.toString().slice(-2);
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${today.getFullYear()}-${mm}-${dd}`;
+    const suffixRnd = Math.floor(1000 + Math.random() * 9000);
+
+    const transferor = patients.find(p => p.hn === transferorHn);
+    const transferee = patients.find(p => p.hn === transfereeHn);
+
+    const billId1 = `TRP${yearSuffix}A${suffixRnd}`;
+    const billId2 = `TRP${yearSuffix}B${suffixRnd}`;
+
+    const receipt1 = {
+      id: billId1,
+      hn: transferorHn,
+      date: dateStr,
+      items: [
+        { code: 'POINT_TRANSFER_OUT', name: `โอนคะแนนออกให้ น้อง${transferee.nickname} (${transferee.title}${transferee.firstname})`, price: 0, quantity: points, type: 'คะแนน' }
+      ],
+      discountType: 'flat',
+      discountValue: 0,
+      discountReason: remark,
+      promotionId: '',
+      paymentMethod: 'เงินสด',
+      bankAccountId: '',
+      slipUrl: '',
+      status: 'ชำระเงินแล้ว',
+      totalAmount: 0,
+      created_at: new Date().toISOString(),
+      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ สุดหล่อ'
+    };
+
+    const receipt2 = {
+      id: billId2,
+      hn: transfereeHn,
+      date: dateStr,
+      items: [
+        { code: 'POINT_TRANSFER_IN', name: `รับโอนคะแนนจาก น้อง${transferor.nickname} (${transferor.title}${transferor.firstname})`, price: 0, quantity: points, type: 'คะแนน' }
+      ],
+      discountType: 'flat',
+      discountValue: 0,
+      discountReason: remark,
+      promotionId: '',
+      paymentMethod: 'เงินสด',
+      bankAccountId: '',
+      slipUrl: '',
+      status: 'ชำระเงินแล้ว',
+      totalAmount: 0,
+      created_at: new Date().toISOString(),
+      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ สุดหล่อ'
+    };
+
+    setReceipts([...receipts, receipt1, receipt2]);
+  };
+
+  // ปุ่มลัดแลกของรางวัล (Redeem Reward)
+  const handleRedeemReward = (hn, rewardCode, pointsCost, rewardName) => {
+    const today = new Date();
+    const beYear = today.getFullYear() + 543;
+    const yearSuffix = beYear.toString().slice(-2);
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${today.getFullYear()}-${mm}-${dd}`;
+    
+    const billId = `RWD${yearSuffix}` + Math.floor(1000 + Math.random() * 9000);
+
+    const redemptionReceipt = {
+      id: billId,
+      hn: hn,
+      date: dateStr,
+      items: [
+        { code: 'REWARD_REDEEM', name: `แลกของรางวัล: ${rewardName}`, price: 0, quantity: pointsCost, type: 'คะแนน' }
+      ],
+      discountType: 'flat',
+      discountValue: 0,
+      discountReason: `แลกรับของรางวัล ${rewardName} (${pointsCost} คะแนน)`,
+      promotionId: rewardCode,
+      rewardId: rewardCode,
+      paymentMethod: 'เงินสด',
+      bankAccountId: '',
+      slipUrl: '',
+      status: 'ชำระเงินแล้ว',
+      totalAmount: 0,
+      created_at: new Date().toISOString(),
+      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ สุดหล่อ'
+    };
+
+    setReceipts([...receipts, redemptionReceipt]);
   };
 
 
@@ -1052,6 +1250,7 @@ export default function App() {
             therapists={therapists}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             currentUser={currentUser}
+            holidays={holidays}
           />
         )}
 
@@ -1116,14 +1315,34 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'referrals' && ['Admin', 'OT'].includes(currentUser?.role) && (
+          <ReferralLetter 
+            patients={patients}
+            therapists={therapists}
+            referrals={referrals}
+            setReferrals={setReferrals}
+            onPrintReferral={(data) => {
+              setPrintView({ show: true, type: 'referral', data });
+            }}
+            currentUser={currentUser}
+          />
+        )}
+
         {activeTab === 'courses' && (
           <CourseBalance 
             patients={patients}
             appointments={appointments}
             receipts={receipts}
             therapists={therapists}
+            rewards={rewards}
+            currentUser={currentUser}
             onManualAddCourse={handleManualAddCourse}
             onTransferCourse={handleTransferCourse}
+            onManualAdjustPoints={handleManualAdjustPoints}
+            onTransferPoints={handleTransferPoints}
+            onRedeemReward={handleRedeemReward}
+            onDeleteManualPoints={handleDeleteManualPoints}
+            onEditManualPoints={handleEditManualPoints}
           />
         )}
 
@@ -1157,6 +1376,7 @@ export default function App() {
             slipAttached={posSlipAttached}
             setSlipAttached={setPosSlipAttached}
             currentUser={currentUser}
+            rewards={rewards}
           />
         )}
 

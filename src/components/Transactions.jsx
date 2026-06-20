@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
+import { getLocalDateString } from '../utils/format';
 
 const monthThaiNames = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -101,7 +102,7 @@ export default function Transactions({
   const [editingId, setEditingId] = useState(null);
   
   // สถานะฟอร์ม
-  const [tDate, setTDate] = useState('2026-06-05');
+  const [tDate, setTDate] = useState(() => getLocalDateString(new Date()));
   const [tType, setTType] = useState('income'); // income, expense
   const [tDescription, setTDescription] = useState('');
   const [tCategory, setTCategory] = useState('ค่าเคส');
@@ -123,19 +124,34 @@ export default function Transactions({
   useEffect(() => {
     setTransactions(prev => {
       const prevList = Array.isArray(prev) ? prev : [];
-      // 1. กำจัดรายการซ้ำที่มีอยู่เดิมใน prevList ก่อน (Self-Healing)
+      
+      const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
+      const validPayrolls = payrolls;
+      
+      const activeReceiptIds = new Set(paidReceipts.map(r => r.id));
+      const activePayrollIds = new Set(validPayrolls.map(p => p.id));
+      
+      // กำจัดธุรกรรมที่ถูกลบหรือถูกยกเลิกแล้ว
+      const cleanedPrev = prevList.filter(t => {
+        if (t.id && t.id.startsWith('TX-RC-')) {
+          const rId = t.refId || t.id.replace('TX-RC-', '');
+          return activeReceiptIds.has(rId);
+        }
+        if (t.id && t.id.startsWith('TX-PR-')) {
+          const pId = t.refId || t.id.replace('TX-PR-', '');
+          return activePayrollIds.has(pId);
+        }
+        return true;
+      });
+
       const uniquePrevMap = new Map();
-      prevList.forEach(t => {
+      cleanedPrev.forEach(t => {
         const key = t.refId || t.id;
         if (!uniquePrevMap.has(key)) {
           uniquePrevMap.set(key, t);
         }
       });
-      const cleanedPrev = Array.from(uniquePrevMap.values());
 
-      const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
-      const validPayrolls = payrolls;
-      
       const existingRefIds = new Set(cleanedPrev.map(t => t.refId).filter(Boolean));
       const existingIds = new Set(cleanedPrev.map(t => t.id));
       const newSynced = [];
@@ -228,7 +244,7 @@ export default function Transactions({
         }
       });
 
-      if (newSynced.length > 0 || hasUpdates || !Array.isArray(prev) || cleanedPrev.length !== prev.length) {
+      if (newSynced.length > 0 || hasUpdates || cleanedPrev.length !== prevList.length) {
         return [...Array.from(uniquePrevMap.values()), ...newSynced];
       }
       return prev;
@@ -317,7 +333,7 @@ export default function Transactions({
   // รีเซ็ตฟอร์ม
   const resetForm = () => {
     setEditingId(null);
-    setTDate('2026-06-05');
+    setTDate(getLocalDateString(new Date()));
     setTType('income');
     setTDescription('');
     setTCategory('ค่าเคส');
@@ -398,19 +414,36 @@ export default function Transactions({
     // 2. ดึงบัญชีเงินเดือนพนักงาน
     const validPayrolls = payrolls; // ถือว่าบันทึกจ่ายแล้ว
 
+    const activeReceiptIds = new Set(paidReceipts.map(r => r.id));
+    const activePayrollIds = new Set(validPayrolls.map(p => p.id));
+
+    // ทำความสะอาดธุรกรรมที่ถูกลบหรือถูกยกเลิกแล้ว
+    const cleanedTransactions = transactions.filter(t => {
+      if (t.id && t.id.startsWith('TX-RC-')) {
+        const rId = t.refId || t.id.replace('TX-RC-', '');
+        return activeReceiptIds.has(rId);
+      }
+      if (t.id && t.id.startsWith('TX-PR-')) {
+        const pId = t.refId || t.id.replace('TX-PR-', '');
+        return activePayrollIds.has(pId);
+      }
+      return true;
+    });
+
     let syncCount = 0;
     let updateCount = 0;
+    const removedCount = transactions.length - cleanedTransactions.length;
 
     const uniquePrevMap = new Map();
-    transactions.forEach(t => {
+    cleanedTransactions.forEach(t => {
       const key = t.refId || t.id;
       if (!uniquePrevMap.has(key)) {
         uniquePrevMap.set(key, t);
       }
     });
 
-    const existingRefIds = new Set(transactions.map(t => t.refId).filter(Boolean));
-    const existingIds = new Set(transactions.map(t => t.id));
+    const existingRefIds = new Set(cleanedTransactions.map(t => t.refId).filter(Boolean));
+    const existingIds = new Set(cleanedTransactions.map(t => t.id));
     const newSyncedTransactions = [];
 
     // ซิงค์บิล POS -> รายรับ
@@ -505,10 +538,11 @@ export default function Transactions({
       }
     });
 
-    if (syncCount > 0 || updateCount > 0) {
+    if (syncCount > 0 || updateCount > 0 || removedCount > 0) {
       let msg = '';
       if (syncCount > 0) msg += `นำเข้าข้อมูลใหม่สำเร็จ ${syncCount} รายการ\n`;
-      if (updateCount > 0) msg += `อัปเดตข้อมูลธุรกรรมเดิมสำเร็จ ${updateCount} รายการ`;
+      if (updateCount > 0) msg += `อัปเดตข้อมูลธุรกรรมเดิมสำเร็จ ${updateCount} รายการ\n`;
+      if (removedCount > 0) msg += `ทำความสะอาดข้อมูลธุรกรรมที่ยกเลิก/ลบสำเร็จ ${removedCount} รายการ`;
       
       setTransactions([...Array.from(uniquePrevMap.values()), ...newSyncedTransactions]);
       Swal.fire({

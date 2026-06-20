@@ -1814,4 +1814,31 @@ button, input, select, textarea {
   margin-top: -1px; /* collapse border */
 }
 
+/* คอนฟิกการพิมพ์หนังสือส่งตัว A4 */
+@page referral_page {
+  size: A4;
+  margin: 20mm 15mm 20mm 15mm;
+  @bottom-right {
+    content: counter(page) "/" counter(pages);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 10pt;
+    color: #666;
+  }
+}
+
+.referral-doc-print {
+  page: referral_page;
+  page-break-after: always;
+}
+
+@media print {
+  .referral-doc-print {
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+}
+
+
 

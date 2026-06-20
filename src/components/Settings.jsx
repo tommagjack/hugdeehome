@@ -477,6 +477,7 @@ function createUserFolder(parentFolderId, folderName) {
   const [therapistFullname, setTherapistFullname] = useState('');
   const [therapistLicense, setTherapistLicense] = useState('');  const [therapistWorkDays, setTherapistWorkDays] = useState([]);
   const [therapistWorkHours, setTherapistWorkHours] = useState({});
+  const [therapistStatus, setTherapistStatus] = useState('Active');
   // 5. ฟอร์มเพิ่ม/แก้ไข วันหยุดคลินิก
   const [holidayDate, setHolidayDate] = useState('2026-06-05');
   const [holidayName, setHolidayName] = useState('');
@@ -791,7 +792,8 @@ function createUserFolder(parentFolderId, folderName) {
       fullname: therapistFullname,
       licenseNo: therapistLicense,
       workDays: therapistWorkDays,
-      workHours: therapistWorkHours
+      workHours: therapistWorkHours,
+      status: therapistStatus || 'Active'
     };
 
     if (editingTherapistId) {
@@ -809,6 +811,7 @@ function createUserFolder(parentFolderId, folderName) {
     setTherapistLicense('');
     setTherapistWorkDays([]);
     setTherapistWorkHours({});
+    setTherapistStatus('Active');
   };
 
   const handleEditTherapist = (t) => {
@@ -817,6 +820,7 @@ function createUserFolder(parentFolderId, folderName) {
     setTherapistFullname(t.fullname);
     setTherapistLicense(t.licenseNo || '');
     setTherapistWorkDays(t.workDays || []);
+    setTherapistStatus(t.status || 'Active');
     
     // จัดเตรียมข้อมูลช่วงเวลาเข้าทำงาน (รองรับการแปลงข้อมูลประวัติแบบเก่า)
     let hrs = t.workHours || {};
@@ -1418,6 +1422,7 @@ function createUserFolder(parentFolderId, folderName) {
                       <th>เลขที่ใบอนุญาต ก.บ.</th>
                       <th>วันปฏิบัติงาน</th>
                       <th>รอบเวลารับเคส</th>
+                      <th style={{ textAlign: 'center', width: '100px' }}>สถานะ</th>
                       <th>การดำเนินการ</th>
                     </tr>
                   </thead>
@@ -1438,6 +1443,11 @@ function createUserFolder(parentFolderId, folderName) {
                         </td>
                         <td style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>
                           {t.workHours ? (Array.isArray(t.workHours) ? t.workHours.length : Object.values(t.workHours).flat().length) : 0} สล็อตทั้งหมด
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${t.status === 'Inactive' ? 'badge-danger' : 'badge-success'}`} style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}>
+                            {t.status === 'Inactive' ? 'Inactive' : 'Active'}
+                          </span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
@@ -2048,6 +2058,19 @@ function createUserFolder(parentFolderId, folderName) {
                 <div className="form-group">
                   <label className="form-label">ชื่อ-นามสกุลจริงผู้สอน <span style={{ color: 'var(--danger)' }}>*</span></label>
                   <input type="text" className="form-control" value={therapistFullname} onChange={(e) => setTherapistFullname(e.target.value)} required />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">สถานะ <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <select 
+                    className="form-control" 
+                    value={therapistStatus} 
+                    onChange={(e) => setTherapistStatus(e.target.value)}
+                    required
+                  >
+                    <option value="Active">Active (ใช้งานปกติ)</option>
+                    <option value="Inactive">Inactive (ปิดการใช้งาน - งดจองคิว / งดแสดงในแดชบอร์ด)</option>
+                  </select>
                 </div>
 
                 <div className="form-group">

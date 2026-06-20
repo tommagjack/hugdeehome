@@ -41,7 +41,8 @@ export default function ReceiptPOS({
   setSlipAttached,
   slipName,
   setSlipName,
-  currentUser
+  currentUser,
+  rewards = []
 }) {
 
   // กรองผู้ป่วยที่ Active
@@ -84,6 +85,54 @@ export default function ReceiptPOS({
       String(p.lastname || '').toLowerCase().includes(q)
     );
   }, [activePatients, patientSearchText]);
+
+  // คำนวณคะแนนสะสมของคนไข้ปัจจุบันแบบเรียลไทม์
+  const patientPointsBalance = useMemo(() => {
+    if (!selectedHn) return 0;
+    const patientReceipts = receipts.filter(r => r.hn === selectedHn && r.status === 'ชำระเงินแล้ว');
+    let pointsEarned = 0;
+    let pointsUsed = 0;
+
+    patientReceipts.forEach(r => {
+      r.items.forEach(item => {
+        if (item.type === 'บริการ') {
+          if (item.code === 'TRANSFER_OUT' || item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
+            // ข้ามคอร์ส
+          } else if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+            // ข้ามประเมินพัฒนาการครั้งแรก
+          } else {
+            const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+            const sessions = item.quantity * sessionsPerUnit;
+            pointsEarned += sessions;
+          }
+        } else if (item.type === 'คะแนน') {
+          if (item.code === 'POINT_ADD_MANUAL' || item.code === 'POINT_TRANSFER_IN') {
+            pointsEarned += item.quantity;
+          } else if (item.code === 'POINT_TRANSFER_OUT' || item.code === 'REWARD_REDEEM' || item.code === 'POINT_DEDUCT_MANUAL') {
+            pointsUsed += item.quantity;
+          }
+        }
+      });
+    });
+
+    return pointsEarned - pointsUsed;
+  }, [selectedHn, receipts]);
+
+  // กรองของรางวัลที่ยังมีโควตา สัญญากิจกรรมใช้งานได้ และคะแนนสะสมของลูกค้าเพียงพอ
+  const redeemableRewards = useMemo(() => {
+    if (!selectedHn) return [];
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    return (rewards || []).filter(r => {
+      const usedCount = receipts ? receipts.filter(rec => (rec.promotionId === r.code || rec.rewardId === r.code) && rec.status !== 'ยกเลิก').length : 0;
+      const remainingQuota = Math.max(0, r.maxUses - usedCount);
+      const isExpired = !(todayStr >= r.startDate && todayStr <= r.endDate);
+      const isPointsEnough = patientPointsBalance >= r.points;
+      
+      return !isExpired && remainingQuota > 0 && isPointsEnough;
+    });
+  }, [rewards, receipts, selectedHn, patientPointsBalance]);
 
   // กรองสินค้า/บริการที่ Active จากวันที่ปัจจุบัน
   const activeServices = useMemo(() => {
@@ -163,10 +212,71 @@ export default function ReceiptPOS({
   const addToCart = (item) => {
     const existing = cart.find(c => c.code === item.code);
     if (existing) {
+      if (existing.isReward) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'จำกัดของรางวัล',
+          text: 'ของรางวัลจำกัดจำนวนสูงสุด 1 ชิ้นต่อใบเสร็จ',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
       setCart(cart.map(c => c.code === item.code ? { ...c, quantity: c.quantity + 1 } : c));
     } else {
       setCart([...cart, { ...item, quantity: 1 }]);
     }
+  };
+
+  // เพิ่มของรางวัลเข้าตะกร้าสินค้า
+  const addRewardToCart = (reward) => {
+    // 1. ตรวจสอบว่าในตะกร้ามีของรางวัลแล้วหรือยัง (จำกัด 1 รายการต่อใบเสร็จ)
+    const hasReward = cart.some(i => i.isReward);
+    if (hasReward) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'จำกัดของรางวัล',
+        text: 'สามารถแลกของรางวัลได้สูงสุด 1 รายการต่อ 1 ใบเสร็จเท่านั้น (หากต้องการแลกเพิ่ม กรุณาแยกใบเสร็จใหม่)',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    // 2. ตรวจสอบแต้มสะสม
+    if (patientPointsBalance < reward.points) {
+      Swal.fire({
+        icon: 'error',
+        title: 'คะแนนไม่เพียงพอ',
+        text: `คะแนนสะสมของลูกค้าไม่เพียงพอ (ต้องการ ${reward.points} คะแนน, มีอยู่ ${patientPointsBalance} คะแนน)`,
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    // 3. ประกอบข้อมูลไอเทมรางวัล
+    const rewardCartItem = {
+      code: reward.code,
+      name: reward.type === 'สินค้า' ? `[แลกของรางวัล] ${reward.name}` : `[แลกส่วนลด] ${reward.name}`,
+      price: reward.type === 'สินค้า' ? Number(reward.fullPrice) : 0,
+      quantity: 1,
+      category: 'ของรางวัล',
+      isReward: true,
+      rewardType: reward.type,
+      pointsCost: Number(reward.points),
+      discountVal: reward.type === 'ส่วนลด' ? Number(reward.value) : 0,
+      rewardCondition: reward.condition
+    };
+
+    setCart([...cart, rewardCartItem]);
+    
+    Swal.fire({
+      icon: 'success',
+      title: 'เพิ่มของรางวัลแล้ว',
+      text: `เพิ่ม ${reward.name} ลงในตะกร้าสินค้าเรียบร้อย`,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 1500
+    });
   };
 
   // ลดจำนวนในตะกร้า
@@ -185,26 +295,58 @@ export default function ReceiptPOS({
     setCart(cart.filter(c => c.code !== code));
   };
 
-  // คำนวณยอดรวมในตะกร้า
+  // ค้นหารายการของรางวัลในตะกร้า (จำกัดที่ 1 รายการ)
+  const rewardItem = useMemo(() => {
+    return cart.find(item => item.isReward);
+  }, [cart]);
+
+  // คำนวณยอดรวมของสินค้าปกติ (ไม่รวมของรางวัล)
+  const regularCartSubtotal = useMemo(() => {
+    return cart.filter(item => !item.isReward).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }, [cart]);
+
+  // คำนวณยอดรวมทั้งหมดในตะกร้า (สินค้าปกติ + ของรางวัล)
   const cartSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   }, [cart]);
 
-  // คำนวณจำนวนส่วนลดสะสม
+  // คำนวณจำนวนส่วนลดปกติ (โปรโมชั่น หรือ Manual)
   const discountAmount = useMemo(() => {
     if (discountType === 'flat') {
-      return Math.min(Number(discountValue), cartSubtotal);
+      return Math.min(Number(discountValue), regularCartSubtotal);
     } else {
-      const amt = (cartSubtotal * Number(discountValue)) / 100;
-      return Math.min(amt, cartSubtotal);
+      const amt = (regularCartSubtotal * Number(discountValue)) / 100;
+      return Math.min(amt, regularCartSubtotal);
     }
-  }, [discountType, discountValue, cartSubtotal]);
+  }, [discountType, discountValue, regularCartSubtotal]);
 
-  // ยอดสุทธิหลังหักส่วนลด
+  // ยอดสุทธิก่อนหักของรางวัล
+  const netBeforeRewards = useMemo(() => {
+    return Math.max(0, regularCartSubtotal - discountAmount);
+  }, [regularCartSubtotal, discountAmount]);
+
+  // คำนวณยอดส่วนลดแลกของรางวัล (On-Top)
+  const rewardsDiscountAmount = useMemo(() => {
+    if (!rewardItem) return 0;
+    if (rewardItem.rewardType === 'สินค้า') {
+      // แลกสินค้าฟรี: ส่วนลด 100% ของราคาสินค้านั้น
+      return rewardItem.price * rewardItem.quantity;
+    } else if (rewardItem.rewardType === 'ส่วนลด') {
+      // แลกส่วนลด: คำนวณแบบ On-Top
+      if (rewardItem.rewardCondition === 'ส่วนลดเงินสด') {
+        return Math.min(rewardItem.discountVal * rewardItem.quantity, netBeforeRewards);
+      } else if (rewardItem.rewardCondition === 'ส่วนลดเป็นเปอร์เซ็นต์') {
+        return Math.min((netBeforeRewards * rewardItem.discountVal) / 100, netBeforeRewards);
+      }
+    }
+    return 0;
+  }, [rewardItem, netBeforeRewards]);
+
+  // ยอดสุทธิรวมสุดท้ายที่ต้องชำระ
   const cartTotal = useMemo(() => {
-    const total = cartSubtotal - discountAmount;
+    const total = cartSubtotal - discountAmount - rewardsDiscountAmount;
     return Math.max(0, total);
-  }, [cartSubtotal, discountAmount]);
+  }, [cartSubtotal, discountAmount, rewardsDiscountAmount]);
 
   // เลือกคูปองโปรโมชั่น
   const handleApplyPromotion = (promoCode) => {
@@ -315,22 +457,37 @@ export default function ReceiptPOS({
 
     const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
 
+    const finalItems = cart.map(item => ({
+      code: item.code,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      type: item.category,
+      sessionsPerUnit: item.sessionsPerUnit || 1
+    }));
+
+    if (rewardItem) {
+      finalItems.push({
+        code: 'REWARD_REDEEM',
+        name: `แลกของรางวัล ${rewardItem.name.replace('[แลกของรางวัล] ', '').replace('[แลกส่วนลด] ', '')} (${rewardItem.code})`,
+        price: 0,
+        quantity: rewardItem.pointsCost,
+        type: 'คะแนน',
+        sessionsPerUnit: 1
+      });
+    }
+
     const newInvoice = {
       id: billId,
       hn: selectedHn,
       date: invoiceDate, // วันที่ออกเอกสารจริง
-      items: cart.map(item => ({
-        code: item.code,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        type: item.category,
-        sessionsPerUnit: item.sessionsPerUnit || 1
-      })),
+      items: finalItems,
       discountType,
       discountValue: Number(discountValue),
       discountReason,
       promotionId: selectedPromoCode,
+      rewardId: rewardItem ? rewardItem.code : '',
+      rewardDiscountAmount: rewardsDiscountAmount, // บันทึกยอดส่วนลดจากการแลกรางวัล
       paymentMethod,
       bankAccountId: paymentMethod === 'โอนเงิน' ? selectedBankId : '',
       slipUrl: paymentMethod === 'โอนเงิน' && slipAttached ? slipName : '',
@@ -393,7 +550,25 @@ export default function ReceiptPOS({
           
           {/* ข้อมูลลูกค้า */}
           <div className="card-3xl">
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>ข้อมูลผู้รับบริการ</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>ข้อมูลผู้รับบริการ</h2>
+              {selectedHn && (
+                <div style={{
+                  backgroundColor: '#e0efff',
+                  color: '#0066cc',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}>
+                  <Coins size={14} />
+                  คะแนนสะสมคงเหลือ: {patientPointsBalance.toLocaleString()} แต้ม
+                </div>
+              )}
+            </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">เลือกผู้รับบริการ (ลูกค้า Active)</label>
               <div style={{ position: 'relative' }}>
@@ -508,6 +683,100 @@ export default function ReceiptPOS({
             </div>
           </div>
 
+          {/* เซกชันของรางวัลที่สามารถแลกได้ */}
+          <div className="card-3xl" style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <Coins size={20} color="var(--warning)" style={{ color: '#0066cc' }} />
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>ของรางวัลที่สามารถแลกได้ด้วยคะแนนสะสม</h2>
+            </div>
+            
+            {!selectedHn ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--dark-light)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.9rem' }}>
+                กรุณาเลือกผู้รับบริการด้านบน เพื่อตรวจสอบของรางวัลที่สามารถแลกได้
+              </div>
+            ) : redeemableRewards.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--dark-light)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', fontSize: '0.9rem' }}>
+                ไม่มีของรางวัลที่แต้มสะสมเพียงพอสำหรับการแลกในขณะนี้ (แต้มคงเหลือปัจจุบัน: {patientPointsBalance} แต้ม)
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+                {redeemableRewards.map(reward => {
+                  const usedCount = receipts ? receipts.filter(rec => (rec.promotionId === reward.code || rec.rewardId === reward.code) && rec.status !== 'ยกเลิก').length : 0;
+                  const remainingQuota = Math.max(0, reward.maxUses - usedCount);
+                  
+                  return (
+                    <div 
+                      key={reward.code}
+                      style={{
+                        border: '1px solid #bcd8f3',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        backgroundColor: '#f0f7ff',
+                        transition: 'var(--transition)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                          <span className="badge" style={{ backgroundColor: '#0066cc', color: 'white' }}>
+                            ใช้ {reward.points} แต้ม
+                          </span>
+                          <span className="badge" style={{ backgroundColor: 'var(--secondary-light)', color: 'var(--secondary)' }}>
+                            {reward.type}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--dark)' }}>{reward.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '0.25rem' }}>
+                          {reward.description || 'ไม่มีรายละเอียดเพิ่มเติม'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '0.25rem' }}>
+                          เหลือสิทธิ์: {remainingQuota} / {reward.maxUses} สิทธิ์
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginTop: '1rem', borderTop: '1px solid #bcd8f3', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>มูลค่า:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--dark)' }}>
+                            {reward.condition === 'ส่วนลดเป็นเปอร์เซ็นต์' 
+                              ? `ส่วนลด ${reward.value}%` 
+                              : reward.condition === 'ส่วนลดเงินสด' 
+                                ? `ส่วนลด ฿${Number(reward.value).toLocaleString()}`
+                                : reward.type === 'สินค้า' || reward.condition === 'แลกสินค้าฟรี'
+                                  ? `ราคาปกติ ฿${Number(reward.fullPrice).toLocaleString()}`
+                                  : `ส่วนลด ฿${Number(reward.value).toLocaleString()}`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{
+                            width: '100%',
+                            padding: '0.4rem',
+                            fontSize: '0.8rem',
+                            backgroundColor: '#008080',
+                            borderColor: '#008080',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.25rem'
+                          }}
+                          onClick={() => addRewardToCart(reward)}
+                        >
+                          <Coins size={12} />
+                          แลกรางวัล
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* ตะกร้าสินค้าและการชำระเงิน (ฝั่งขวา) */}
@@ -527,8 +796,19 @@ export default function ReceiptPOS({
               {cart.map(item => (
                 <div key={item.code} className="cart-item">
                   <div style={{ flex: 1 }}>
-                    <div className="cart-item-name">{item.name}</div>
-                    <div className="cart-item-price">฿{item.price} x {item.quantity}</div>
+                    <div className="cart-item-name" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: item.isReward ? '#008080' : 'inherit', fontWeight: item.isReward ? 600 : 'normal' }}>
+                      {item.isReward && <Gift size={14} color="#008080" />}
+                      {item.name}
+                    </div>
+                    <div className="cart-item-price">
+                      {item.isReward ? (
+                        <span style={{ color: '#008080', fontSize: '0.8rem', fontWeight: 500 }}>
+                          ใช้ {item.pointsCost} แต้ม {item.rewardType === 'สินค้า' ? `(ราคาปกติ ฿${item.price.toLocaleString()})` : `(ส่วนลด ฿${item.discountVal.toLocaleString()})`}
+                        </span>
+                      ) : (
+                        `฿${item.price.toLocaleString()} x ${item.quantity}`
+                      )}
+                    </div>
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -537,9 +817,15 @@ export default function ReceiptPOS({
                         <Minus size={12} />
                       </button>
                       <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{item.quantity}</span>
-                      <button type="button" className="cart-qty-btn" onClick={() => addToCart(item)}>
-                        <Plus size={12} />
-                      </button>
+                      {!item.isReward ? (
+                        <button type="button" className="cart-qty-btn" onClick={() => addToCart(item)}>
+                          <Plus size={12} />
+                        </button>
+                      ) : (
+                        <button type="button" className="cart-qty-btn" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }}>
+                          <Plus size={12} />
+                        </button>
+                      )}
                     </div>
 
                     <button 
@@ -660,8 +946,14 @@ export default function ReceiptPOS({
             </div>
             {discountAmount > 0 && (
               <div className="cart-summary-line" style={{ color: 'var(--danger)' }}>
-                <span>ส่วนลด</span>
+                <span>{selectedPromoCode ? `ส่วนลดคูปอง/โปรโมชั่น (${selectedPromoCode})` : 'ส่วนลดเพิ่มเติม (Manual)'}</span>
                 <span>-฿{discountAmount.toLocaleString()}</span>
+              </div>
+            )}
+            {rewardsDiscountAmount > 0 && rewardItem && (
+              <div className="cart-summary-line" style={{ color: '#008080', fontWeight: 600 }}>
+                <span>{rewardItem.rewardType === 'สินค้า' ? 'ส่วนลดแลกแต้มสะสม (สินค้า)' : 'ส่วนลดแลกแต้มสะสม'}</span>
+                <span>-฿{rewardsDiscountAmount.toLocaleString()}</span>
               </div>
             )}
             <div className="cart-summary-total">

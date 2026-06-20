@@ -96,12 +96,16 @@ export default function Appointments({
     );
   }, [activePatients, patientSearchText]);
 
-  // ตั้งค่ารหัสครูผู้สอนเริ่มต้นเมื่อเปิดหน้า
-  useEffect(() => {
-    if (therapists.length > 0 && !selectedTherapistId) {
-      setSelectedTherapistId(therapists[0].id);
-    }
+  const activeTherapists = useMemo(() => {
+    return (therapists || []).filter(t => t.status !== 'Inactive');
   }, [therapists]);
+
+  // ตั้งค่ารหัสครูผู้สอนเริ่มต้นเมื่อเปิดหน้า (ใช้ครูที่ Active เท่านั้น)
+  useEffect(() => {
+    if (activeTherapists.length > 0 && !selectedTherapistId) {
+      setSelectedTherapistId(activeTherapists[0].id);
+    }
+  }, [activeTherapists]);
 
   // 1. ตรวจสอบวันหยุดคลินิก
   const clinicHoliday = useMemo(() => {
@@ -682,7 +686,7 @@ export default function Appointments({
                       }}
                       required
                     >
-                      {therapists.map(t => (
+                      {activeTherapists.map(t => (
                         <option key={t.id} value={t.id}>
                           {formatTherapistName(t.nickname)} ({t.fullname})
                         </option>

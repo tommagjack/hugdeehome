@@ -17,12 +17,107 @@ export default function Dashboard({
   receipts, 
   therapists, 
   onUpdateAppointmentStatus,
-  currentUser
+  currentUser,
+  holidays = []
 }) {
   const todayLocalDateString = getLocalDateString(new Date());
 
   const [selectedDate, setSelectedDate] = useState(todayLocalDateString);
   const [alertPage, setAlertPage] = useState(1);
+  const [availDate, setAvailDate] = useState(todayLocalDateString);
+  const [availTherapistId, setAvailTherapistId] = useState('All');
+  const [availPage, setAvailPage] = useState(1);
+
+  // คำนวณรหัสครูผู้ใช้งานปัจจุบันเพื่อล็อกสิทธิ์ OT
+  const myTherapistId = useMemo(() => {
+    if (currentUser?.role === 'OT') {
+      const myTherapist = therapists.find(t => 
+        t.id === currentUser.employeeId || 
+        t.fullname === currentUser.fullname || 
+        (t.nickname && currentUser.nickname && t.nickname === currentUser.nickname)
+      );
+      return myTherapist ? myTherapist.id : 'NONE';
+    }
+    return null;
+  }, [currentUser, therapists]);
+
+  // ตรวจสอบวันหยุดคลินิกสำหรับวันที่เลือก
+  const clinicHoliday = useMemo(() => {
+    if (!availDate || !holidays) return null;
+    return holidays.find(h => h.date === availDate);
+  }, [availDate, holidays]);
+
+  // คำนวณคิวว่างของครู
+  const teacherAvailableSlots = useMemo(() => {
+    if (!availDate) return [];
+
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const selectedDayName = daysOfWeek[new Date(availDate).getDay()];
+
+    const isOT = currentUser?.role === 'OT';
+    const effectiveTherapistId = isOT ? (myTherapistId || 'NONE') : availTherapistId;
+
+    let targetTherapists = therapists.filter(t => t.status !== 'Inactive');
+    if (effectiveTherapistId !== 'All') {
+      targetTherapists = targetTherapists.filter(t => t.id === effectiveTherapistId);
+    }
+
+    const list = [];
+
+    targetTherapists.forEach(therapist => {
+      // ตรวจสอบว่าครูเข้าปฏิบัติงานในวันดังกล่าวหรือไม่
+      const works = (therapist.workDays || []).includes(selectedDayName);
+      if (!works) return;
+
+      // ดึงช่วงเวลาทำงานของครู
+      let slotsForDay = [];
+      if (therapist.workHours) {
+        if (typeof therapist.workHours === 'object' && !Array.isArray(therapist.workHours)) {
+          slotsForDay = therapist.workHours[selectedDayName] || [];
+        } else if (Array.isArray(therapist.workHours)) {
+          slotsForDay = therapist.workHours;
+        }
+      }
+
+      // ดึงสล็อตที่จองไปแล้ว
+      const bookedSlots = appointments
+        .filter(app => app.date && getLocalDateString(app.date) === availDate && app.therapistId === therapist.id && app.status !== 'ยกเลิก')
+        .map(app => app.timeSlot);
+
+      slotsForDay.forEach(slot => {
+        const isBooked = bookedSlots.includes(slot);
+        if (!isBooked) {
+          list.push({
+            id: `${therapist.id}-${slot}`,
+            time: slot,
+            therapistId: therapist.id,
+            therapistName: `${formatTherapistName(therapist.nickname)} (${therapist.fullname})`,
+            therapistNickname: formatTherapistName(therapist.nickname),
+            status: 'ว่าง'
+          });
+        }
+      });
+    });
+
+    // เรียงเวลาจากเช้าไปเย็น และเรียงตามชื่อครู
+    return list.sort((a, b) => {
+      const timeCompare = String(a.time).localeCompare(String(b.time));
+      if (timeCompare !== 0) return timeCompare;
+      return String(a.therapistNickname).localeCompare(String(b.therapistNickname));
+    });
+  }, [availDate, availTherapistId, appointments, therapists, currentUser, myTherapistId]);
+
+  const itemsPerPage = 10;
+  const maxAvailPages = Math.ceil(teacherAvailableSlots.length / itemsPerPage) || 1;
+  const paginatedAvailSlots = useMemo(() => {
+    const startIndex = (availPage - 1) * itemsPerPage;
+    return teacherAvailableSlots.slice(startIndex, startIndex + itemsPerPage);
+  }, [teacherAvailableSlots, availPage]);
+
+  // รีเซ็ตหน้าเมื่อตัวกรองเปลี่ยน
+  React.useEffect(() => {
+    setAvailPage(1);
+  }, [availDate, availTherapistId]);
 
   // 1. คำนวณสถิติ
   const totalPatients = patients.length;
@@ -146,7 +241,10 @@ export default function Dashboard({
       })
       .filter(alert => alert.purchased > 0 && alert.balance <= 2)
       .sort((a, b) => {
-        // เรียงจากใหม่ไปเก่า (created_at desc, then hn desc)
+        // เรียงจากจำนวนคงเหลือน้อยไปมาก (balance asc)
+        if (a.balance !== b.balance) {
+          return a.balance - b.balance;
+        }
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
         if (timeB !== timeA) return timeB - timeA;
@@ -154,7 +252,7 @@ export default function Dashboard({
       });
   }, [activePatients, receipts, appointments, currentUser, therapists]);
 
-  const alertsPerPage = 5;
+  const alertsPerPage = 10;
   const maxAlertPages = useMemo(() => {
     return Math.ceil(courseAlerts.length / alertsPerPage);
   }, [courseAlerts]);
@@ -263,77 +361,195 @@ export default function Dashboard({
       </div>
 
       <div className="dashboard-sections">
-        {/* 5. ตารางนัดหมายรายวัน */}
-        <div className="card-3xl">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>ตารางนัดหมายประจำวัน</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>เลือกวันที่:</span>
-              <input 
-                type="date" 
-                className="form-control" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                style={{ width: '150px', padding: '0.4rem 0.6rem' }}
-              />
+        {/* คอลัมน์ซ้าย: รวมตารางนัดหมายรายวัน และ ตารางคิวว่างครู */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* 5. ตารางนัดหมายรายวัน */}
+          <div className="card-3xl">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>ตารางนัดหมายประจำวัน</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>เลือกวันที่:</span>
+                <input 
+                  type="date" 
+                  className="form-control" 
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={{ width: '150px', padding: '0.4rem 0.6rem' }}
+                />
+              </div>
             </div>
+
+            {filteredAppointments.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
+                ไม่มีคิวนัดหมายในวันที่ {selectedDate === todayLocalDateString ? 'วันนี้' : selectedDate}
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="hdh-table">
+                  <thead>
+                    <tr>
+                      <th>เวลา</th>
+                      <th>HN (ผู้รับบริการ)</th>
+                      <th>ประเภทนัดหมาย</th>
+                      <th>ครูผู้สอน</th>
+                      <th>สถานะ</th>
+                      <th>เปลี่ยนสถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAppointments.map((app) => (
+                      <tr key={app.id}>
+                        <td style={{ fontWeight: 600 }}>{app.timeSlot}</td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{app.patientName}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn} ({formatPatientNickname(app.patientNickname)})</div>
+                        </td>
+                        <td>{app.type || 'ฝึกกระตุ้นพัฒนาการ'}</td>
+                        <td>{app.therapistNickname}</td>
+                        <td>
+                          <span className={`badge ${
+                            app.status === 'จองแล้ว' ? 'badge-warning' : 
+                            app.status === 'ยืนยันแล้ว' ? 'badge-info' : 
+                            app.status === 'รับบริการแล้ว' ? 'badge-success' : 'badge-danger'
+                          }`}>
+                            {app.status}
+                          </span>
+                        </td>
+                        <td>
+                          <select 
+                            className="form-control"
+                            value={app.status}
+                            onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem', width: '130px' }}
+                          >
+                            <option value="จองแล้ว">จองแล้ว</option>
+                            <option value="ยืนยันแล้ว">ยืนยันแล้ว</option>
+                            <option value="รับบริการแล้ว">รับบริการแล้ว</option>
+                            <option value="ยกเลิก">ยกเลิก</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          {filteredAppointments.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
-              ไม่มีคิวนัดหมายในวันที่ {selectedDate === todayLocalDateString ? 'วันนี้' : selectedDate}
+          {/* 5.1 ตารางคิวว่างของครู */}
+          <div className="card-3xl">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>คิวว่างของครู</h2>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>เลือกวันที่:</span>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={availDate}
+                    onChange={(e) => setAvailDate(e.target.value)}
+                    style={{ width: '150px', padding: '0.4rem 0.6rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>ครูผู้สอน:</span>
+                  {currentUser?.role === 'OT' ? (
+                    <span style={{ fontWeight: 600, color: 'var(--primary)', backgroundColor: 'var(--primary-light, #eff6ff)', padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
+                      {(() => {
+                        const t = therapists.find(th => th.id === myTherapistId);
+                        return t ? `${formatTherapistName(t.nickname)} (${t.fullname})` : 'ไม่พบข้อมูลครู';
+                      })()}
+                    </span>
+                  ) : (
+                    <select 
+                      className="form-control"
+                      value={availTherapistId}
+                      onChange={(e) => setAvailTherapistId(e.target.value)}
+                      style={{ width: '180px', padding: '0.4rem 0.6rem' }}
+                    >
+                      <option value="All">-- ครูทุกคน --</option>
+                      {therapists.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {formatTherapistName(t.nickname)} ({t.fullname})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="table-container">
-              <table className="hdh-table">
-                <thead>
-                  <tr>
-                    <th>เวลา</th>
-                    <th>HN (ผู้รับบริการ)</th>
-                    <th>ประเภทนัดหมาย</th>
-                    <th>ครูผู้สอน</th>
-                    <th>สถานะ</th>
-                    <th>เปลี่ยนสถานะ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAppointments.map((app) => (
-                    <tr key={app.id}>
-                      <td style={{ fontWeight: 600 }}>{app.timeSlot}</td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{app.patientName}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn} ({formatPatientNickname(app.patientNickname)})</div>
-                      </td>
-                      <td>{app.type || 'ฝึกกระตุ้นพัฒนาการ'}</td>
-                      <td>{app.therapistNickname}</td>
-                      <td>
-                        <span className={`badge ${
-                          app.status === 'จองแล้ว' ? 'badge-warning' : 
-                          app.status === 'ยืนยันแล้ว' ? 'badge-info' : 
-                          app.status === 'รับบริการแล้ว' ? 'badge-success' : 'badge-danger'
-                        }`}>
-                          {app.status}
-                        </span>
-                      </td>
-                      <td>
-                        <select 
-                          className="form-control"
-                          value={app.status}
-                          onChange={(e) => handleStatusChange(app.id, e.target.value)}
-                          style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem', width: '130px' }}
-                        >
-                          <option value="จองแล้ว">จองแล้ว</option>
-                          <option value="ยืนยันแล้ว">ยืนยันแล้ว</option>
-                          <option value="รับบริการแล้ว">รับบริการแล้ว</option>
-                          <option value="ยกเลิก">ยกเลิก</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+
+            {clinicHoliday ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--danger)', backgroundColor: '#fff5f5', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-light, #fee2e2)', fontWeight: 600 }}>
+                วันหยุดคลินิก: {clinicHoliday.name} - ไม่มีคิวว่างของครูในวันนี้
+              </div>
+            ) : (currentUser?.role === 'OT' && myTherapistId && !therapists.find(t => t.id === myTherapistId)?.workDays?.includes(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(availDate).getDay()])) ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
+                วันนี้ไม่ได้เป็นวันเข้าปฏิบัติงานของคุณครู
+              </div>
+            ) : teacherAvailableSlots.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
+                ไม่มีคิวว่างของครูในวันที่เลือก
+              </div>
+            ) : (
+              <>
+                <div className="table-container">
+                  <table className="hdh-table">
+                    <thead>
+                      <tr>
+                        <th>เวลา</th>
+                        <th>ครูผู้สอน</th>
+                        <th style={{ textAlign: 'center', width: '120px' }}>สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedAvailSlots.map((slot) => (
+                        <tr key={slot.id}>
+                          <td style={{ fontWeight: 600 }}>{slot.time}</td>
+                          <td>{slot.therapistName}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="badge badge-success" style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}>
+                              {slot.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {maxAvailPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={availPage === 1}
+                      onClick={() => setAvailPage(availPage - 1)}
+                      type="button"
+                    >
+                      ก่อนหน้า
+                    </button>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {availPage} / {maxAvailPages}</span>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={availPage === maxAvailPages}
+                      onClick={() => setAvailPage(availPage + 1)}
+                      type="button"
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '1rem' }}>
+                  แสดง {teacherAvailableSlots.length === 0 ? 0 : (availPage - 1) * itemsPerPage + 1} - {Math.min(availPage * itemsPerPage, teacherAvailableSlots.length)} จากทั้งหมด {teacherAvailableSlots.length} คิวว่าง
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
 
         {/* 6. แจ้งเตือนคอร์สใกล้หมด */}
@@ -344,7 +560,7 @@ export default function Dashboard({
           </div>
           
           <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
-            แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง (เรียงจากใหม่ไปเก่า)
+            แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง (เรียงจากจำนวนคงเหลือน้อยไปมาก)
           </p>
 
           {courseAlerts.length === 0 ? (
