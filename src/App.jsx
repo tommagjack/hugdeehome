@@ -370,7 +370,6 @@ export default function App() {
 
   useEffect(() => { 
     db.setAssessmentTemplates(assessmentTemplates); 
-    syncData('hdh_assessment_templates', assessmentTemplates);
   }, [assessmentTemplates]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
