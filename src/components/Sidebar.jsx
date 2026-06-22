@@ -46,6 +46,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'salary', label: 'เงินเดือน', icon: CoinsIcon, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'settings', label: 'ตั้งค่าระบบ', icon: SettingsIcon, roles: ['Admin'] },
+    { id: 'assessmentSettings', label: 'ตั้งค่าแบบประเมิน', icon: ClipboardCheck, roles: ['Admin'] },
     { id: 'salarySettings', label: 'ตั้งค่าเงินเดือน', icon: SlidersIcon, roles: ['Admin'] }
   ];
 
@@ -73,7 +74,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'admin',
       title: 'การบริหารจัดการคลินิก',
-      items: ['settings', 'salarySettings']
+      items: ['settings', 'assessmentSettings', 'salarySettings']
     }
   ];
 

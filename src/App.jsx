@@ -20,6 +20,7 @@ import ReferralLetter from './components/ReferralLetter';
 import GuestRegister from './components/GuestRegister';
 import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
+import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -69,6 +70,7 @@ export default function App() {
   const [opdRecords, setOpdRecords] = useState(() => db.getOpdRecords());
   const [rewards, setRewards] = useState(() => db.getRewards());
   const [referrals, setReferrals] = useState(() => db.getReferrals());
+  const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
 
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase (ถ้ามีการตั้งค่าไว้)
   useEffect(() => {
@@ -179,6 +181,7 @@ export default function App() {
             setTransactions(db.getTransactions());
             setOpdRecords(db.getOpdRecords());
             setRewards(db.getRewards());
+            setAssessmentTemplates(db.getAssessmentTemplates());
             
             Swal.fire({
               icon: 'success',
@@ -364,6 +367,11 @@ export default function App() {
     db.setReferrals(referrals); 
     syncData('hdh_referrals', referrals);
   }, [referrals]);
+
+  useEffect(() => { 
+    db.setAssessmentTemplates(assessmentTemplates); 
+    syncData('hdh_assessment_templates', assessmentTemplates);
+  }, [assessmentTemplates]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
@@ -1292,6 +1300,7 @@ export default function App() {
             assessments={assessments}
             setAssessments={setAssessments}
             therapists={therapists}
+            templates={assessmentTemplates}
             onAddAssessment={handleAddAssessment}
             onDeleteAssessment={handleDeleteAssessment}
             onPrintAssessment={(id) => {
@@ -1438,6 +1447,14 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'assessmentSettings' && currentUser.role === 'Admin' && (
+          <AssessmentSettings 
+            templates={assessmentTemplates}
+            setTemplates={setAssessmentTemplates}
+            therapists={therapists}
+          />
+        )}
+
         {activeTab === 'salarySettings' && currentUser.role === 'Admin' && (
           <SalarySettings 
             salaryRules={salaryRules}
@@ -1487,6 +1504,7 @@ export default function App() {
           clinicInfo={clinicInfo}
           patients={patients}
           therapists={therapists}
+          templates={assessmentTemplates}
           bankAccounts={bankAccounts}
           users={users}
           onClose={() => setPrintView({ show: false, type: 'receipt', data: null })}

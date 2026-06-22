@@ -24,12 +24,66 @@ const PrintLayout = ({ header, children }) => {
   );
 };
 
+// Helper component to render native vector SVG Radar Chart in PDF
+function RadarChart({ scores = {}, max = 15, labels = {} }) {
+  const keys = Object.keys(scores);
+  if (keys.length === 0) return null;
+  
+  const size = 200;
+  const center = size / 2;
+  const radius = 70;
+  
+  const points = keys.map((key, i) => {
+    const val = scores[key] || 0;
+    const angle = (i * 2 * Math.PI) / keys.length - Math.PI / 2;
+    const r = (val / max) * radius;
+    const x = center + r * Math.cos(angle);
+    const y = center + r * Math.sin(angle);
+    return { x, y, label: labels[key] || key, angle };
+  });
+  
+  const polyPoints = points.map(p => `${p.x},${p.y}`).join(' ');
+  
+  return (
+    <svg width={size} height={size} style={{ margin: '0 auto', display: 'block' }}>
+      {[0.25, 0.5, 0.75, 1].map((p, i) => (
+        <circle key={i} cx={center} cy={center} r={radius * p} fill="none" stroke="#e9ecef" strokeWidth="1" />
+      ))}
+      {points.map((p, i) => {
+        const xMax = center + radius * Math.cos(p.angle);
+        const yMax = center + radius * Math.sin(p.angle);
+        return (
+          <g key={i}>
+            <line x1={center} y1={center} x2={xMax} y2={yMax} stroke="#e9ecef" strokeWidth="1" />
+            <text 
+              x={center + (radius + 15) * Math.cos(p.angle)} 
+              y={center + (radius + 15) * Math.sin(p.angle)} 
+              fontSize="9" 
+              textAnchor="middle" 
+              dominantBaseline="middle"
+              fill="#4A4036"
+              fontWeight="600"
+            >
+              {p.label}
+            </text>
+          </g>
+        );
+      })}
+      <polygon points={polyPoints} fill="rgba(84, 180, 235, 0.25)" stroke="#54B4EB" strokeWidth="2" />
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#54B4EB" stroke="#fff" strokeWidth="1" />
+      ))}
+    </svg>
+  );
+}
+
 export default function PDFViewer({ 
   documentType, 
   documentData, 
   clinicInfo, 
   patients, 
   therapists,
+  templates = [],
   bankAccounts = [],
   users = [],
   onClose 
@@ -258,6 +312,11 @@ export default function PDFViewer({
     const item = documentData; // ข้อมูลใบประเมิน
     const pInfo = getPatientInfo(item.hn);
 
+    const tempIds = item.templateIds || (item.templateId ? [item.templateId] : ['legacy']);
+    if (tempIds.length > 0 && !tempIds.includes('legacy')) {
+      return renderHybridAssessmentReport(item, pInfo);
+    }
+
     const patientObj = patients.find(p => p.hn === item.hn);
     let isSensoryEnabled = false;
     if (patientObj?.dob) {
@@ -315,7 +374,7 @@ export default function PDFViewer({
           </div>
 
           {/* ส่วนที่ 1: พัฒนาการ 4 ด้าน */}
-          {item.hasDevelopmental !== false && (
+          {item.hasDevelopmental !== false && (item.showGm !== false || item.showFm !== false || item.showLanguage !== false || item.showSocial !== false) && (
             <>
               <h3 className="a4-table-title">ส่วนที่ {sectionCounter++}: สรุปผลพัฒนาการ 4 ด้านพื้นฐาน</h3>
               <table className="a4-table">
@@ -326,22 +385,30 @@ export default function PDFViewer({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>พัฒนาการด้านกล้ามเนื้อมัดใหญ่ (Gross Motor Skills: GM)</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: item.gm === 'สมวัย' ? 'green' : 'red' }}>{item.gm}</td>
-                  </tr>
-                  <tr>
-                    <td>พัฒนาการด้านกล้ามเนื้อมัดเล็กและการประสานสัมพันธ์ (Fine Motor Skills: FM)</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: item.fm === 'สมวัย' ? 'green' : 'red' }}>{item.fm}</td>
-                  </tr>
-                  <tr>
-                    <td>พัฒนาการด้านภาษาและการสื่อสาร (Language & Communication Skills)</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: item.language === 'สมวัย' ? 'green' : 'red' }}>{item.language}</td>
-                  </tr>
-                  <tr>
-                    <td>พัฒนาการด้านสังคมและการช่วยเหลือตนเอง (Personal-Social Skills)</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: item.social === 'สมวัย' ? 'green' : 'red' }}>{item.social}</td>
-                  </tr>
+                  {item.showGm !== false && (
+                    <tr>
+                      <td>พัฒนาการด้านกล้ามเนื้อมัดใหญ่ (Gross Motor Skills: GM)</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: item.gm === 'สมวัย' ? 'green' : 'red' }}>{item.gm}</td>
+                    </tr>
+                  )}
+                  {item.showFm !== false && (
+                    <tr>
+                      <td>พัฒนาการด้านกล้ามเนื้อมัดเล็กและการประสานสัมพันธ์ (Fine Motor Skills: FM)</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: item.fm === 'สมวัย' ? 'green' : 'red' }}>{item.fm}</td>
+                    </tr>
+                  )}
+                  {item.showLanguage !== false && (
+                    <tr>
+                      <td>พัฒนาการด้านภาษาและการสื่อสาร (Language & Communication Skills)</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: item.language === 'สมวัย' ? 'green' : 'red' }}>{item.language}</td>
+                    </tr>
+                  )}
+                  {item.showSocial !== false && (
+                    <tr>
+                      <td>พัฒนาการด้านสังคมและการช่วยเหลือตนเอง (Personal-Social Skills)</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: item.social === 'สมวัย' ? 'green' : 'red' }}>{item.social}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </>
@@ -392,21 +459,21 @@ export default function PDFViewer({
                   <tr>
                     <td>กลุ่มสมาธิบกพร่อง (Inattention - ขาดสมาธิ)</td>
                     <td style={{ textAlign: 'center' }}>{item.snapIV.inattention} / 27</td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.inattentionStatus === 'เสี่ยง' ? 'red' : 'green' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.inattentionStatus !== 'ปกติ' ? 'red' : 'green' }}>
                       {item.snapIV.inattentionStatus === 'เสี่ยง' ? '⚠️ เสี่ยงสูง (เกณฑ์ ≥16)' : '✓ ปกติ'}
                     </td>
                   </tr>
                   <tr>
                     <td>กลุ่มซน วู่วาม อยู่ไม่นิ่ง (Hyperactivity / Impulsivity)</td>
                     <td style={{ textAlign: 'center' }}>{item.snapIV.hyperactivity} / 27</td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.hyperactivityStatus === 'เสี่ยง' ? 'red' : 'green' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.hyperactivityStatus !== 'ปกติ' ? 'red' : 'green' }}>
                       {item.snapIV.hyperactivityStatus === 'เสี่ยง' ? '⚠️ เสี่ยงสูง (เกณฑ์ ≥13)' : '✓ ปกติ'}
                     </td>
                   </tr>
                   <tr>
                     <td>กลุ่มพฤติกรรมดื้อ ต่อต้าน (Oppositional Defiant Disorder)</td>
                     <td style={{ textAlign: 'center' }}>{item.snapIV.oppositional} / 24</td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.oppositionalStatus === 'เสี่ยง' ? 'red' : 'green' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: item.snapIV.oppositionalStatus !== 'ปกติ' ? 'red' : 'green' }}>
                       {item.snapIV.oppositionalStatus === 'เสี่ยง' ? '⚠️ เสี่ยงสูง (เกณฑ์ ≥15)' : '✓ ปกติ'}
                     </td>
                   </tr>
@@ -442,6 +509,343 @@ export default function PDFViewer({
               </div>
             );
           })()}
+        </PrintLayout>
+      </div>
+    );
+  };
+
+  const getVMIColor = (interpretation) => {
+    if (!interpretation) return 'inherit';
+    const text = interpretation.toLowerCase();
+    if (text.includes('ต่ำกว่าค่าเฉลี่ย') || text.includes('ต่ำ') || text.includes('below') || text.includes('low')) {
+      return 'red';
+    }
+    if (text.includes('สูงกว่าค่าเฉลี่ย') || text.includes('สูง') || text.includes('above') || text.includes('high')) {
+      return 'green';
+    }
+    return 'inherit';
+  };
+
+  // --- 2.1 รายงานประเมินพัฒนาการแบบไฮบริด (New Hybrid HDA) ---
+  const renderHybridAssessmentReport = (item, pInfo) => {
+    const tempIds = item.templateIds || (item.templateId ? [item.templateId] : []);
+    const selectedTemplates = tempIds.map(id => templates.find(t => t.id === id)).filter(Boolean);
+    
+    if (selectedTemplates.length === 0) return <div>ไม่พบข้อมูลแม่แบบของแบบประเมินนี้</div>;
+
+    const therapist = therapists.find(t => t.id === item.therapistId);
+    const therapistName = therapist ? therapist.fullname : 'ไม่ระบุ';
+
+    const getTemplateScores = (tempId) => {
+      if (item.templateIds?.includes(tempId)) {
+        return item.scores?.[tempId] || {};
+      }
+      if (item.templateId === tempId) {
+        return item.scores || {};
+      }
+      return {};
+    };
+
+    return (
+      <div className="a4-document repeating-header-doc" ref={documentRef} id="printable-a4-area" style={{ padding: '10mm 15mm 15mm 15mm', minHeight: '297mm' }}>
+        <PrintLayout
+          header={
+            <div className="a4-header">
+              <div className="a4-header-left" style={{ width: '55%' }}>
+                <div className="a4-logo-circle">
+                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" /> : <span>HUG</span>}
+                </div>
+                <div className="a4-clinic-details">
+                  {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
+                  {clinicInfo.licenseNo && <span className="a4-clinic-subtext">ใบอนุญาตเลขที่: {clinicInfo.licenseNo}</span>}
+                  <span className="a4-clinic-subtext">ที่อยู่: {clinicInfo.address}</span>
+                </div>
+              </div>
+              <div className="a4-header-right" style={{ width: '45%' }}>
+                <span className="a4-doc-type-th" style={{ whiteSpace: 'nowrap', fontSize: '1.2rem', display: 'block' }}>รายงานผลประเมินพัฒนาการ</span>
+                <span className="a4-doc-type-en">Developmental Assessment Report</span>
+                <div className="a4-doc-meta" style={{ marginTop: '10px' }}>
+                  <span className="a4-doc-meta-label">เลขที่ใบประเมิน:</span>
+                  <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontFamily: 'monospace' }}>{item.id}</span>
+                  <span className="a4-doc-meta-label">วันที่รับประเมิน:</span>
+                  <span className="a4-doc-meta-value">{formatDateTh(item.date)}</span>
+                </div>
+              </div>
+            </div>
+          }
+        >
+          {/* ข้อมูลเด็ก */}
+          <div className="a4-patient-section">
+            <div className="a4-data-item"><span className="a4-data-label">ชื่อผู้รับการประเมิน:</span><span className="a4-data-value">{pInfo.fullname}</span></div>
+            <div className="a4-data-item"><span className="a4-data-label">รหัส HN:</span><span className="a4-data-value">{item.hn}</span></div>
+            <div className="a4-data-item"><span className="a4-data-label">ชื่อเล่น:</span><span className="a4-data-value">{pInfo.nickname ? formatPatientNickname(pInfo.nickname) : '-'}</span></div>
+            <div className="a4-data-item"><span className="a4-data-label">ผู้ปกครองผู้ให้ข้อมูล:</span><span className="a4-data-value">{pInfo.guardian || '-'}</span></div>
+            <div className="a4-data-item"><span className="a4-data-label">เพศ:</span><span className="a4-data-value">{pInfo.gender}</span></div>
+            <div className="a4-data-item"><span className="a4-data-label">ผู้ประเมิน:</span><span className="a4-data-value">{therapistName}</span></div>
+          </div>
+
+          {selectedTemplates.map((temp, idx) => {
+            const tScores = getTemplateScores(temp.id);
+
+            return (
+              <div key={temp.id} style={{ marginTop: '20px', pageBreakBefore: 'auto', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                <h3 className="a4-table-title" style={{ color: 'var(--secondary)', fontSize: '1.05rem', borderBottom: '2px solid var(--secondary)', paddingBottom: '5px', marginBottom: '15px' }}>
+                  {idx + 1}. ผลการประเมิน: {temp.name}
+                </h3>
+                
+                {/* 1. CHECKLIST REPORT */}
+                {temp.type === 'dynamic_checklist' && (() => {
+                  const isDev4 = temp.name.includes('พัฒนาการ 4 ด้าน') || temp.id.includes('dev-4');
+                  return (
+                    <div>
+                      <table className="a4-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#fafafa' }}>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>ด้านการประเมิน</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', width: '30%' }}>
+                              {isDev4 ? 'ผลการประเมิน' : 'ระดับความพร้อม (ร้อยละ)'}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {temp.categories.map(cat => {
+                            const score = tScores[cat.id] || 0;
+                            let displayValue = '';
+                            let colorVal = 'inherit';
+                            if (isDev4) {
+                              const catQs = temp.questions.filter(q => q.categoryId === cat.id);
+                              const firstQ = catQs[0];
+                              const ans = firstQ ? (item.details?.answers?.[firstQ.id] || '-') : '-';
+                              displayValue = ans;
+                              const isNormal = ans === 'สมวัย' || ans === 'ผ่าน' || ans === 'ปกติ' || ans === '✓ ปกติ';
+                              colorVal = isNormal ? 'green' : (ans === '-' || ans === '' ? 'inherit' : 'red');
+                            } else {
+                              displayValue = `${score}%`;
+                              colorVal = score >= 50 ? 'green' : 'red';
+                            }
+                            return (
+                              <tr key={cat.id}>
+                                <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>{cat.name}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700, color: colorVal }}>
+                                  {displayValue}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. SCALE REPORT */}
+                {temp.type === 'dynamic_scale' && (
+                  <div>
+                    <table className="a4-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fafafa' }}>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>ด้านการประเมิน</th>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', width: '30%' }}>คะแนนรวมแต่ละหมวด</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {temp.categories.map(cat => {
+                          const score = tScores[cat.id] || 0;
+                          return (
+                            <tr key={cat.id}>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>{cat.name}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700 }}>
+                                {score}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    
+                    {temp.chartType === 'radar' && (
+                      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '10px', color: 'var(--secondary)' }}>แผนภาพวิเคราะห์ระบายสัมผัส (Sensory/SNAP Radar Chart)</div>
+                        <RadarChart scores={tScores} max={temp.id === 'temp-snap-iv' ? 3 : 15} labels={(() => {
+                          const labels = {};
+                          temp.categories.forEach(c => { labels[c.id] = c.name.split(' (')[0]; });
+                          return labels;
+                        })()} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. BEERY VMI REPORT */}
+                {temp.type === 'custom_vmi' && (
+                  <div>
+                    {(() => {
+                      const getVMIInterpretation = (std) => {
+                        if (std === 0 || std === '-') return 'ไม่สามารถแปลผลได้';
+                        const val = Number(std);
+                        if (val >= 130 && val <= 160) return 'สูงมาก (Very High)';
+                        if (val >= 120 && val <= 129) return 'สูง (High)';
+                        if (val >= 110 && val <= 119) return 'สูงกว่าค่าเฉลี่ย (Above Average)';
+                        if (val >= 90 && val <= 109) return 'อยู่ในระดับค่าเฉลี่ย (Average)';
+                        if (val >= 80 && val <= 89) return 'ต่ำกว่าค่าเฉลี่ย (Below Average)';
+                        if (val >= 71 && val <= 79) return 'ต่ำ (Low)';
+                        if (val >= 0 && val <= 70) return 'ต่ำมาก (Very Low)';
+                        return 'ไม่สามารถแปลผลได้';
+                      };
+                      
+                      const vmiRow = { name: '1. Visual-Motor Integration (VM score)', raw: tScores.vmiRaw, std: tScores.vmiStd, scale: tScores.vmiScale, pct: tScores.vmiPct, int: tScores.vmiInt || getVMIInterpretation(tScores.vmiStd || 0) };
+                      const vpRow = { name: '2. Visual Perception (VP score)', raw: tScores.vpRaw, std: tScores.vpStd, scale: tScores.vpScale, pct: tScores.vpPct, int: tScores.vpInt || getVMIInterpretation(tScores.vpStd || 0) };
+                      const mcRow = { name: '3. Motor Coordination (Motor score)', raw: tScores.mcRaw, std: tScores.mcStd, scale: tScores.mcScale, pct: tScores.mcPct, int: tScores.mcInt || getVMIInterpretation(tScores.mcStd || 0) };
+                      
+                      return (
+                        <table className="a4-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#fafafa' }}>
+                              <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>ประเภทคะแนน</th>
+                              <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>1. Visual-Motor Integration (VM score)</th>
+                              <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>2. Visual Perception (VP score)</th>
+                              <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>3. Motor Coordination (Motor score)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>คะแนนดิบ (Raw Score)</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vmiRow.raw || 0}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vpRow.raw || 0}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{mcRow.raw || 0}</td>
+                            </tr>
+                            <tr>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>คะแนนมาตรฐาน (Standard Score)</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700, color: '#0066cc' }}>{vmiRow.std === 0 ? '-' : (vmiRow.std || 0)}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700, color: '#0066cc' }}>{vpRow.std === 0 ? '-' : (vpRow.std || 0)}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700, color: '#0066cc' }}>{mcRow.std === 0 ? '-' : (mcRow.std || 0)}</td>
+                            </tr>
+                            <tr>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>คะแนนสเกล (Scaled Score)</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vmiRow.scale !== undefined ? vmiRow.scale : '-'}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vpRow.scale !== undefined ? vpRow.scale : '-'}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{mcRow.scale !== undefined ? mcRow.scale : '-'}</td>
+                            </tr>
+                            <tr>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>เปอร์เซ็นไทล์ (Percentile)</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vmiRow.pct !== undefined && vmiRow.pct !== '-' ? `${vmiRow.pct}%` : '-'}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{vpRow.pct !== undefined && vpRow.pct !== '-' ? `${vpRow.pct}%` : '-'}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{mcRow.pct !== undefined && mcRow.pct !== '-' ? `${mcRow.pct}%` : '-'}</td>
+                            </tr>
+                            <tr>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>การแปลผล (Interpretation)</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 600, color: getVMIColor(vmiRow.int) }}>{vmiRow.int}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 600, color: getVMIColor(vpRow.int) }}>{vpRow.int}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 600, color: getVMIColor(mcRow.int) }}>{mcRow.int}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* SCORE INTERPRETATION REPORT */}
+                {temp.type === 'score_interpretation' && (() => {
+                  const isSensory = temp.name.toLowerCase().includes('sensory') || temp.id.toLowerCase().includes('sensory');
+                  const isSnap = temp.id.toLowerCase().includes('snap') || temp.name.toLowerCase().includes('snap');
+                  return (
+                    <div>
+                      <table className="a4-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#fafafa' }}>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>หัวข้อ / ด้านการประเมิน</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', width: '120px' }}>คะแนนรวม</th>
+                            <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', width: '200px' }}>
+                              {isSensory ? 'คะแนนเต็ม' : 'การแปลผล (Interpretation)'}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {temp.categories.map(cat => {
+                            const catData = tScores[cat.id] || { score: '-', interpretation: '-' };
+                            if (catData.score === '' || catData.score === '-') return null;
+                            const isNotNormal = isSnap && catData.interpretation !== 'ปกติ' && catData.interpretation !== '✓ ปกติ' && catData.interpretation !== '-';
+                            return (
+                              <tr key={cat.id}>
+                                <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 600 }}>{cat.name}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 700 }}>
+                                  {catData.score}
+                                  {!isSensory && cat.maxScore !== undefined && cat.maxScore !== null && cat.maxScore !== '' && ` / ${cat.maxScore}`}
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 600, color: isNotNormal ? 'red' : 'inherit' }}>
+                                  {isSensory ? (cat.maxScore !== undefined && cat.maxScore !== null && cat.maxScore !== '' ? cat.maxScore : '-') : catData.interpretation}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
+
+                {/* 4. DENVER II REPORT */}
+                {temp.type === 'custom_denver' && (
+                  <div>
+                    <table className="a4-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fafafa' }}>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>ส่วนการประเมิน (Sectors)</th>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>ผ่าน (P)</th>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>ไม่ผ่าน (F)</th>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>ปฏิเสธ (R)</th>
+                          <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>ไม่มีโอกาส (NO)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { id: 'personal-social', name: 'ด้านส่วนบุคคลและสังคม (Personal-Social)' },
+                          { id: 'fine-motor-adaptive', name: 'ด้านกล้ามเนื้อมัดเล็กปรับตัว (Fine-Motor)' },
+                          { id: 'language', name: 'ด้านพัฒนาการภาษา (Language)' },
+                          { id: 'gross-motor', name: 'ด้านกล้ามเนื้อมัดใหญ่ (Gross Motor)' }
+                        ].map(sec => {
+                          const counts = tScores[sec.id] || { P: 0, F: 0, R: 0, NO: 0 };
+                          return (
+                            <tr key={sec.id}>
+                              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{sec.name}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', color: 'green', fontWeight: 600 }}>{counts.P}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', color: 'red', fontWeight: 600 }}>{counts.F}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{counts.R}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{counts.NO}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{ marginTop: '20px' }}>
+            <h4 style={{ fontWeight: 700, fontSize: '0.95rem', margin: '0 0 5px 0' }}>ความคิดเห็นเพิ่มเติมของผู้ประเมิน:</h4>
+            <div style={{ border: '1px solid #ddd', padding: '10px', minHeight: '60px', borderRadius: '4px', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
+              {item.comment || 'ไม่มีความเห็นเพิ่มเติม'}
+            </div>
+          </div>
+
+          {/* ลายเซ็นครู */}
+          <div className="a4-closing-section" style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ textAlign: 'center', width: '220px' }}>
+              <span style={{ display: 'block', fontSize: '0.85rem' }}>ลงชื่อ.......................................................ผู้ประเมิน</span>
+              <span style={{ display: 'block', marginTop: '5px', fontSize: '0.85rem', fontWeight: 600 }}>
+                ( {therapist ? therapist.fullname : '.......................................................'} )
+              </span>
+              {therapist?.licenseNo && (
+                <span style={{ display: 'block', fontSize: '0.85rem', color: '#555', marginTop: '3px' }}>
+                  เลขทะเบียนประกอบโรคศิลปะ: {therapist.licenseNo}
+                </span>
+              )}
+            </div>
+          </div>
         </PrintLayout>
       </div>
     );

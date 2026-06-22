@@ -18,6 +18,7 @@ const KEYS = {
   OPD_RECORDS: 'hdh_opd_records',
   REWARDS: 'hdh_rewards',
   REFERRALS: 'hdh_referrals',
+  ASSESSMENT_TEMPLATES: 'hdh_assessment_templates',
 };
 
 // ตรวจสอบและสร้างข้อมูลเริ่มต้นใน localStorage หากไม่มีข้อมูล
@@ -40,7 +41,12 @@ export const initDatabase = (forceReset = false) => {
     localStorage.setItem(KEYS.OPD_RECORDS, JSON.stringify(mock.INITIAL_OPD_RECORDS));
     localStorage.setItem(KEYS.REWARDS, JSON.stringify([]));
     localStorage.setItem(KEYS.REFERRALS, JSON.stringify([]));
+    localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
     return true;
+  }
+  // ตรวจสอบความปลอดภัยสำหรับคีย์ใหม่ที่อาจไม่มีในเครื่องผู้ใช้ที่มีประวัติเดิมอยู่แล้ว
+  if (!localStorage.getItem(KEYS.ASSESSMENT_TEMPLATES)) {
+    localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
   }
   return false;
 };
@@ -140,6 +146,9 @@ export const db = {
 
   getReferrals: () => get(KEYS.REFERRALS, []),
   setReferrals: (data) => set(KEYS.REFERRALS, data),
+
+  getAssessmentTemplates: () => get(KEYS.ASSESSMENT_TEMPLATES, mock.INITIAL_ASSESSMENT_TEMPLATES),
+  setAssessmentTemplates: (data) => set(KEYS.ASSESSMENT_TEMPLATES, data),
 };
 
 // --- ฟังก์ชันดึง Google Apps Script URL ที่ถูกต้อง ---
