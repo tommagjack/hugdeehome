@@ -441,6 +441,13 @@ export const syncFromSupabase = async () => {
   }
 };
 
+const getPrimaryKey = (tableName) => {
+  if (tableName === 'patients') return 'hn';
+  if (tableName === 'users') return 'username';
+  if (tableName === 'promotions' || tableName === 'rewards') return 'code';
+  return 'id';
+};
+
 // --- ฟังก์ชันซิงค์ข้อมูลจาก LocalStorage ขึ้น Supabase ---
 export const syncToSupabase = async (key, value, throwOnError = false) => {
   const tableName = TABLE_MAP[key];
@@ -506,11 +513,24 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
 
     if (snakeRecords.length === 0) return true;
 
+    // ลบเรคคอร์ดที่มี Primary Key ซ้ำกันเพื่อป้องกันข้อผิดพลาด ON CONFLICT DO UPDATE ใน PostgreSQL
+    const pk = getPrimaryKey(tableName);
+    const uniqueMap = new Map();
+    snakeRecords.forEach(rec => {
+      const val = rec[pk];
+      if (val !== undefined && val !== null) {
+        uniqueMap.set(String(val), rec);
+      } else {
+        uniqueMap.set(Math.random().toString(), rec);
+      }
+    });
+    const uniqueSnakeRecords = Array.from(uniqueMap.values());
+
     // ทำการเขียนทับ/อัปเดตข้อมูลแบบกลุ่ม (Bulk Upsert)
     if (tableName === 'holidays') {
       await supabase.from('holidays').delete().neq('date', '');
     }
-    const { error } = await supabase.from(tableName).upsert(snakeRecords);
+    const { error } = await supabase.from(tableName).upsert(uniqueSnakeRecords);
     if (error) {
       console.error(`Error syncing ${tableName} to Supabase:`, error.message);
       if (throwOnError) {
