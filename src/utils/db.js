@@ -316,10 +316,13 @@ export const syncFromSupabase = async () => {
 };
 
 // --- ฟังก์ชันซิงค์ข้อมูลจาก LocalStorage ขึ้น Supabase ---
-export const syncToSupabase = async (key, value) => {
+export const syncToSupabase = async (key, value, throwOnError = false) => {
   const tableName = TABLE_MAP[key];
   if (!tableName) {
     console.error(`Unknown sync key: ${key}`);
+    if (throwOnError) {
+      throw new Error(`Unknown sync key: ${key}`);
+    }
     return false;
   }
 
@@ -365,11 +368,17 @@ export const syncToSupabase = async (key, value) => {
     const { error } = await supabase.from(tableName).upsert(snakeRecords);
     if (error) {
       console.error(`Error syncing ${tableName} to Supabase:`, error.message);
+      if (throwOnError) {
+        throw new Error(error.message);
+      }
       return false;
     }
     return true;
   } catch (e) {
     console.error(`Exception syncing ${key} to Supabase:`, e);
+    if (throwOnError) {
+      throw e;
+    }
     return false;
   }
 };
@@ -386,10 +395,8 @@ export const migrateLocalToSupabase = async (onProgress) => {
     const rawData = localStorage.getItem(key);
     if (rawData) {
       const value = JSON.parse(rawData);
-      const success = await syncToSupabase(key, value);
-      if (!success) {
-        throw new Error(`ล้มเหลวขณะโอนย้ายตาราง ${tableName}`);
-      }
+      // ส่งผ่านค่า true เพื่อระบุให้ขว้าง Error หากบันทึกล้มเหลว
+      await syncToSupabase(key, value, true);
     }
   }
   return true;
