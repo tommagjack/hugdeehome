@@ -225,30 +225,43 @@ const TABLE_COLUMNS = {
     'sensory_scores', 'snap_iv', 'has_developmental', 'has_sensory', 'has_snap'
   ],
   opd_records: [
-    'id', 'hn', 'date', 'symptoms', 'diagnosis', 'treatment', 'therapist_id'
+    'id', 'hn', 'date', 'details', 'therapist', 'file_url', 'is_visible'
   ],
   salary_rules: [
     'id', 'earnings', 'deductions'
   ],
   payrolls: [
-    'id', 'therapist_id', 'month', 'base_salary', 'total_earnings', 
-    'total_deductions', 'net_salary', 'earnings_details', 'deductions_details', 'status'
+    'id', 'therapist_id', 'employee_username', 'employee_name', 'employee_id', 
+    'month', 'year', 'basic_salary', 'earnings_list', 'deductions_list', 
+    'special_earnings', 'special_deductions', 'total_earnings', 'total_deductions', 'net_pay', 'payment_date', 'status'
   ],
   transactions: [
     'id', 'date', 'type', 'category', 'amount', 'description', 'reference_id'
   ],
   rewards: [
-    'id', 'hn', 'points', 'description', 'date'
+    'code', 'name', 'description', 'full_price', 'points', 'max_uses', 'start_date', 'end_date', 'type', 'condition', 'value'
   ],
   referrals: [
     'id', 'hn', 'date', 'hospital', 'reason', 'details', 'therapist_id'
   ],
-  promotions: [],
-  bank_accounts: []
+  promotions: [
+    'code', 'name', 'description', 'start_date', 'end_date', 'max_uses', 'type', 'value'
+  ],
+  bank_accounts: [
+    'id', 'bank_name', 'account_no', 'account_name'
+  ],
+  patients: [
+    'hn', 'title', 'firstname', 'lastname', 'nickname', 'dob', 
+    'gender', 'guardian', 'phone', 'status', 'allergies',
+    'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries'
+  ]
 };
 
 // --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
-const toSnakeCase = (str) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+const toSnakeCase = (str) => {
+  if (str === 'snapIV') return 'snap_iv';
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+};
 const toCamelCase = (str) => str.replace(/_([a-z])/g, g => g[1].toUpperCase());
 
 // --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
