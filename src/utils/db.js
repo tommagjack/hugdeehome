@@ -191,19 +191,23 @@ const TABLE_MAP = {
 const TABLE_COLUMNS = {
   clinic_info: [
     'id', 'name', 'license_no', 'phone', 'email', 'line_id', 'address', 
-    'logo_url', 'stamp_url', 'receipt_footer', 'folder_id', 'folder_url'
+    'logo_url', 'stamp_url', 'receipt_footer', 'folder_id', 'folder_url',
+    'type', 'payslip_footer'
   ],
   users: [
     'username', 'password', 'fullname', 'role', 'status', 'employee_id', 
     'employee_type', 'title', 'nickname', 'citizen_id', 'gender', 'dob', 
     'position', 'start_date', 'phone', 'email', 'basic_salary', 'bank_name', 
-    'bank_account_no', 'avatar_url', 'contract_doc', 'user_folder_url'
+    'bank_account_no', 'avatar_url', 'contract_doc', 'user_folder_url',
+    'avatar_file', 'citizen_id_doc', 'house_reg_doc', 'bank_book_doc', 'license_doc', 'other_doc'
   ],
   therapists: [
-    'id', 'fullname', 'nickname', 'license_no', 'status'
+    'id', 'fullname', 'nickname', 'license_no', 'status',
+    'work_days', 'work_hours'
   ],
   services: [
-    'code', 'name', 'description', 'price', 'category', 'status', 'start_date', 'end_date'
+    'code', 'name', 'description', 'price', 'category', 'status', 'start_date', 'end_date',
+    'sessions_per_unit'
   ],
   holidays: [
     'id', 'date', 'name', 'type'
@@ -213,11 +217,15 @@ const TABLE_COLUMNS = {
   ],
   receipts: [
     'id', 'hn', 'date', 'therapist_id', 'total_amount', 'payment_method', 
-    'status', 'items', 'discount', 'received_amount', 'change_amount'
+    'status', 'items', 'discount', 'received_amount', 'change_amount',
+    'discount_type', 'discount_value', 'discount_reason', 'promotion_id', 
+    'bank_account_id', 'slip_url', 'created_by', 'patient_name', 'patient_nickname', 
+    'reward_id', 'reward_discount_amount'
   ],
   assessment_templates: [
     'id', 'name', 'description', 'type', 'chart_type', 'status', 
-    'categories', 'questions', 'scoring_rules', 'checklist_options'
+    'categories', 'questions', 'scoring_rules', 'checklist_options',
+    'is_system'
   ],
   assessments: [
     'id', 'hn', 'therapist_id', 'date', 'comment', 'template_id', 
@@ -236,13 +244,15 @@ const TABLE_COLUMNS = {
     'special_earnings', 'special_deductions', 'total_earnings', 'total_deductions', 'net_pay', 'payment_date', 'status'
   ],
   transactions: [
-    'id', 'date', 'type', 'category', 'amount', 'description', 'reference_id'
+    'id', 'date', 'type', 'category', 'amount', 'description', 'reference_id',
+    'ref_id', 'slip_url'
   ],
   rewards: [
     'code', 'name', 'description', 'full_price', 'points', 'max_uses', 'start_date', 'end_date', 'type', 'condition', 'value'
   ],
   referrals: [
-    'id', 'hn', 'date', 'hospital', 'reason', 'details', 'therapist_id'
+    'id', 'hn', 'date', 'hospital', 'reason', 'details', 'therapist_id',
+    'to', 'intro', 'interview', 'observation', 'opinion', 'conclusion', 'status'
   ],
   promotions: [
     'code', 'name', 'description', 'start_date', 'end_date', 'max_uses', 'type', 'value'
@@ -253,7 +263,8 @@ const TABLE_COLUMNS = {
   patients: [
     'hn', 'title', 'firstname', 'lastname', 'nickname', 'dob', 
     'gender', 'guardian', 'phone', 'status', 'allergies',
-    'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries'
+    'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries',
+    'allergies_details', 'created_by'
   ]
 };
 
