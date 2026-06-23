@@ -225,6 +225,9 @@ async function restore() {
     }
     
     try {
+      if (tableName === 'holidays') {
+        await supabase.from('holidays').delete().neq('date', '');
+      }
       const { data, error } = await supabase.from(tableName).upsert(snakeRecords);
       if (error) {
         console.log(`❌ Table "${tableName}": Error ->`, error.message);

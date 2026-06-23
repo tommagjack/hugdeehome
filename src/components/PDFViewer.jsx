@@ -1286,7 +1286,14 @@ export default function PDFViewer({
   };
 
   const renderAnnualHolidays = () => {
-    const { year, list } = documentData;
+    const { year, list: rawList } = documentData;
+    const seen = new Set();
+    const list = (rawList || []).filter(h => {
+      const key = `${h.date}-${h.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const thaiYear = year + 543;
     const clinicName = clinicInfo.name || 'บ้านฮักดี';
     const clinicType = clinicInfo.type || 'คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด';

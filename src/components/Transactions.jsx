@@ -204,8 +204,9 @@ export default function Transactions({
       validPayrolls.forEach(p => {
         const txId = `TX-PR-${p.id}`;
         let txDate;
-        if (p.created_at) {
-          txDate = String(p.created_at).split('T')[0];
+        const rawDate = p.paymentDate || p.createdAt || p.created_at;
+        if (rawDate) {
+          txDate = String(rawDate).split('T')[0];
         } else {
           const mNum = monthThaiToNum[p.month] || 5;
           txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
@@ -497,8 +498,9 @@ export default function Transactions({
     validPayrolls.forEach(p => {
       const txId = `TX-PR-${p.id}`;
       let txDate;
-      if (p.created_at) {
-        txDate = String(p.created_at).split('T')[0];
+      const rawDate = p.paymentDate || p.createdAt || p.created_at;
+      if (rawDate) {
+        txDate = String(rawDate).split('T')[0];
       } else {
         const mNum = monthThaiToNum[p.month] || 5;
         txDate = `2026-${String(mNum).padStart(2, '0')}-28`;

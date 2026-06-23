@@ -88,10 +88,35 @@ export const db = {
   },
   setClinicInfo: (data) => set(KEYS.CLINIC_INFO, data),
 
-  getUsers: () => get(KEYS.USERS, mock.INITIAL_USERS),
+  getUsers: () => {
+    const data = get(KEYS.USERS, mock.INITIAL_USERS);
+    if (Array.isArray(data)) {
+      return data.map(u => ({
+        ...u,
+        avatarFile: safeJsonParse(u.avatarFile),
+        citizenIdDoc: safeJsonParse(u.citizenIdDoc),
+        houseRegDoc: safeJsonParse(u.houseRegDoc),
+        bankBookDoc: safeJsonParse(u.bankBookDoc),
+        licenseDoc: safeJsonParse(u.licenseDoc),
+        otherDoc: safeJsonParse(u.otherDoc),
+        contractDoc: safeJsonParse(u.contractDoc)
+      }));
+    }
+    return data;
+  },
   setUsers: (data) => set(KEYS.USERS, data),
 
-  getTherapists: () => get(KEYS.THERAPISTS, mock.INITIAL_THERAPISTS),
+  getTherapists: () => {
+    const data = get(KEYS.THERAPISTS, mock.INITIAL_THERAPISTS);
+    if (Array.isArray(data)) {
+      return data.map(t => ({
+        ...t,
+        workDays: safeJsonParse(t.workDays),
+        workHours: safeJsonParse(t.workHours)
+      }));
+    }
+    return data;
+  },
   setTherapists: (data) => set(KEYS.THERAPISTS, data),
 
   getServices: () => get(KEYS.SERVICES, mock.INITIAL_SERVICES),
@@ -106,7 +131,16 @@ export const db = {
   getHolidays: () => get(KEYS.HOLIDAYS, mock.INITIAL_HOLIDAYS),
   setHolidays: (data) => set(KEYS.HOLIDAYS, data),
 
-  getPatients: () => get(KEYS.PATIENTS, mock.INITIAL_PATIENTS),
+  getPatients: () => {
+    const data = get(KEYS.PATIENTS, mock.INITIAL_PATIENTS);
+    if (Array.isArray(data)) {
+      return data.map(p => ({
+        ...p,
+        channels: safeJsonParse(p.channels)
+      }));
+    }
+    return data;
+  },
   setPatients: (data) => set(KEYS.PATIENTS, data),
 
   getReceipts: () => get(KEYS.RECEIPTS, mock.INITIAL_RECEIPTS),
@@ -124,16 +158,43 @@ export const db = {
         fm: item.fm === 'ล่าช้า' ? 'ไม่สมวัย' : (item.fm || 'สมวัย'),
         language: item.language === 'ล่าช้า' ? 'ไม่สมวัย' : (item.language || 'สมวัย'),
         social: item.social === 'ล่าช้า' ? 'ไม่สมวัย' : (item.social || 'สมวัย'),
+        templateIds: safeJsonParse(item.templateIds),
+        scores: safeJsonParse(item.scores),
+        details: safeJsonParse(item.details),
+        sensoryScores: safeJsonParse(item.sensoryScores),
+        snapIV: safeJsonParse(item.snapIV)
       }));
     }
     return data;
   },
   setAssessments: (data) => set(KEYS.ASSESSMENTS, data),
 
-  getSalaryRules: () => get(KEYS.SALARY_RULES, mock.INITIAL_SALARY_RULES),
+  getSalaryRules: () => {
+    const data = get(KEYS.SALARY_RULES, mock.INITIAL_SALARY_RULES);
+    if (data) {
+      return {
+        ...data,
+        earnings: safeJsonParse(data.earnings),
+        deductions: safeJsonParse(data.deductions)
+      };
+    }
+    return data;
+  },
   setSalaryRules: (data) => set(KEYS.SALARY_RULES, data),
 
-  getPayrolls: () => get(KEYS.PAYROLLS, mock.INITIAL_PAYROLLS),
+  getPayrolls: () => {
+    const data = get(KEYS.PAYROLLS, mock.INITIAL_PAYROLLS);
+    if (Array.isArray(data)) {
+      return data.map(p => ({
+        ...p,
+        earningsList: safeJsonParse(p.earningsList),
+        deductionsList: safeJsonParse(p.deductionsList),
+        specialEarnings: safeJsonParse(p.specialEarnings),
+        specialDeductions: safeJsonParse(p.specialDeductions)
+      }));
+    }
+    return data;
+  },
   setPayrolls: (data) => set(KEYS.PAYROLLS, data),
 
   getTransactions: () => get(KEYS.TRANSACTIONS, mock.INITIAL_TRANSACTIONS),
@@ -148,7 +209,19 @@ export const db = {
   getReferrals: () => get(KEYS.REFERRALS, []),
   setReferrals: (data) => set(KEYS.REFERRALS, data),
 
-  getAssessmentTemplates: () => get(KEYS.ASSESSMENT_TEMPLATES, mock.INITIAL_ASSESSMENT_TEMPLATES),
+  getAssessmentTemplates: () => {
+    const data = get(KEYS.ASSESSMENT_TEMPLATES, mock.INITIAL_ASSESSMENT_TEMPLATES);
+    if (Array.isArray(data)) {
+      return data.map(t => ({
+        ...t,
+        categories: safeJsonParse(t.categories),
+        questions: safeJsonParse(t.questions),
+        scoringRules: safeJsonParse(t.scoringRules),
+        checklistOptions: safeJsonParse(t.checklistOptions)
+      }));
+    }
+    return data;
+  },
   setAssessmentTemplates: (data) => set(KEYS.ASSESSMENT_TEMPLATES, data),
 };
 
@@ -423,6 +496,9 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
     if (snakeRecords.length === 0) return true;
 
     // ทำการเขียนทับ/อัปเดตข้อมูลแบบกลุ่ม (Bulk Upsert)
+    if (tableName === 'holidays') {
+      await supabase.from('holidays').delete().neq('date', '');
+    }
     const { error } = await supabase.from(tableName).upsert(snakeRecords);
     if (error) {
       console.error(`Error syncing ${tableName} to Supabase:`, error.message);
