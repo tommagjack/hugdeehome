@@ -273,7 +273,25 @@ const toSnakeCase = (str) => {
   if (str === 'snapIV') return 'snap_iv';
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 };
-const toCamelCase = (str) => str.replace(/_([a-z])/g, g => g[1].toUpperCase());
+const toCamelCase = (str) => {
+  if (str === 'snap_iv') return 'snapIV';
+  return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
+};
+
+const safeJsonParse = (val) => {
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        console.error('Error parsing JSON:', e);
+        return val;
+      }
+    }
+  }
+  return val;
+};
 
 // --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
 export const syncFromSupabase = async () => {
@@ -315,7 +333,7 @@ export const syncFromSupabase = async () => {
       const mappedData = data.map(row => {
         const mapped = {};
         for (const k in row) {
-          mapped[toCamelCase(k)] = row[k];
+          mapped[toCamelCase(k)] = safeJsonParse(row[k]);
         }
         return mapped;
       });
