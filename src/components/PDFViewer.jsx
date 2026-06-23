@@ -90,6 +90,32 @@ export default function PDFViewer({
 }) {
   const documentRef = useRef();
 
+  if (!documentData && documentType !== 'opd_blank') {
+    return (
+      <div id="pdf-preview-overlay">
+        <div className="pdf-preview-toolbar">
+          <span style={{ fontWeight: 600 }}>พรีวิวเอกสารอ้างอิงของคลินิก</span>
+          <button className="btn btn-light" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <X size={16} /> ปิดพรีวิว
+          </button>
+        </div>
+        <div style={{ 
+          padding: '3rem', 
+          textAlign: 'center', 
+          backgroundColor: '#fff', 
+          margin: '5rem auto', 
+          maxWidth: '500px', 
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          color: 'var(--dark)'
+        }}>
+          <h3 style={{ marginBottom: '1rem', fontWeight: 700 }}>ไม่พบข้อมูลเอกสาร</h3>
+          <p style={{ color: 'var(--dark-light)' }}>ไม่สามารถแสดงเอกสารได้เนื่องจากไม่มีข้อมูลที่ถูกต้อง</p>
+        </div>
+      </div>
+    );
+  }
+
   // จัดการพิมพ์โดยตรงผ่านเบราว์เซอร์ (พิมพ์หน้าต่างเว็บบราวเซอร์ที่ถูกล้างเลย์เอาต์ด้วย CSS Print)
   const handlePrint = () => {
     const originalTitle = document.title;
@@ -121,6 +147,7 @@ export default function PDFViewer({
   const formatDateTh = (dateStr) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr || '-';
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 

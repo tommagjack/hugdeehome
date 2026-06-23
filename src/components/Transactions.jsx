@@ -209,7 +209,7 @@ export default function Transactions({
           txDate = String(rawDate).split('T')[0];
         } else {
           const mNum = monthThaiToNum[p.month] || 5;
-          txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
+          txDate = `${p.year || 2026}-${String(mNum).padStart(2, '0')}-28`;
         }
         const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 
@@ -503,7 +503,7 @@ export default function Transactions({
         txDate = String(rawDate).split('T')[0];
       } else {
         const mNum = monthThaiToNum[p.month] || 5;
-        txDate = `2026-${String(mNum).padStart(2, '0')}-28`;
+        txDate = `${p.year || 2026}-${String(mNum).padStart(2, '0')}-28`;
       }
       const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 

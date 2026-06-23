@@ -319,6 +319,13 @@ export default function PatientRegister({
       ? p.channels.map(c => c === 'อื่นๆ' ? `อื่นๆ (${p.channelsOtherDetails || '-'})` : c).join(', ')
       : 'ไม่ได้ระบุ';
 
+    const dobText = (() => {
+      if (!p.dob) return 'ไม่ได้ระบุ';
+      const d = new Date(p.dob);
+      if (isNaN(d.getTime())) return p.dob || 'ไม่ได้ระบุ';
+      return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    })();
+
     Swal.fire({
       title: `<span style="color:var(--dark); font-family:var(--font-family)">ข้อมูลเวชระเบียนผู้ป่วย [HN: ${p.hn}]</span>`,
       html: `
@@ -328,7 +335,7 @@ export default function PatientRegister({
             <strong>เพศ:</strong> ${p.gender} | <strong>สถานะ:</strong> <span class="badge ${p.status === 'Active' ? 'badge-success' : p.status === 'Pending' ? 'badge-warning' : 'badge-secondary'}">${p.status}</span>
           </div>
           <div>
-            <strong>วันเกิด (พ.ศ.):</strong> ${new Date(p.dob).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}<br/>
+            <strong>วันเกิด (พ.ศ.):</strong> ${dobText}<br/>
             <strong>ผู้ปกครอง:</strong> ${p.guardian || 'ไม่ระบุ'}<br/>
             <strong>เบอร์โทรติดต่อ:</strong> ${p.phone}
           </div>

@@ -332,15 +332,44 @@ export default function Users({ users, setUsers, setPrintView }) {
     });
   };
 
+  // ฟังก์ชันช่วยแยกวิเคราะห์เอกสาร (String หรือ Object)
+  const parseDoc = (doc) => {
+    if (!doc) return null;
+    if (typeof doc === 'string') {
+      const clean = doc.trim();
+      if (clean.startsWith('{') && clean.endsWith('}')) {
+        try {
+          return JSON.parse(clean);
+        } catch (e) {
+          console.error('Error parsing doc JSON:', e);
+        }
+      }
+      return { name: 'document', path: clean, data: clean };
+    }
+    return doc;
+  };
+
+  // ฟังก์ชันดูเอกสารแบบปลอดภัย
+  const handleViewDoc = (doc) => {
+    const parsed = parseDoc(doc);
+    if (!parsed || (!parsed.path && !parsed.data)) {
+      Swal.fire('ไม่พบที่อยู่เอกสาร', 'เอกสารนี้ไม่มีลิงก์เชื่อมโยงที่ถูกต้อง', 'warning');
+      return;
+    }
+    const url = parsed.path || parsed.data;
+    window.open(url, '_blank');
+  };
+
   // ฟังก์ชันดาวน์โหลดไฟล์แบบจำลอง
   const handleDownloadFile = (doc) => {
-    if (!doc || !doc.data) {
+    const parsed = parseDoc(doc);
+    if (!parsed || !parsed.data) {
       Swal.fire('ไม่พบข้อมูลไฟล์', 'ไม่สามารถดาวน์โหลดได้เนื่องจากไฟล์ไม่มีข้อมูล', 'warning');
       return;
     }
     const link = document.createElement('a');
-    link.href = doc.data;
-    link.download = doc.path.split('/').pop();
+    link.href = parsed.data;
+    link.download = parsed.name || (parsed.path ? parsed.path.split('/').pop() : 'download');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1211,7 +1240,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                     );
                   })()}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
                     
                     {/* บัตรประชาชน */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0f0f0', paddingBottom: '0.4rem' }}>
@@ -1221,7 +1250,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uCitizenIdDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uCitizenIdDoc.name}>{uCitizenIdDoc.name} ({uCitizenIdDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uCitizenIdDoc.path || uCitizenIdDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uCitizenIdDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uCitizenIdDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUCitizenIdDoc(null)}>ลบ</button>
                           </div>
@@ -1239,7 +1268,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uHouseRegDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uHouseRegDoc.name}>{uHouseRegDoc.name} ({uHouseRegDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uHouseRegDoc.path || uHouseRegDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uHouseRegDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uHouseRegDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUHouseRegDoc(null)}>ลบ</button>
                           </div>
@@ -1257,7 +1286,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uBankBookDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uBankBookDoc.name}>{uBankBookDoc.name} ({uBankBookDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uBankBookDoc.path || uBankBookDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uBankBookDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uBankBookDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUBankBookDoc(null)}>ลบ</button>
                           </div>
@@ -1275,7 +1304,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uLicenseDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uLicenseDoc.name}>{uLicenseDoc.name} ({uLicenseDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uLicenseDoc.path || uLicenseDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uLicenseDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uLicenseDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setULicenseDoc(null)}>ลบ</button>
                           </div>
@@ -1293,7 +1322,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uContractDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uContractDoc.name}>{uContractDoc.name} ({uContractDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uContractDoc.path || uContractDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uContractDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uContractDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUContractDoc(null)}>ลบ</button>
                           </div>
@@ -1311,7 +1340,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         {uOtherDoc ? (
                           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                             <span style={{ color: 'green', fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '200px' }} title={uOtherDoc.name}>{uOtherDoc.name} ({uOtherDoc.size})</span>
-                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => window.open(uOtherDoc.path || uOtherDoc.data, '_blank')}>ดูเอกสาร</button>
+                            <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleViewDoc(uOtherDoc)}>ดูเอกสาร</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }} onClick={() => handleDownloadFile(uOtherDoc)}>ดาวน์โหลด</button>
                             <button type="button" className="btn btn-light" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', color: 'red' }} onClick={() => setUOtherDoc(null)}>ลบ</button>
                           </div>

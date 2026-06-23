@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { initDatabase, db, syncFromSupabase, syncToSupabase, getGasUrl } from './utils/db';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -26,6 +26,7 @@ import Swal from 'sweetalert2';
 
 export default function App() {
   const [isSyncing, setIsSyncing] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   // 2. โหลดข้อมูลจาก LocalStorage เข้า State หลักของ React SPA
   const [clinicInfo, setClinicInfo] = useState(() => db.getClinicInfo());
@@ -215,24 +216,26 @@ export default function App() {
       
       setTimeout(() => {
         setIsSyncing(false);
-      }, 1000);
+        hasLoadedRef.current = true;
+      }, 1500);
     };
     runInitialSync();
   }, []);
 
   const syncData = async (key, value) => {
-    if (isSyncing) return;
-    const success = await syncToSupabase(key, value);
-    if (!success) {
-      console.warn(`[Sync Failed] Key: ${key}`);
+    if (isSyncing || !hasLoadedRef.current) return;
+    try {
+      await syncToSupabase(key, value, true);
+    } catch (error) {
+      console.warn(`[Sync Failed] Key: ${key}`, error);
       Swal.fire({
         icon: 'warning',
         title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
-        text: 'ระบบได้บันทึกข้อมูลไว้ในคอมพิวเตอร์เครื่องนี้แล้ว แต่ไม่สามารถอัปเดตไปยัง Supabase ได้ชั่วคราว (โปรดตรวจสอบอินเทอร์เน็ต)',
+        text: `ตาราง ${key} ซิงค์ล้มเหลว: ${error.message || error} (บันทึกข้อมูลในคอมพิวเตอร์เครื่องนี้แล้ว)`,
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
-        timer: 5000
+        timer: 6000
       });
     }
   };
