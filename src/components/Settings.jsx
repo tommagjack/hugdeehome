@@ -71,32 +71,26 @@ export default function Settings({
   })(); // วันที่ปัจจุบันของระบบ
 
   // integration states
-  const [sheetId, setSheetId] = useState(localStorage.getItem('hdh_sheet_id') || import.meta.env.VITE_SHEET_ID || '');
-  const [gasUrl, setGasUrl] = useState(getGasUrl());
   const [isTestingBackup, setIsTestingBackup] = useState(false);
 
-  const handleSaveIntegration = (e) => {
-    e.preventDefault();
-    localStorage.setItem('hdh_sheet_id', sheetId.trim());
-    localStorage.setItem('hdh_gas_url', gasUrl.trim());
-    Swal.fire({
-      icon: 'success',
-      title: 'บันทึกการเชื่อมต่อสำเร็จ',
-      text: 'ระบบตั้งค่าฐานข้อมูล Google Sheets เรียบร้อยแล้ว',
-      confirmButtonText: 'ตกลง'
+  const handleMigrateToSupabase = async () => {
+    const result = await Swal.fire({
+      title: 'ต้องการโอนย้ายข้อมูลหรือไม่?',
+      text: 'ข้อมูลที่มีอยู่ในเบราว์เซอร์เครื่องนี้จะถูกอัปโหลดขึ้นไปยังฐานข้อมูล Supabase (ข้อมูลเดิมที่อยู่บน Supabase อาจถูกเขียนทับ)',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันโอนย้ายข้อมูล',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'var(--secondary)',
+      cancelButtonColor: '#aaa'
     });
-  };
 
-  const handleTriggerBackup = async () => {
-    if (!gasUrl) {
-      Swal.fire('ข้อผิดพลาด', 'กรุณาระบุ URL ของ Google Apps Script Web App ก่อน', 'error');
-      return;
-    }
-    
+    if (!result.isConfirmed) return;
+
     setIsTestingBackup(true);
     Swal.fire({
-      title: 'กำลังซิงค์ข้อมูล...',
-      text: 'ระบบกำลังดึงข้อมูลล่าสุดจาก Google Sheets มาอัปเดตบนเบราว์เซอร์',
+      title: 'กำลังโอนย้ายข้อมูล...',
+      html: '<div id="migration-status" style="font-size: 0.95rem; margin-top: 0.5rem;">กำลังเริ่มระบบโอนย้าย...</div>',
       allowOutsideClick: false,
       didOpen: () => {
         Swal.showLoading();
@@ -104,24 +98,109 @@ export default function Settings({
     });
 
     try {
-      // ดึงฟังก์ชันนำเข้าจาก utils/db.js แบบไดนามิกเพื่อหลีกเลี่ยงการวนลูป dependency
+      const { syncToSupabase } = await import('../utils/db');
+      
+      const tablesToMigrate = [
+        { key: 'hdh_clinic_info', name: 'ข้อมูลคลินิก' },
+        { key: 'hdh_users', name: 'ผู้ใช้งานระบบ' },
+        { key: 'hdh_therapists', name: 'นักกิจกรรมบำบัด' },
+        { key: 'hdh_services', name: 'บริการ' },
+        { key: 'hdh_promotions', name: 'โปรโมชัน' },
+        { key: 'hdh_bank_accounts', name: 'บัญชีธนาคาร' },
+        { key: 'hdh_holidays', name: 'วันหยุด' },
+        { key: 'hdh_patients', name: 'ผู้ป่วย (คนไข้)' },
+        { key: 'hdh_receipts', name: 'ใบเสร็จ' },
+        { key: 'hdh_appointments', name: 'นัดหมาย' },
+        { key: 'hdh_assessments', name: 'แบบประเมิน' },
+        { key: 'hdh_salary_rules', name: 'กฎเงินเดือน' },
+        { key: 'hdh_payrolls', name: 'ประวัติเงินเดือน' },
+        { key: 'hdh_transactions', name: 'ธุรกรรมบัญชี' },
+        { key: 'hdh_opd_records', name: 'ประวัติ OPD' },
+        { key: 'hdh_rewards', name: 'คะแนนสะสม' },
+        { key: 'hdh_referrals', name: 'ใบส่งตัว' },
+        { key: 'hdh_assessment_templates', name: 'แม่แบบแบบประเมิน' }
+      ];
+
+      for (let i = 0; i < tablesToMigrate.length; i++) {
+        const item = tablesToMigrate[i];
+        const statusEl = document.getElementById('migration-status');
+        if (statusEl) {
+          statusEl.innerHTML = `กำลังอัปโหลด <strong>${item.name}</strong> (${i + 1}/${tablesToMigrate.length})...`;
+        }
+
+        const rawData = localStorage.getItem(item.key);
+        if (rawData) {
+          const value = JSON.parse(rawData);
+          const success = await syncToSupabase(item.key, value);
+          if (!success) {
+            throw new Error(`ล้มเหลวขณะโอนย้าย ${item.name}`);
+          }
+        }
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'โอนย้ายข้อมูลสำเร็จ!',
+        text: 'ข้อมูลทั้งหมดจากเบราว์เซอร์นี้ถูกอัปโหลดขึ้น Supabase เรียบร้อยแล้ว',
+        confirmButtonColor: 'var(--secondary)'
+      }).then(() => {
+        window.location.reload();
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        icon: 'error',
+        title: 'การโอนย้ายข้อมูลล้มเหลว',
+        text: error.message || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุระหว่างโอนย้ายข้อมูล',
+        confirmButtonColor: 'var(--secondary)'
+      });
+    } finally {
+      setIsTestingBackup(false);
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    const result = await Swal.fire({
+      title: 'ต้องการดึงข้อมูลล่าสุดจาก Supabase หรือไม่?',
+      text: 'ข้อมูลในเบราว์เซอร์ปัจจุบันนี้จะถูกเขียนทับด้วยข้อมูลล่าสุดจากคลาวด์',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ดึงข้อมูล',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'var(--secondary)',
+      cancelButtonColor: '#aaa'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsTestingBackup(true);
+    Swal.fire({
+      title: 'กำลังดาวน์โหลดข้อมูล...',
+      text: 'ระบบกำลังดึงข้อมูลล่าสุดจาก Supabase',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
       const { syncFromSupabase } = await import('../utils/db');
       const success = await syncFromSupabase();
       if (success) {
         Swal.fire({
           icon: 'success',
-          title: 'ซิงค์ข้อมูลสำเร็จ',
-          text: 'ดาวน์โหลดข้อมูลจาก Google Sheets ลงระบบเรียบร้อยแล้ว ระบบจะทำการรีโหลดหน้าจอใหม่เพื่อแสดงผล',
+          title: 'ดึงข้อมูลสำเร็จ!',
+          text: 'ดาวน์โหลดข้อมูลจาก Supabase ลงเครื่องเรียบร้อยแล้ว',
           timer: 2000,
           showConfirmButton: false
         }).then(() => {
           window.location.reload();
         });
       } else {
-        Swal.fire('ไม่สำเร็จ', 'ไม่สามารถดึงข้อมูลได้ โปรดตรวจสอบสิทธิ์และ URL ของ GAS', 'error');
+        Swal.fire('ไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อหรือดึงข้อมูลได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
       }
     } catch (error) {
-      Swal.fire('ข้อผิดพลาด', 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + error.message, 'error');
+      Swal.fire('ข้อผิดพลาด', 'เกิดความล้มเหลวในการดึงข้อมูล: ' + error.message, 'error');
     } finally {
       setIsTestingBackup(false);
     }
@@ -1600,129 +1679,193 @@ function createUserFolder(parentFolderId, folderName) {
             <div>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Database size={20} color="var(--secondary)" />
-                เชื่อมต่อฐานข้อมูลระบบผ่าน Google Sheets
+                เชื่อมต่อระบบฐานข้อมูลคลาวด์ Supabase
               </h2>
               
-              <form onSubmit={handleSaveIntegration} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {/* ส่วนที่ 1: Google Sheets Configuration */}
-                <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '1rem' }}>
-                    ตั้งค่า Google Sheets Cloud Database
-                  </h3>
-                  <div className="form-row">
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label className="form-label">Google Sheet ID</label>
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        placeholder="ระบุรหัสแผ่นชีท (จาก URL ของ Google Sheets)" 
-                        value={sheetId} 
-                        onChange={(e) => setSheetId(e.target.value)} 
-                        required
-                      />
-                    </div>
-                    <div className="form-group" style={{ flex: 1.5 }}>
-                      <label className="form-label">Google Apps Script Web App URL (GAS URL)</label>
-                      <input 
-                        type="url" 
-                        className="form-control" 
-                        placeholder="https://script.google.com/macros/s/xxxx/exec" 
-                        value={gasUrl} 
-                        onChange={(e) => setGasUrl(e.target.value)} 
-                        required
-                      />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* ส่วนที่ 1: สถานะการเชื่อมต่อ */}
+                <div style={{ backgroundColor: 'var(--light)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#28a745', borderRadius: '50%', boxShadow: '0 0 8px #28a745' }}></span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--dark)' }}>สถานะ: เชื่อมต่อฐานข้อมูล Supabase สำเร็จ</strong>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+                    <div>Supabase Project URL:</div>
+                    <div style={{ fontFamily: 'monospace', color: 'var(--dark)' }}>{import.meta.env.VITE_SUPABASE_URL || 'ยังไม่ได้ระบุ'}</div>
+                    
+                    <div>Supabase Anon Key:</div>
+                    <div style={{ fontFamily: 'monospace', color: 'var(--dark)' }}>
+                      {import.meta.env.VITE_SUPABASE_ANON_KEY ? 
+                        `${import.meta.env.VITE_SUPABASE_ANON_KEY.substring(0, 15)}... (เชื่อมต่อเรียบร้อยแล้ว)` : 
+                        'ยังไม่ได้ระบุ'}
                     </div>
                   </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginTop: '0.5rem' }}>
-                    * ข้อมูลแอปพลิเคชันจะจัดเก็บลง Google Sheets แบบเรียลไทม์ และหากระบบออฟไลน์จะสลับไปใช้ LocalStorage ในเครื่องอัตโนมัติ
-                  </p>
                 </div>
 
-                {/* ปุ่มบันทึกการตั้งค่าทั้งหมด */}
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <button type="submit" className="btn btn-secondary" style={{ padding: '0.6rem 1.5rem' }}>
-                    บันทึกการเชื่อมต่อ
-                  </button>
-                  {gasUrl && (
+                {/* ส่วนที่ 2: ปุ่มจัดการฐานข้อมูล */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  {/* การย้ายข้อมูลขึ้น (Migration) */}
+                  <div style={{ border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem', backgroundColor: '#fff' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <Upload size={18} /> โอนย้ายข้อมูลเดิมไปยัง Supabase
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', lineHeight: '1.5' }}>
+                        อัปโหลดข้อมูลคนไข้ นัดหมาย ใบเสร็จ และบันทึกทั้งหมดที่มีในคอมพิวเตอร์เบราว์เซอร์เครื่องนี้ขึ้นสู่ระบบคลาวด์ออนไลน์ (สำหรับย้ายประวัติข้อมูลครั้งแรกเท่านั้น)
+                      </p>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ width: '100%', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                      onClick={handleMigrateToSupabase}
+                      disabled={isTestingBackup}
+                    >
+                      <Upload size={16} />
+                      เริ่มการโอนย้ายข้อมูล (Upload)
+                    </button>
+                  </div>
+
+                  {/* การดึงข้อมูลลง (Pull Data) */}
+                  <div style={{ border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem', backgroundColor: '#fff' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <Download size={18} /> ดึงข้อมูลล่าสุดจาก Supabase
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', lineHeight: '1.5' }}>
+                        เขียนทับข้อมูลจำลองในเครื่องนี้ด้วยข้อมูลล่าสุดทั้งหมดจากระบบคลาวด์ออนไลน์ เพื่อซิงค์ข้อมูลให้ตรงกับเครื่องอื่นล่าสุด
+                      </p>
+                    </div>
                     <button 
                       type="button" 
                       className="btn btn-light" 
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.5rem' }}
-                      onClick={handleTriggerBackup}
+                      style={{ width: '100%', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid var(--border)' }}
+                      onClick={handlePullFromSupabase}
                       disabled={isTestingBackup}
                     >
                       <Download size={16} />
-                      {isTestingBackup ? 'กำลังซิงค์ข้อมูล...' : 'ดาวน์โหลดข้อมูลจาก Google Sheets ทันที'}
+                      ดาวน์โหลดข้อมูลคลาวด์ (Pull Data)
                     </button>
-                  )}
+                  </div>
                 </div>
-              </form>
 
-              {/* ส่วนที่ 3: โค้ด Google Apps Script */}
-              <div style={{ marginTop: '2rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '0.75rem' }}>
-                  3. รหัสโปรแกรม Google Apps Script (GAS Script)
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginBottom: '0.5rem' }}>
-                  นำรหัสโปรแกรมนี้ไปใส่ใน Google Sheet ของคุณ โดยคลิกเมนู <strong>Extensions (ส่วนขยาย) &gt; Apps Script</strong> แล้วนำรหัสโปรแกรมนี้ไปวางแทนที่ของเดิมทั้งหมด
-                </p>
-                <div style={{ 
-                  fontSize: '0.8rem', 
-                  backgroundColor: 'rgba(220, 53, 69, 0.08)', 
-                  borderLeft: '4px solid var(--danger)', 
-                  padding: '0.75rem', 
-                  borderRadius: '4px', 
-                  marginBottom: '1rem',
-                  color: '#842029'
-                }}>
-                  <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--danger)' }}>⚠️ สำคัญมาก! ต้องเปิดใช้งานสิทธิ์ Google Drive ครั้งแรกดังนี้:</strong>
-                  <ol style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                    <li>หลังจากวางโค้ดใน Apps Script ให้กดปุ่ม <strong>Save (บันทึกโครงการ - รูปแผ่นดิสก์)</strong> ด้านบน</li>
-                    <li>ที่กล่องเลือกฟังก์ชันด้านบน ให้เปลี่ยนจาก <code style={{ background: '#eee', padding: '1px 4px' }}>doGet</code> เป็น <code style={{ background: '#eee', padding: '1px 4px' }}>testDrivePermission</code></li>
-                    <li>กดปุ่ม <strong>Run (เรียกใช้)</strong> ถัดจากปุ่มบันทึก</li>
-                    <li>จะมีหน้าต่างป๊อปอัปแจ้งเตือนสิทธิ์ ให้คลิก <strong>ตรวจสอบสิทธิ์ (Review Permissions)</strong> &gt; เลือกบัญชีอีเมลของคุณ &gt; คลิก <strong>ขั้นสูง (Advanced)</strong> &gt; คลิก <strong>ไปยัง [ชื่อโครงการ] (ไม่ปลอดภัย)</strong> &gt; คลิก <strong>อนุญาต (Allow)</strong></li>
-                    <li>เมื่อข้อความด้านล่างขึ้นว่าเสร็จสิ้นแล้ว ให้ทำการ Deploy ใหม่โดยไปที่: <strong>Deploy (การใช้งานได้จริง) &gt; Manage deployments (จัดการการทำให้ใช้งานได้)</strong> &gt; คลิกปุ่มดินสอแก้ไข &gt; เลือกเวอร์ชันเป็น <strong>New version (เวอร์ชันใหม่)</strong> &gt; กด <strong>Deploy (ทำให้ใช้งานได้)</strong> แล้วนำลิงก์ Web App ล่าสุดมาตั้งค่าด้านบน</li>
-                  </ol>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <textarea 
-                    className="form-control" 
-                    readOnly 
-                    rows="12" 
-                    value={getGasCode()} 
-                    style={{ 
-                      fontFamily: 'monospace', 
-                      fontSize: '0.8rem', 
-                      backgroundColor: 'var(--light)', 
-                      whiteSpace: 'pre', 
-                      overflowX: 'auto',
-                      padding: '1rem'
-                    }}
-                  />
-                  <button 
-                    className="btn btn-light" 
-                    style={{ 
-                      position: 'absolute', 
-                      top: '0.5rem', 
-                      right: '0.5rem', 
-                      padding: '0.3rem 0.6rem',
-                      fontSize: '0.75rem',
-                      border: '1px solid var(--border)'
-                    }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(getGasCode());
-                      Swal.fire({
-                        icon: 'success',
-                        title: 'คัดลอกรหัสโปรแกรมแล้ว',
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 1500
-                      });
-                    }}
-                  >
-                    คัดลอกโค้ด
-                  </button>
+                {/* ส่วนที่ 3: สคริปต์ SQL สำหรับการปรับแต่งโครงสร้าง */}
+                <div style={{ marginTop: '1rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--secondary)', marginBottom: '0.75rem' }}>
+                    สคริปต์สำหรับการปรับปรุงโครงสร้าง Supabase SQL
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--dark-light)', marginBottom: '0.5rem' }}>
+                    หากท่านเพิ่งเชื่อมต่อครั้งแรก กรุณาคัดลอกโค้ด SQL ด้านล่างนี้ไปวางในหน้า <strong>SQL Editor &gt; New Query</strong> บน Supabase Dashboard แล้วกดรันเพื่อปรับปรุงโครงสร้างของตารางให้ตรงกับฟังก์ชันการใช้งาน
+                  </p>
+                  
+                  <div style={{ position: 'relative' }}>
+                    <textarea 
+                      className="form-control" 
+                      readOnly 
+                      rows="10" 
+                      value={`-- 1. ลบตารางผู้ใช้งานเดิมเพื่อสร้างใหม่ที่มี username เป็น Primary Key และครบถ้วนทุกฟิลด์
+DROP TABLE IF EXISTS users CASCADE;
+CREATE TABLE users (
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL,
+    fullname TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'OT', -- Admin, OT, Staff
+    status TEXT DEFAULT 'Active',
+    employee_id TEXT,
+    employee_type TEXT,
+    title TEXT,
+    nickname TEXT,
+    citizen_id TEXT,
+    gender TEXT,
+    dob TEXT,
+    position TEXT,
+    start_date TEXT,
+    phone TEXT,
+    email TEXT,
+    basic_salary NUMERIC DEFAULT 0,
+    bank_name TEXT,
+    bank_account_no TEXT,
+    avatar_url TEXT,
+    contract_doc TEXT,
+    user_folder_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. เพิ่มคอลัมน์ประวัติการแพ้ยา (allergies) ในตารางคนไข้
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS allergies TEXT;
+
+-- 3. เพิ่มคอลัมน์วันที่เริ่ม/สิ้นสุดบริการในตารางบริการ
+ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;`} 
+                      style={{ 
+                        fontFamily: 'monospace', 
+                        fontSize: '0.8rem', 
+                        backgroundColor: 'var(--light)', 
+                        whiteSpace: 'pre', 
+                        overflowX: 'auto',
+                        padding: '1rem',
+                        lineHeight: '1.4'
+                      }}
+                    />
+                    <button 
+                      className="btn btn-light" 
+                      style={{ 
+                        position: 'absolute', 
+                        top: '0.5rem', 
+                        right: '0.5rem', 
+                        padding: '0.3rem 0.6rem',
+                        fontSize: '0.75rem',
+                        border: '1px solid var(--border)'
+                      }}
+                      onClick={() => {
+                        const sqlText = `-- 1. ลบตารางผู้ใช้งานเดิมเพื่อสร้างใหม่ที่มี username เป็น Primary Key และครบถ้วนทุกฟิลด์
+DROP TABLE IF EXISTS users CASCADE;
+CREATE TABLE users (
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL,
+    fullname TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'OT', -- Admin, OT, Staff
+    status TEXT DEFAULT 'Active',
+    employee_id TEXT,
+    employee_type TEXT,
+    title TEXT,
+    nickname TEXT,
+    citizen_id TEXT,
+    gender TEXT,
+    dob TEXT,
+    position TEXT,
+    start_date TEXT,
+    phone TEXT,
+    email TEXT,
+    basic_salary NUMERIC DEFAULT 0,
+    bank_name TEXT,
+    bank_account_no TEXT,
+    avatar_url TEXT,
+    contract_doc TEXT,
+    user_folder_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. เพิ่มคอลัมน์ประวัติการแพ้ยา (allergies) ในตารางคนไข้
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS allergies TEXT;
+
+-- 3. เพิ่มคอลัมน์วันที่เริ่ม/สิ้นสุดบริการในตารางบริการ
+ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;`;
+                        navigator.clipboard.writeText(sqlText);
+                        Swal.fire({
+                          icon: 'success',
+                          title: 'คัดลอก SQL เรียบร้อยแล้ว',
+                          toast: true,
+                          position: 'top-end',
+                          showConfirmButton: false,
+                          timer: 1500
+                        });
+                      }}
+                    >
+                      คัดลอก SQL
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

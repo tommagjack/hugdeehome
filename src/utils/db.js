@@ -1,4 +1,5 @@
 import * as mock from './mockData';
+import { supabase } from './supabaseClient';
 
 const KEYS = {
   CLINIC_INFO: 'hdh_clinic_info',
@@ -164,153 +165,166 @@ export const getGasUrl = () => {
   return 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
 };
 
-// --- ฟังก์ชันซิงค์ข้อมูลกับ Google Sheets (ใช้ชื่อเดิมเพื่อป้องกันการกระทบโค้ดอื่น) ---
-export const syncFromSupabase = async (customUrl) => {
-  const gasUrl = customUrl || getGasUrl();
-  if (!gasUrl) return false;
-
-  try {
-    const response = await fetch(gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'get_all' })
-    });
-    if (!response.ok) {
-      console.error('Error fetching from Google Sheets:', response.statusText);
-      return false;
-    }
-
-    const result = await response.json();
-    if (result.status === 'success' && result.data) {
-      const therapistsList = result.data[KEYS.THERAPISTS] || result.data['hdh_therapists'] || get(KEYS.THERAPISTS, []);
-
-      // อัปเดตข้อมูลลง LocalStorage
-      Object.keys(result.data).forEach(key => {
-        let val = result.data[key];
-        if ((key === KEYS.SALARY_RULES || key === 'hdh_salary_rules' || key === 'salary_rules') && Array.isArray(val)) {
-          const earnings = val.filter(row => row.ruleType === 'earning' || (row.id && String(row.id).startsWith('earn'))).map(({ ruleType, ...rest }) => rest);
-          const deductions = val.filter(row => row.ruleType === 'deduction' || (row.id && String(row.id).startsWith('ded'))).map(({ ruleType, ...rest }) => rest);
-          val = { earnings, deductions };
-        } else if ((key === KEYS.APPOINTMENTS || key === 'hdh_appointments' || key === 'appointments') && Array.isArray(val)) {
-          val = val.map(row => {
-            const id = row.ApptID || row.id || '';
-            const date = row.RawDate || row.date || '';
-            const timeSlot = row.Time || row.timeSlot || '';
-            const hn = row.HN || row.hn || '';
-            const type = row.Type || row.type || '';
-            const status = row.Status || row.status || '';
-            
-            let therapistId = row.therapistId || '';
-            if (!therapistId && row.Kru) {
-              const cleanKru = row.Kru.replace(/^ครู/, '');
-              const foundTherapist = therapistsList.find(t => t.nickname === cleanKru || t.fullname === row.Kru || t.fullname === cleanKru);
-              if (foundTherapist) {
-                therapistId = foundTherapist.id;
-              } else {
-                therapistId = row.Kru;
-              }
-            }
-
-            return {
-              id,
-              hn: String(hn),
-              therapistId,
-              date,
-              timeSlot,
-              type,
-              status
-            };
-          });
-        }
-        localStorage.setItem(key, JSON.stringify(val));
-      });
-      return true;
-    }
-  } catch (e) {
-    console.error('Exception during Google Sheets sync load:', e);
-  }
-  return false;
+// --- ตารางแปลงชื่อคีย์เป็นชื่อตารางใน Supabase ---
+const TABLE_MAP = {
+  'hdh_clinic_info': 'clinic_info',
+  'hdh_users': 'users',
+  'hdh_therapists': 'therapists',
+  'hdh_services': 'services',
+  'hdh_promotions': 'promotions',
+  'hdh_bank_accounts': 'bank_accounts',
+  'hdh_holidays': 'holidays',
+  'hdh_patients': 'patients',
+  'hdh_receipts': 'receipts',
+  'hdh_appointments': 'appointments',
+  'hdh_assessments': 'assessments',
+  'hdh_salary_rules': 'salary_rules',
+  'hdh_payrolls': 'payrolls',
+  'hdh_transactions': 'transactions',
+  'hdh_opd_records': 'opd_records',
+  'hdh_rewards': 'rewards',
+  'hdh_referrals': 'referrals',
+  'hdh_assessment_templates': 'assessment_templates',
 };
 
-export const syncToSupabase = async (key, value) => {
-  const gasUrl = getGasUrl();
-  if (!gasUrl) return false;
+// --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
+const toSnakeCase = (str) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+const toCamelCase = (str) => str.replace(/_([a-z])/g, g => g[1].toUpperCase());
 
-  let finalValue = value;
-  if (key === KEYS.CLINIC_INFO || key === 'hdh_clinic_info') {
-    finalValue = Array.isArray(value) ? value : [value];
-  } else if (key === KEYS.SALARY_RULES || key === 'hdh_salary_rules' || key === 'salary_rules') {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const earningsRows = (value.earnings || []).map(item => ({ ...item, ruleType: 'earning' }));
-      const deductionsRows = (value.deductions || []).map(item => ({ ...item, ruleType: 'deduction' }));
-      finalValue = [...earningsRows, ...deductionsRows];
-    }
-  } else if ((key === KEYS.APPOINTMENTS || key === 'hdh_appointments' || key === 'appointments') && Array.isArray(value)) {
-    const patientsList = get(KEYS.PATIENTS, []);
-    const therapistsList = get(KEYS.THERAPISTS, []);
+// --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
+export const syncFromSupabase = async () => {
+  try {
+    const tableKeys = Object.keys(TABLE_MAP);
     
-    // Format Thai Date
-    const getThaiDateString = (dateStr) => {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      
-      const yearBE = d.getFullYear() + 543;
-      const thaiMonths = [
-        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-      ];
-      return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${yearBE}`;
-    };
-
-    finalValue = value.map(app => {
-      const p = patientsList.find(pat => String(pat.hn) === String(app.hn)) || {};
-      const t = therapistsList.find(ther => ther.id === app.therapistId) || {};
-      
-      const cleanTitle = (p.title || '').replace(/\$/g, '');
-      const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
-      const cleanLastname = (p.lastname || '').replace(/\$/g, '');
-      const patientFullName = p.firstname ? `${cleanTitle}${cleanFirstname} ${cleanLastname}` : '';
-      const patientNick = p.nickname ? `น้อง${p.nickname.replace(/\$/g, '')}` : '';
-      const therapistNick = t.nickname ? `ครู${t.nickname}` : t.fullname || '';
-
-      return {
-        ApptID: app.id,
-        RawDate: app.date,
-        Date: getThaiDateString(app.date),
-        Time: app.timeSlot,
-        HN: app.hn,
-        Nick: patientNick,
-        Name: patientFullName,
-        Type: app.type || 'ฝึกกระตุ้นพัฒนาการ',
-        Kru: therapistNick,
-        Status: app.status
-      };
+    // โหลดข้อมูลทุกตารางพร้อมกัน
+    const promises = tableKeys.map(async (key) => {
+      const tableName = TABLE_MAP[key];
+      const { data, error } = await supabase.from(tableName).select('*');
+      if (error) {
+        throw new Error(`Error fetching ${tableName}: ${error.message}`);
+      }
+      return { key, data: data || [] };
     });
+    
+    const results = await Promise.all(promises);
+    
+    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (วัดจากตารางสำคัญๆ เช่น patients, appointments, receipts)
+    const isCloudEmpty = results.every(({ key, data }) => {
+      if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
+        return true; // ข้ามตารางข้อมูลตั้งต้น
+      }
+      return data.length === 0;
+    });
+
+    // หากคลาวด์ว่างเปล่า และในเครื่องของผู้ใช้งานมีข้อมูลอยู่แล้ว ให้ส่งกลับสถานะพิเศษเพื่อความปลอดภัย
+    if (isCloudEmpty) {
+      const patientsRaw = localStorage.getItem(KEYS.PATIENTS);
+      const hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
+      if (hasLocalPatients) {
+        console.log("Supabase database is empty but local storage has patient data. Skipping overwrite to prevent data loss.");
+        return "empty_but_has_local";
+      }
+    }
+    
+    results.forEach(({ key, data }) => {
+      // แปลงข้อมูลจาก snake_case กลับมาเป็น camelCase
+      const mappedData = data.map(row => {
+        const mapped = {};
+        for (const k in row) {
+          mapped[toCamelCase(k)] = row[k];
+        }
+        return mapped;
+      });
+      
+      // บันทึกลง LocalStorage
+      if (key === KEYS.CLINIC_INFO) {
+        const infoObj = mappedData[0] || mock.INITIAL_CLINIC_INFO;
+        localStorage.setItem(key, JSON.stringify(infoObj));
+      } else if (key === KEYS.SALARY_RULES) {
+        const rulesObj = mappedData[0] || mock.INITIAL_SALARY_RULES;
+        localStorage.setItem(key, JSON.stringify(rulesObj));
+      } else {
+        localStorage.setItem(key, JSON.stringify(mappedData));
+      }
+    });
+    
+    return true;
+  } catch (e) {
+    console.error('Exception during Supabase sync load:', e);
+    return false;
+  }
+};
+
+// --- ฟังก์ชันซิงค์ข้อมูลจาก LocalStorage ขึ้น Supabase ---
+export const syncToSupabase = async (key, value) => {
+  const tableName = TABLE_MAP[key];
+  if (!tableName) {
+    console.error(`Unknown sync key: ${key}`);
+    return false;
   }
 
   try {
-    const response = await fetch(gasUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain' // ป้องกันการทำ preflight request (CORS) ในเบราว์เซอร์
-      },
-      body: JSON.stringify({
-        action: 'sync_table',
-        key: key,
-        value: finalValue
-      })
-    });
-
-    if (!response.ok) {
-      console.error(`Error saving ${key} to Google Sheets:`, response.statusText);
-      return false;
+    let records = [];
+    if (key === KEYS.CLINIC_INFO) {
+      const info = Array.isArray(value) ? (value[0] || {}) : (value || {});
+      const record = { ...info, id: 1 };
+      records = [record];
+    } else if (key === KEYS.SALARY_RULES) {
+      const rules = Array.isArray(value) ? (value[0] || {}) : (value || {});
+      const record = { ...rules, id: 1 };
+      records = [record];
+    } else if (Array.isArray(value)) {
+      records = value;
+    } else if (value && typeof value === 'object') {
+      records = [value];
+    } else {
+      return true;
     }
 
-    const result = await response.json();
-    return result.status === 'success';
+    // แปลงรูปแบบคีย์เป็น snake_case เพื่อสอดคล้องกับคอลัมน์ของ PostgreSQL
+    const snakeRecords = records.map(record => {
+      const mapped = {};
+      for (const k in record) {
+        if ((k === 'createdAt' || k === 'updatedAt') && !record[k]) {
+          continue;
+        }
+        mapped[toSnakeCase(k)] = record[k];
+      }
+      return mapped;
+    });
+
+    if (snakeRecords.length === 0) return true;
+
+    // ทำการเขียนทับ/อัปเดตข้อมูลแบบกลุ่ม (Bulk Upsert)
+    const { error } = await supabase.from(tableName).upsert(snakeRecords);
+    if (error) {
+      console.error(`Error syncing ${tableName} to Supabase:`, error.message);
+      return false;
+    }
+    return true;
   } catch (e) {
-    console.error(`Exception saving ${key} to Google Sheets:`, e);
+    console.error(`Exception syncing ${key} to Supabase:`, e);
+    return false;
   }
-  return false;
+};
+
+// --- ฟังก์ชันโอนย้ายข้อมูลจาก LocalStorage ขึ้น Supabase ทั้งหมด ---
+export const migrateLocalToSupabase = async (onProgress) => {
+  const tableKeys = Object.keys(TABLE_MAP);
+  for (let i = 0; i < tableKeys.length; i++) {
+    const key = tableKeys[i];
+    const tableName = TABLE_MAP[key];
+    if (onProgress) {
+      onProgress(tableName, i, tableKeys.length);
+    }
+    const rawData = localStorage.getItem(key);
+    if (rawData) {
+      const value = JSON.parse(rawData);
+      const success = await syncToSupabase(key, value);
+      if (!success) {
+        throw new Error(`ล้มเหลวขณะโอนย้ายตาราง ${tableName}`);
+      }
+    }
+  }
+  return true;
 };

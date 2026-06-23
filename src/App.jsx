@@ -72,195 +72,150 @@ export default function App() {
   const [referrals, setReferrals] = useState(() => db.getReferrals());
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
 
-  // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase (ถ้ามีการตั้งค่าไว้)
+  // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
   useEffect(() => {
     const runInitialSync = async () => {
       initDatabase();
-      const gasUrl = getGasUrl();
       
-      const handleSyncFailurePrompt = (currentGasUrl, errorMsg) => {
+      // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
+      const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
+      
+      if (isFirstRun) {
         Swal.fire({
-          icon: 'error',
-          title: 'ซิงค์ข้อมูลล้มเหลว',
-          text: errorMsg || 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL',
-          showCancelButton: true,
-          confirmButtonText: 'ลองซิงค์ใหม่',
-          cancelButtonText: 'ระบุ GAS URL ใหม่',
-          confirmButtonColor: 'var(--secondary)',
-          cancelButtonColor: '#b0895a',
-          allowOutsideClick: false
-        }).then((result) => {
-          if (result.dismiss === Swal.DismissReason.cancel) {
-            Swal.fire({
-              title: 'ระบุ Google Apps Script Web App URL',
-              input: 'text',
-              inputValue: currentGasUrl || '',
-              inputPlaceholder: 'https://script.google.com/macros/s/.../exec',
-              showCancelButton: true,
-              confirmButtonText: 'บันทึกและซิงค์ใหม่',
-              cancelButtonText: 'ยกเลิก',
-              confirmButtonColor: '#b0895a',
-              allowOutsideClick: false,
-              inputValidator: (value) => {
-                if (!value) {
-                  return 'กรุณาระบุ URL';
-                }
-                if (!value.trim().startsWith('https://script.google.com/')) {
-                  return 'รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย https://script.google.com/)';
-                }
-              }
-            }).then((inputResult) => {
-              if (inputResult.isConfirmed) {
-                localStorage.setItem('hdh_gas_url', inputResult.value.trim());
-                window.location.reload();
-              }
-            });
-          } else if (result.isConfirmed) {
-            window.location.reload();
+          title: 'กำลังซิงค์ข้อมูล...',
+          text: 'กำลังโหลดข้อมูลล่าสุดจากฐานข้อมูลคลาวด์ออนไลน์',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
           }
         });
+      } else {
+        // หากมีข้อมูลเดิมอยู่แล้ว ให้ซิงค์เบื้องหลังแบบไม่ขัดจังหวะการใช้งานของครู/แอดมิน
+        Swal.fire({
+          icon: 'info',
+          title: 'กำลังซิงค์ข้อมูลเบื้องหลัง...',
+          text: 'กำลังดึงข้อมูลล่าสุดจากระบบคลาวด์',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2500
+        });
+      }
+      
+      const triggerDirectMigration = async () => {
+        Swal.fire({
+          title: 'กำลังโอนย้ายข้อมูล...',
+          html: '<div id="migration-status" style="font-size: 0.95rem; margin-top: 0.5rem;">กำลังเตรียมโอนย้าย...</div>',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        try {
+          const { migrateLocalToSupabase } = await import('./utils/db');
+          await migrateLocalToSupabase((tableName, index, total) => {
+            const statusEl = document.getElementById('migration-status');
+            if (statusEl) {
+              statusEl.innerHTML = `กำลังอัปโหลด <strong>${tableName}</strong> (${index + 1}/${total})...`;
+            }
+          });
+
+          Swal.fire({
+            icon: 'success',
+            title: 'โอนย้ายข้อมูลสำเร็จ!',
+            text: 'ข้อมูลในเครื่องของคุณออนไลน์เรียบร้อยแล้ว',
+            confirmButtonColor: 'var(--secondary)'
+          }).then(() => {
+            window.location.reload();
+          });
+        } catch (error) {
+          console.error(error);
+          Swal.fire({
+            icon: 'error',
+            title: 'การโอนย้ายข้อมูลล้มเหลว',
+            text: error.message || 'เกิดข้อผิดพลาดในการโอนย้ายข้อมูล',
+            confirmButtonColor: 'var(--secondary)'
+          });
+        }
       };
 
-      if (gasUrl) {
-        // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
-        const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
+      try {
+        const success = await syncFromSupabase();
         
-        if (isFirstRun) {
-          Swal.fire({
-            title: 'กำลังซิงค์ข้อมูล...',
-            text: 'กำลังโหลดข้อมูลล่าสุดจากระบบคลาวด์เป็นครั้งแรก',
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-            }
-          });
-        } else {
-          // หากมีข้อมูลเดิมอยู่แล้ว ให้ซิงค์เบื้องหลังแบบไม่ขัดจังหวะการใช้งานของครู/แอดมิน
-          Swal.fire({
-            icon: 'info',
-            title: 'กำลังซิงค์ข้อมูลเบื้องหลัง...',
-            text: 'กำลังดึงข้อมูลล่าสุดจากระบบคลาวด์',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 2500
-          });
-        }
-        
-        try {
-          const defaultUrl = 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
-          const localUrl = localStorage.getItem('hdh_gas_url');
-          
-          let success = await syncFromSupabase();
-          
-          // หากใช้ URL ในเครื่องแล้วล้มเหลว แต่ URL ดังกล่าวไม่ใช่ค่าเริ่มต้น ให้ลองทดสอบซิงค์ด้วยลิงก์เริ่มต้นระบบดู
-          if (!success && localUrl && localUrl !== defaultUrl) {
-            console.log('Sync failed with localUrl, trying silent fallback to defaultUrl...');
-            success = await syncFromSupabase(defaultUrl);
-            if (success) {
-              // หากการซิงค์ด้วย defaultUrl สำเร็จ ให้ทำการเขียนทับบันทึกความจำเครื่องเป็น defaultUrl ทันทีเพื่อความลื่นไหลในครั้งต่อไป
-              localStorage.setItem('hdh_gas_url', defaultUrl);
-            }
-          }
-
-          if (success) {
-            // โหลดสเตทใหม่จาก LocalStorage ทันที
-            setClinicInfo(db.getClinicInfo());
-            setUsers(db.getUsers());
-            setTherapists(db.getTherapists());
-            setServices(db.getServices());
-            setPromotions(db.getPromotions());
-            setBankAccounts(db.getBankAccounts());
-            setHolidays(db.getHolidays());
-            setPatients(db.getPatients());
-            setAppointments(db.getAppointments());
-            setReceipts(db.getReceipts());
-            setAssessments(db.getAssessments());
-            setSalaryRules(db.getSalaryRules());
-            setPayrolls(db.getPayrolls());
-            setTransactions(db.getTransactions());
-            setOpdRecords(db.getOpdRecords());
-            setRewards(db.getRewards());
-            setAssessmentTemplates(db.getAssessmentTemplates());
-            
-            Swal.fire({
-              icon: 'success',
-              title: 'ซิงค์ข้อมูลสำเร็จ',
-              text: 'ดาวน์โหลดข้อมูลล่าสุดจากคลาวด์เรียบร้อยแล้ว',
-              toast: true,
-              position: 'top-end',
-              showConfirmButton: false,
-              timer: 2000
-            });
-          } else {
-            const activeGasUrl = localStorage.getItem('hdh_gas_url') || defaultUrl;
-            if (isFirstRun) {
-              handleSyncFailurePrompt(activeGasUrl, 'ไม่สามารถดึงข้อมูลเริ่มต้นจากระบบคลาวด์ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ URL');
-            } else {
-              Swal.fire({
-                icon: 'warning',
-                title: 'ซิงค์ข้อมูลล้มเหลว',
-                text: 'ไม่สามารถซิงค์ข้อมูลล่าสุดได้ กำลังใช้งานข้อมูลภายในเครื่องชั่วคราว',
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 3500
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Initial sync error:', e);
-          const defaultUrl = 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
-          const activeGasUrl = localStorage.getItem('hdh_gas_url') || defaultUrl;
-          if (isFirstRun) {
-            handleSyncFailurePrompt(activeGasUrl, 'เกิดความล้มเหลวในการเชื่อมต่อ: ' + e.message);
-          }
-        }
-        
-        setTimeout(() => {
+        if (success === "empty_but_has_local") {
           setIsSyncing(false);
-        }, 1000);
-      } else {
-        // ถ้าไม่มี gasUrl และไม่มีข้อมูลในเครื่องเลย (First Run ของเครื่องใหม่ที่ยังไม่ได้ตั้งค่าอะไรเลย)
-        const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
-        if (isFirstRun) {
           Swal.fire({
+            title: 'พบข้อมูลในเครื่องนี้!',
+            text: 'ระบบตรวจพบประวัติคนไข้และประวัติเดิมในบราวเซอร์เครื่องนี้ แต่ฐานข้อมูลคลาวด์ Supabase ยังว่างเปล่า คุณต้องการย้ายข้อมูลขึ้นระบบออนไลน์เพื่อให้เครื่องอื่นเห็นด้วยหรือไม่?',
             icon: 'info',
-            title: 'ต้องการการตั้งค่าเริ่มต้น',
-            text: 'ไม่พบ URL เชื่อมต่อระบบคลาวด์ (Google Apps Script) กรุณาระบุเพื่อเริ่มต้นใช้งาน',
-            confirmButtonText: 'ระบุ GAS URL',
-            confirmButtonColor: '#b0895a',
+            showCancelButton: true,
+            confirmButtonText: 'โอนย้ายขึ้นออนไลน์ (แนะนำ)',
+            cancelButtonText: 'ใช้งานในเครื่องไปก่อน',
+            confirmButtonColor: 'var(--secondary)',
+            cancelButtonColor: '#aaa',
             allowOutsideClick: false
           }).then((result) => {
             if (result.isConfirmed) {
-              Swal.fire({
-                title: 'ระบุ Google Apps Script Web App URL',
-                input: 'text',
-                inputPlaceholder: 'https://script.google.com/macros/s/.../exec',
-                showCancelButton: false,
-                confirmButtonText: 'บันทึกและซิงค์',
-                confirmButtonColor: '#b0895a',
-                allowOutsideClick: false,
-                inputValidator: (value) => {
-                  if (!value) {
-                    return 'กรุณาระบุ URL';
-                  }
-                  if (!value.trim().startsWith('https://script.google.com/')) {
-                    return 'รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย https://script.google.com/)';
-                  }
-                }
-              }).then((inputResult) => {
-                if (inputResult.isConfirmed) {
-                  localStorage.setItem('hdh_gas_url', inputResult.value.trim());
-                  window.location.reload();
-                }
-              });
+              triggerDirectMigration();
             }
           });
+        } else if (success) {
+          // โหลดสเตทใหม่จาก LocalStorage ทันที
+          setClinicInfo(db.getClinicInfo());
+          setUsers(db.getUsers());
+          setTherapists(db.getTherapists());
+          setServices(db.getServices());
+          setPromotions(db.getPromotions());
+          setBankAccounts(db.getBankAccounts());
+          setHolidays(db.getHolidays());
+          setPatients(db.getPatients());
+          setAppointments(db.getAppointments());
+          setReceipts(db.getReceipts());
+          setAssessments(db.getAssessments());
+          setSalaryRules(db.getSalaryRules());
+          setPayrolls(db.getPayrolls());
+          setTransactions(db.getTransactions());
+          setOpdRecords(db.getOpdRecords());
+          setRewards(db.getRewards());
+          setAssessmentTemplates(db.getAssessmentTemplates());
+          
+          Swal.fire({
+            icon: 'success',
+            title: 'ซิงค์ข้อมูลสำเร็จ',
+            text: 'ดาวน์โหลดข้อมูลล่าสุดจากคลาวด์เรียบร้อยแล้ว',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000
+          });
         } else {
-          setIsSyncing(false);
+          Swal.fire({
+            icon: 'warning',
+            title: 'ซิงค์ข้อมูลล้มเหลว',
+            text: 'ไม่สามารถซิงค์ข้อมูลจากคลาวด์ได้ กำลังใช้งานข้อมูลภายในเครื่องชั่วคราว',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3500
+          });
         }
+      } catch (e) {
+        console.error('Initial sync error:', e);
+        Swal.fire({
+          icon: 'warning',
+          title: 'ซิงค์ข้อมูลล้มเหลว',
+          text: 'ไม่สามารถดึงข้อมูลล่าสุดได้: ' + e.message,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3500
+        });
       }
+      
+      setTimeout(() => {
+        setIsSyncing(false);
+      }, 1000);
     };
     runInitialSync();
   }, []);
@@ -273,7 +228,7 @@ export default function App() {
       Swal.fire({
         icon: 'warning',
         title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
-        text: 'ระบบได้บันทึกข้อมูลไว้ในคอมพิวเตอร์เครื่องนี้แล้ว แต่ไม่สามารถอัปเดตไปยัง Google Sheets ได้ชั่วคราว (โปรดตรวจสอบอินเทอร์เน็ตหรือปิดตัวบล็อกโฆษณา)',
+        text: 'ระบบได้บันทึกข้อมูลไว้ในคอมพิวเตอร์เครื่องนี้แล้ว แต่ไม่สามารถอัปเดตไปยัง Supabase ได้ชั่วคราว (โปรดตรวจสอบอินเทอร์เน็ต)',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
