@@ -199,6 +199,21 @@ async function restore() {
         if (snakeKey === 'hn') {
           val = String(val); // Ensure HN is string
         }
+        
+        const numericKeys = [
+          'total_amount', 'discount', 'received_amount', 'change_amount',
+          'discount_value', 'reward_discount_amount', 'price', 'amount',
+          'basic_salary', 'total_earnings', 'total_deductions', 'net_pay',
+          'value', 'full_price', 'points', 'max_uses'
+        ];
+        if (numericKeys.includes(snakeKey)) {
+          if (val === '' || val === undefined || val === null) {
+            val = 0;
+          } else {
+            val = Number(val);
+            if (isNaN(val)) val = 0;
+          }
+        }
         mapped[snakeKey] = val;
       }
       return mapped;
