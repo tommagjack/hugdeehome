@@ -120,7 +120,16 @@ export default function Appointments({
     if (!therapist) return { works: true };
 
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const selectedDayName = daysOfWeek[new Date(bookingDate).getDay()];
+    let selectedDayName = 'Sunday';
+    const parts = bookingDate.split('-');
+    if (parts.length === 3) {
+      selectedDayName = daysOfWeek[new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getDay()];
+    } else {
+      const d = new Date(bookingDate);
+      if (!isNaN(d.getTime())) {
+        selectedDayName = daysOfWeek[d.getDay()];
+      }
+    }
     
     const works = (therapist.workDays || []).includes(selectedDayName);
     return {

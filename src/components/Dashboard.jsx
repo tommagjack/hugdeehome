@@ -47,12 +47,23 @@ export default function Dashboard({
     return holidays.find(h => h.date === availDate);
   }, [availDate, holidays]);
 
+  // คำนวณชื่อวันสำหรับวันที่เลือกเพื่อความปลอดภัยเรื่อง Timezone
+  const availDayName = useMemo(() => {
+    if (!availDate) return '';
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const parts = availDate.split('-');
+    if (parts.length === 3) {
+      return daysOfWeek[new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getDay()];
+    }
+    const d = new Date(availDate);
+    return isNaN(d.getTime()) ? '' : daysOfWeek[d.getDay()];
+  }, [availDate]);
+
   // คำนวณคิวว่างของครู
   const teacherAvailableSlots = useMemo(() => {
     if (!availDate) return [];
 
-    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const selectedDayName = daysOfWeek[new Date(availDate).getDay()];
+    const selectedDayName = availDayName;
 
     const isOT = currentUser?.role === 'OT';
     const effectiveTherapistId = isOT ? (myTherapistId || 'NONE') : availTherapistId;
@@ -486,7 +497,7 @@ export default function Dashboard({
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--danger)', backgroundColor: '#fff5f5', borderRadius: 'var(--radius-md)', border: '1px solid var(--danger-light, #fee2e2)', fontWeight: 600 }}>
                 วันหยุดคลินิก: {clinicHoliday.name} - ไม่มีคิวว่างของครูในวันนี้
               </div>
-            ) : (currentUser?.role === 'OT' && myTherapistId && !therapists.find(t => t.id === myTherapistId)?.workDays?.includes(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(availDate).getDay()])) ? (
+            ) : (currentUser?.role === 'OT' && myTherapistId && !therapists.find(t => t.id === myTherapistId)?.workDays?.includes(availDayName)) ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                 วันนี้ไม่ได้เป็นวันเข้าปฏิบัติงานของคุณครู
               </div>

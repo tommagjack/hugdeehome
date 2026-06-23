@@ -353,14 +353,25 @@ const toCamelCase = (str) => {
 
 const safeJsonParse = (val) => {
   if (typeof val === 'string') {
-    const trimmed = val.trim();
-    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+    let trimmed = val.trim();
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
       try {
-        return JSON.parse(trimmed);
+        trimmed = JSON.parse(trimmed);
       } catch (e) {
-        console.error('Error parsing JSON:', e);
-        return val;
+        // ignore
       }
+    }
+    if (typeof trimmed === 'string') {
+      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+        try {
+          return JSON.parse(trimmed);
+        } catch (e) {
+          console.error('Error parsing JSON:', e);
+          return val;
+        }
+      }
+    } else {
+      return trimmed;
     }
   }
   return val;
