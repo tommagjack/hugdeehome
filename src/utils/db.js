@@ -187,6 +187,66 @@ const TABLE_MAP = {
   'hdh_assessment_templates': 'assessment_templates',
 };
 
+// --- คอลัมน์ที่รองรับในแต่ละตารางฐานข้อมูล Supabase เพื่อป้องกันปัญหาส่งฟิลด์ส่วนเกิน ---
+const TABLE_COLUMNS = {
+  clinic_info: [
+    'id', 'name', 'license_no', 'phone', 'email', 'line_id', 'address', 
+    'logo_url', 'stamp_url', 'receipt_footer', 'folder_id', 'folder_url'
+  ],
+  users: [
+    'username', 'password', 'fullname', 'role', 'status', 'employee_id', 
+    'employee_type', 'title', 'nickname', 'citizen_id', 'gender', 'dob', 
+    'position', 'start_date', 'phone', 'email', 'basic_salary', 'bank_name', 
+    'bank_account_no', 'avatar_url', 'contract_doc', 'user_folder_url'
+  ],
+  therapists: [
+    'id', 'fullname', 'nickname', 'license_no', 'status'
+  ],
+  services: [
+    'code', 'name', 'description', 'price', 'category', 'status', 'start_date', 'end_date'
+  ],
+  holidays: [
+    'id', 'date', 'name', 'type'
+  ],
+  appointments: [
+    'id', 'hn', 'therapist_id', 'date', 'time_slot', 'type', 'status'
+  ],
+  receipts: [
+    'id', 'hn', 'date', 'therapist_id', 'total_amount', 'payment_method', 
+    'status', 'items', 'discount', 'received_amount', 'change_amount'
+  ],
+  assessment_templates: [
+    'id', 'name', 'description', 'type', 'chart_type', 'status', 
+    'categories', 'questions', 'scoring_rules', 'checklist_options'
+  ],
+  assessments: [
+    'id', 'hn', 'therapist_id', 'date', 'comment', 'template_id', 
+    'template_ids', 'scores', 'details', 'gm', 'fm', 'language', 'social', 
+    'sensory_scores', 'snap_iv', 'has_developmental', 'has_sensory', 'has_snap'
+  ],
+  opd_records: [
+    'id', 'hn', 'date', 'symptoms', 'diagnosis', 'treatment', 'therapist_id'
+  ],
+  salary_rules: [
+    'id', 'earnings', 'deductions'
+  ],
+  payrolls: [
+    'id', 'therapist_id', 'month', 'base_salary', 'total_earnings', 
+    'total_deductions', 'net_salary', 'earnings_details', 'deductions_details', 'status'
+  ],
+  transactions: [
+    'id', 'date', 'type', 'category', 'amount', 'description', 'reference_id'
+  ],
+  rewards: [
+    'id', 'hn', 'points', 'description', 'date'
+  ],
+  referrals: [
+    'id', 'hn', 'date', 'hospital', 'reason', 'details', 'therapist_id'
+  ],
+  promotions: [],
+  bank_accounts: []
+};
+
 // --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
 const toSnakeCase = (str) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 const toCamelCase = (str) => str.replace(/_([a-z])/g, g => g[1].toUpperCase());
@@ -281,14 +341,20 @@ export const syncToSupabase = async (key, value) => {
       return true;
     }
 
-    // แปลงรูปแบบคีย์เป็น snake_case เพื่อสอดคล้องกับคอลัมน์ของ PostgreSQL
+    // แปลงรูปแบบคีย์เป็น snake_case เพื่อสอดคล้องกับคอลัมน์ของ PostgreSQL (พร้อมคัดกรองฟิลด์ที่ไม่มีในฐานข้อมูลออก)
     const snakeRecords = records.map(record => {
       const mapped = {};
+      const validCols = TABLE_COLUMNS[tableName];
       for (const k in record) {
         if ((k === 'createdAt' || k === 'updatedAt') && !record[k]) {
           continue;
         }
-        mapped[toSnakeCase(k)] = record[k];
+        const snakeKey = toSnakeCase(k);
+        // หากมีการระบุคอลัมน์และคีย์นี้ไม่ตรงกับตาราง ให้กรองออกเพื่อความปลอดภัย
+        if (validCols && validCols.length > 0 && !validCols.includes(snakeKey)) {
+          continue;
+        }
+        mapped[snakeKey] = record[k];
       }
       return mapped;
     });
