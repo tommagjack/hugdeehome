@@ -107,7 +107,23 @@ export default function App() {
   const [bankAccounts, setBankAccounts] = useState(() => db.getBankAccounts());
   const [holidays, setHolidays] = useState(() => db.getHolidays());
   
-  const [patients, setPatients] = useState(() => db.getPatients());
+  const sortPatientsByHNNewest = (list) => {
+    if (!Array.isArray(list)) return [];
+    return [...list].sort((a, b) => {
+      const hnA = parseInt(String(a.hn).replace(/\D/g, ''), 10) || 0;
+      const hnB = parseInt(String(b.hn).replace(/\D/g, ''), 10) || 0;
+      return hnB - hnA;
+    });
+  };
+
+  const [patients, setPatientsState] = useState(() => sortPatientsByHNNewest(db.getPatients()));
+  const setPatients = (val) => {
+    if (typeof val === 'function') {
+      setPatientsState(prev => sortPatientsByHNNewest(val(prev)));
+    } else {
+      setPatientsState(sortPatientsByHNNewest(val));
+    }
+  };
   const [appointments, setAppointments] = useState(() => db.getAppointments());
   const [receipts, setReceipts] = useState(() => db.getReceipts());
   const [assessments, setAssessments] = useState(() => db.getAssessments());

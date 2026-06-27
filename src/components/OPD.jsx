@@ -31,6 +31,7 @@ export default function OPD({
   const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [patientStatusFilter, setPatientStatusFilter] = useState('ทั้งหมด'); // 'ทั้งหมด', 'Active', 'Inactive'
   
   // สถานะแบ่งหน้าของตารางประวัติ
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,14 +62,33 @@ export default function OPD({
 
   // กรองผู้ป่วยในขณะค้นหา
   const filteredActivePatients = useMemo(() => {
+    // 1. คัดกรองตามสถานะ
+    let list = [...patients];
+    if (patientStatusFilter === 'Active') {
+      list = list.filter(p => p.status === 'Active');
+    } else if (patientStatusFilter === 'Inactive') {
+      list = list.filter(p => p.status === 'Inactive');
+    }
+
+    // 2. จัดการเรียงลำดับให้ Active ขึ้นก่อน Inactive
+    list.sort((a, b) => {
+      if (a.status === 'Active' && b.status !== 'Active') return -1;
+      if (a.status !== 'Active' && b.status === 'Active') return 1;
+      
+      const hnA = parseInt(String(a.hn).replace(/\D/g, ''), 10) || 0;
+      const hnB = parseInt(String(b.hn).replace(/\D/g, ''), 10) || 0;
+      return hnB - hnA;
+    });
+
+    // 3. ค้นหาด้วยตัวอักษร
     const q = patientSearchText.trim().toLowerCase();
-    if (!q || q.startsWith('hn:')) return patients;
-    return patients.filter(p => 
+    if (!q || q.startsWith('hn:')) return list;
+    return list.filter(p => 
       String(p.hn).toLowerCase().includes(q) || 
       String(p.nickname).toLowerCase().includes(q) || 
       `${p.title}${p.firstname} ${p.lastname}`.toLowerCase().includes(q)
     );
-  }, [patients, patientSearchText]);
+  }, [patients, patientSearchText, patientStatusFilter]);
 
   // ฟอร์มข้อมูลการฝึก
   const [formDate, setFormDate] = useState(() => {
@@ -533,13 +553,17 @@ export default function OPD({
           บันทึกผลการฝึก (OPD Card)
         </h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการฝึกเป็นไฟล์ CSV">
-            <Download size={16} /> Export CSV
-          </button>
-          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการฝึกผ่านไฟล์ CSV">
-            <Upload size={16} /> Import CSV
-            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-          </label>
+          {currentUser?.role === 'Admin' && (
+            <>
+              <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการฝึกเป็นไฟล์ CSV">
+                <Download size={16} /> Export CSV
+              </button>
+              <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการฝึกผ่านไฟล์ CSV">
+                <Upload size={16} /> Import CSV
+                <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+              </label>
+            </>
+          )}
           <button 
             className="btn btn-secondary" 
             onClick={() => onPrintOPD('opd_blank', null)}
@@ -554,7 +578,34 @@ export default function OPD({
         {/* ค้นหาและเลือกผู้รับบริการ */}
         <div className="card-2xl">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <label style={{ fontWeight: 600, fontSize: '0.95rem' }}>กรุณาเลือกผู้รับบริการเพื่อดูและบันทึกประวัติ:</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <label style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>กรุณาเลือกผู้รับบริการเพื่อดูและบันทึกประวัติ:</label>
+              <div style={{ display: 'flex', gap: '0.25rem', backgroundColor: 'var(--light)', padding: '2px', borderRadius: 'var(--radius-md)' }}>
+                {['ทั้งหมด', 'Active', 'Inactive'].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      backgroundColor: patientStatusFilter === status ? 'white' : 'transparent',
+                      color: patientStatusFilter === status ? 'var(--dark)' : 'var(--dark-light)',
+                      boxShadow: patientStatusFilter === status ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => {
+                      setPatientStatusFilter(status);
+                    }}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div style={{ position: 'relative', width: '100%', maxWidth: '500px' }}>
               <input 
                 type="text"

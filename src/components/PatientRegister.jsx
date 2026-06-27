@@ -607,14 +607,16 @@ export default function PatientRegister({
               <Plus size={16} /> ลงทะเบียนรายใหม่
             </button>
           )}
-          <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกข้อมูลรายชื่อผู้รับบริการเป็นไฟล์ CSV">
-            <Download size={16} /> Export CSV
-          </button>
-          {currentUser?.role !== 'OT' && (
-            <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าข้อมูลรายชื่อผู้รับบริการผ่านไฟล์ CSV">
-              <Upload size={16} /> Import CSV
-              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-            </label>
+          {currentUser?.role === 'Admin' && (
+            <>
+              <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกข้อมูลรายชื่อผู้รับบริการเป็นไฟล์ CSV">
+                <Download size={16} /> Export CSV
+              </button>
+              <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าข้อมูลรายชื่อผู้รับบริการผ่านไฟล์ CSV">
+                <Upload size={16} /> Import CSV
+                <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+              </label>
+            </>
           )}
         </div>
       </div>
