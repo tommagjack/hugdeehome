@@ -449,11 +449,62 @@ export default function Users({ users, setUsers, setPrintView }) {
     setShowUserModal(true);
   };
 
-  const handleSaveUser = (e) => {
+  const handleSaveUser = async (e) => {
     e.preventDefault();
+    
+    const isNew = !editingUsername;
+    
+    if (isNew) {
+      if (!uEmail || !uPassword) {
+        Swal.fire('ข้อมูลไม่ครบถ้วน', 'จำเป็นต้องระบุอีเมลและรหัสผ่านสำหรับลงทะเบียนบัญชี Supabase Auth', 'error');
+        return;
+      }
+      
+      Swal.fire({
+        title: 'กำลังลงทะเบียนบัญชี...',
+        text: 'กำลังบันทึกสิทธิ์บนระบบ Supabase Auth',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        });
+        
+        const { data, error } = await authClient.auth.signUp({
+          email: uEmail,
+          password: uPassword,
+          options: {
+            data: {
+              username: uUsername,
+              role: uRole
+            }
+          }
+        });
+        
+        if (error) throw new Error(error.message);
+        
+      } catch (err) {
+        console.error('Auth registration error:', err);
+        Swal.fire('การลงทะเบียนบัญชีผู้ใช้ล้มเหลว', 'ไม่สามารถสร้างบัญชีในระบบความปลอดภัยได้: ' + err.message, 'error');
+        return;
+      }
+    }
+    
     const newUser = {
       username: uUsername,
-      password: uPassword,
+      password: '', // ไม่เก็บรหัสผ่านเป็นข้อความธรรมดา (Plaintext) อีกต่อไป เพื่อความปลอดภัย PDPA
       fullname: uFullname,
       role: uRole,
       employeeId: uEmployeeId,

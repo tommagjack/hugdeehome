@@ -590,39 +590,20 @@ export default function App() {
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    let found = null;
     
     // ดึงค่าแอดมินหลักจาก localStorage (เผื่อมีการแก้ไข Username/Password)
     const adminOverride = localStorage.getItem('hdh_admin_override');
     const parsedOverride = adminOverride ? JSON.parse(adminOverride) : null;
     const adminUsername = parsedOverride ? parsedOverride.username : 'admin';
-    const adminPassword = parsedOverride ? parsedOverride.password : 'admin0100';
     
-    // หากเข้าสู่ระบบด้วย admin/admin0100 ให้รีเซ็ตรหัสผ่านแอดมินกลับมาและเข้าสู่ระบบทันทีเพื่อป้องกันปัญหารหัสค้างหรือ override ผิดพลาด
-    if (loginUsername === 'admin' && loginPassword === 'admin0100') {
-      if (adminOverride) {
-        try {
-          const parsed = JSON.parse(adminOverride);
-          parsed.password = 'admin0100';
-          localStorage.setItem('hdh_admin_override', JSON.stringify(parsed));
-        } catch (err) {
-          localStorage.removeItem('hdh_admin_override');
-        }
-      }
-      
-      const latestOverride = localStorage.getItem('hdh_admin_override');
-      found = latestOverride ? JSON.parse(latestOverride) : {
-        username: 'admin',
-        fullname: 'ผู้ดูแลระบบหลัก',
-        role: 'Admin',
-        employeeId: 'HDH001',
-        status: 'Active',
-        avatarUrl: ''
-      };
-    } else if (loginUsername === adminUsername && loginPassword === adminPassword) {
-      found = parsedOverride || {
+    let targetEmail = '';
+    let localProfile = null;
+    
+    if (loginUsername === adminUsername) {
+      targetEmail = parsedOverride?.email || 'admin@hugdeehome.com';
+      localProfile = parsedOverride || {
         username: 'admin',
         fullname: 'ผู้ดูแลระบบหลัก',
         role: 'Admin',
@@ -631,25 +612,75 @@ export default function App() {
         avatarUrl: ''
       };
     } else {
-      found = users.find(u => u.username === loginUsername && u.password === loginPassword);
+      const match = (users || []).find(u => u.username === loginUsername);
+      if (match) {
+        targetEmail = match.email;
+        localProfile = match;
+      }
     }
 
-    if (found) {
-      setCurrentUser(found);
-      localStorage.setItem('hdh_logged_in_user', JSON.stringify(found));
+    if (!targetEmail) {
+      Swal.fire({
+        icon: 'error',
+        title: 'ล็อกอินล้มเหลว',
+        text: 'ไม่พบบัญชีผู้ใช้งานหรืออีเมลในระบบ กรุณาตรวจสอบชื่อผู้ใช้อีกครั้ง!',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: 'กำลังตรวจสอบข้อมูล...',
+      text: 'ระบบกำลังรักษาความปลอดภัยการเชื่อมต่อสิทธิ์การเข้าถึง',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      // 1. ตรวจสอบยืนยันตัวตนผ่าน Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password: loginPassword
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // ดึงสิทธิ์ที่แท้จริง
+      let finalProfile = localProfile;
+      if (loginUsername !== adminUsername) {
+        const freshProfile = (users || []).find(u => u.username === loginUsername);
+        if (freshProfile) finalProfile = freshProfile;
+      }
+
+      setCurrentUser(finalProfile);
+      localStorage.setItem('hdh_logged_in_user', JSON.stringify(finalProfile));
+      
       Swal.fire({
         icon: 'success',
         title: 'ยินดีต้อนรับกลับมา!',
-        text: `ล็อกอินสำเร็จในบทบาท ${found.role}`,
+        text: `ล็อกอินสำเร็จในบทบาท ${finalProfile.role}`,
         timer: 1500,
         showConfirmButton: false
       });
       setActiveTab('dashboard');
-    } else {
+
+    } catch (err) {
+      console.error('Login auth error:', err);
+      
       Swal.fire({
         icon: 'error',
-        title: 'ล็อกอินล้มเหลว',
-        text: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!',
+        title: 'การเข้าสู่ระบบถูกปฏิเสธ',
+        html: `
+          <div style="font-family: var(--font-family); text-align: left; font-size: 0.9rem; line-height: 1.5;">
+            ชื่อผู้ใช้หรือรหัสผ่านผิดพลาด!<br/><br/>
+            <strong style="color:var(--danger)">หมายเหตุ:</strong> บัญชีผู้ใช้งานระบบนี้ต้องผ่านการเชื่อมโยงบนระบบ Supabase Auth ก่อนใช้งานจริง<br/>
+            (รายละเอียดความผิดพลาด: ${err.message})
+          </div>
+        `,
         confirmButtonColor: 'var(--secondary)'
       });
     }

@@ -413,12 +413,15 @@
         btnSearch.innerText = 'กำลังค้นหาประวัติ...';
 
         try {
-          // ค้นหา HN ในตาราง patients ที่มีเบอร์โทรตรงกับรูปแบบต่างๆ
-          const variations = getPhoneVariations(phoneVal);
-          const inQuery = variations.map(v => `"${v}"`).join(',');
-          
-          const res = await fetch(`${supabaseUrl}/rest/v1/patients?phone=in.(${encodeURIComponent(inQuery)})&select=hn,title,firstname,lastname,nickname`, {
-            headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+          // ค้นหา HN ผ่าน RPC ในระดับความปลอดภัยฐานข้อมูล (PDPA)
+          const res = await fetch(`${supabaseUrl}/rest/v1/rpc/search_patients_by_phone`, {
+            method: 'POST',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': 'Bearer ' + apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone_val: phoneVal })
           });
           
           if (!res.ok) throw new Error('ไม่สามารถตรวจสอบข้อมูลได้');
@@ -466,17 +469,16 @@
         try {
           const phoneVal = inputPhone.value.trim();
           
-          // ทำการ PATCH อัปเดตฟิลด์ line_user_id ใน Supabase โดยระบุเฉพาะรหัส HN ของคนไข้ที่ค้นพบ
-          const hnList = foundPatients.map(p => p.hn).join(',');
-          const resUpdate = await fetch(`${supabaseUrl}/rest/v1/patients?hn=in.(${hnList})`, {
-            method: 'PATCH',
+          // ทำการเรียก RPC อัปเดตข้อมูลความปลอดภัย
+          const hns = foundPatients.map(p => p.hn);
+          const resUpdate = await fetch(`${supabaseUrl}/rest/v1/rpc/link_parent_line`, {
+            method: 'POST',
             headers: {
               'apikey': apiKey,
               'Authorization': 'Bearer ' + apiKey,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
+              'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ line_user_id: lineUserId })
+            body: JSON.stringify({ hn_list: hns, line_uid: lineUserId })
           });
 
           if (!resUpdate.ok) throw new Error('อัปเดตข้อมูลล้มเหลว');
