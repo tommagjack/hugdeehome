@@ -129,6 +129,17 @@ export default function App() {
     const runInitialSync = async () => {
       initDatabase();
       
+      // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // หากยังไม่ได้ล็อกอิน ให้ข้ามการซิงค์ข้อมูลเริ่มต้น (เนื่องจาก RLS จะบล็อกการดึงข้อมูลตารางส่วนตัว)
+      if (!session) {
+        console.log("No active Supabase Auth session found. Skipping initial sync.");
+        setIsSyncing(false);
+        hasLoadedRef.current = true;
+        return;
+      }
+      
       // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
       const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
       
@@ -612,10 +623,26 @@ export default function App() {
         avatarUrl: ''
       };
     } else {
-      const match = (users || []).find(u => u.username === loginUsername);
-      if (match) {
-        targetEmail = match.email;
-        localProfile = match;
+      // เรียกใช้ RPC get_email_by_username เพื่อค้นหาอีเมลในฐานข้อมูลแบบปลอดภัย (PDPA)
+      // เนื่องจากเรายังไม่ได้ล็อกอินและ RLS บล็อกการอ่านตาราง users
+      try {
+        const { data, error } = await supabase.rpc('get_email_by_username', { username_val: loginUsername });
+        if (error) throw error;
+        targetEmail = data;
+      } catch (err) {
+        console.error('Error fetching email via RPC:', err);
+      }
+      
+      // ค้นหาในประวัติเครื่องเดิมด้วยเผื่อเป็นกรณีกำลังทำงานออฟไลน์
+      if (!targetEmail) {
+        const match = (users || []).find(u => u.username === loginUsername);
+        if (match) {
+          targetEmail = match.email;
+          localProfile = match;
+        }
+      } else {
+        const match = (users || []).find(u => u.username === loginUsername);
+        if (match) localProfile = match;
       }
     }
 
@@ -649,15 +676,21 @@ export default function App() {
         throw new Error(error.message);
       }
 
-      // ดึงสิทธิ์ที่แท้จริง
+      // สั่งให้ระบบทำการซิงค์ประวัติข้อมูลทั้งหมดในคลาวด์ทันทีหลังจากผ่านด่านความปลอดภัย RLS สำเร็จ
+      setIsSyncing(true);
+      await syncFromSupabase();
+
+      // ดึงสิทธิ์ที่แท้จริงจากฐานข้อมูลที่อัปเดตซิงค์เรียบร้อยแล้ว
       let finalProfile = localProfile;
       if (loginUsername !== adminUsername) {
-        const freshProfile = (users || []).find(u => u.username === loginUsername);
+        const freshUsers = db.getUsers();
+        const freshProfile = (freshUsers || []).find(u => u.username === loginUsername);
         if (freshProfile) finalProfile = freshProfile;
       }
 
       setCurrentUser(finalProfile);
       localStorage.setItem('hdh_logged_in_user', JSON.stringify(finalProfile));
+      setIsSyncing(false);
       
       Swal.fire({
         icon: 'success',
@@ -670,6 +703,7 @@ export default function App() {
 
     } catch (err) {
       console.error('Login auth error:', err);
+      setIsSyncing(false);
       
       Swal.fire({
         icon: 'error',
@@ -782,7 +816,12 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
     setCurrentUser(null);
     localStorage.removeItem('hdh_logged_in_user');
     setLoginUsername('');
