@@ -236,13 +236,20 @@ export default function AssessmentSettings({ templates = [], setTemplates, thera
             Swal.fire('รูปแบบไฟล์ไม่ถูกต้อง', 'Norm CSV ต้องมีคอลัมน์: อายุ Min, อายุ Max, คะแนนดิบ, คะแนนมาตรฐาน', 'error');
             return;
           }
-          parsedData = rows.slice(1).map(row => ({
-            ageMinMonths: String(row[ageMinIdx] || '').trim(),
-            ageMaxMonths: String(row[ageMaxIdx] || '').trim(),
-            rawScore: parseInt(row[rawScoreIdx]) || 0,
-            standardScore: parseInt(row[stdScoreIdx]) || 0,
-            percentile: percentileIdx !== -1 ? (parseFloat(row[percentileIdx]) || 0) : 0
-          }));
+          parsedData = rows.slice(1).map(row => {
+            let ageMin = String(row[ageMinIdx] || '').trim();
+            let ageMax = String(row[ageMaxIdx] || '').trim();
+            if (ageMax.endsWith('.11') && ageMin.endsWith('.1')) {
+              ageMin = ageMin + '0';
+            }
+            return {
+              ageMinMonths: ageMin,
+              ageMaxMonths: ageMax,
+              rawScore: parseInt(row[rawScoreIdx]) || 0,
+              standardScore: parseInt(row[stdScoreIdx]) || 0,
+              percentile: percentileIdx !== -1 ? (parseFloat(row[percentileIdx]) || 0) : 0
+            };
+          });
         }
 
         const updated = {

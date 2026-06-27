@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบเช็คการนัดหมาย - คลินิกบ้านฮักดี</title>
+  <script>
+    try {
+      window.opener = null;
+    } catch(e) {}
+  </script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #FEF8F1; color: #4A4036; margin: 0; padding: 1.5rem; display: flex; flex-direction: column; align-items: center; min-height: 100vh; justify-content: center; box-sizing: border-box; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #c19b6c; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* Linking Interface Styling */
+    .linking-card {
+      display: none; 
+      width: 100%;
+      max-width: 450px; 
+      background: white; 
+      border-radius: 20px; 
+      box-shadow: 0 10px 30px rgba(74, 64, 54, 0.08); 
+      text-align: left; 
+      box-sizing: border-box;
+      overflow: hidden;
+      border: 1px solid #F5EAE1;
+    }
+    .card-header {
+      background: #C19B6C;
+      padding: 1.75rem;
+      text-align: center;
+      color: white;
+    }
+    .card-header h2 { margin: 0; font-size: 1.4rem; font-weight: 700; }
+    .card-header p { margin: 0.4rem 0 0 0; font-size: 0.85rem; opacity: 0.9; }
+    .card-body {
+      padding: 1.75rem;
+    }
+    .profile-box {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: #FEF8F1;
+      padding: 1rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #F5EAE1;
+    }
+    .profile-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #C19B6C; }
+    .profile-name { font-weight: 600; color: #4A4036; font-size: 1.05rem; }
+    
+    .form-group { margin-bottom: 1.5rem; }
+    .form-label { display: block; font-weight: 600; color: #4A4036; margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .form-control {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border: 1px solid #DCD1C4;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-control:focus {
+      border-color: #C19B6C;
+      box-shadow: 0 0 0 3px rgba(193, 155, 108, 0.15);
+    }
+    
+    .btn {
+      width: 100%;
+      color: white;
+      border: none;
+      padding: 1rem;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #C19B6C; }
+    .btn-primary:hover { background: #B0895A; }
+    .btn-success { background: #2E7D32; }
+    .btn-success:hover { background: #1B5E20; }
+    .btn-secondary {
+      background: transparent;
+      color: #8E7F70;
+      border: 1px solid #DCD1C4;
+    }
+    .btn-secondary:hover { background: #F5EAE1; }
+    
+    .patient-item {
+      padding: 0.75rem;
+      background: #FDFBFA;
+      border-radius: 8px;
+      border-left: 4px solid #C19B6C;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+    
+    .alert-box {
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .alert-success { background: #F3FAF0; border: 1px solid #D8ECD0; color: #2E7D32; }
+    .alert-danger { background: #FFF5F5; border: 1px solid #FED7D7; color: #C53030; }
+  </style>
+</head>
+<body>
+
+  <!-- VIEW A: LOADING & APP Reminders Sending (Original share behavior) -->
+  <div id="sending-view">
+    <h2 id="sending-title">กำลังเปิดระบบส่งบัตรนัดหมาย...</h2>
+    <div class="loader"></div>
+    <p id="status-text" style="color: #8E7F70; font-weight: 500;">กรุณารอสักครู่ ระบบกำลังยืนยันตัวตนกับ LINE</p>
+  </div>
+
+  <!-- VIEW B: PARENT SELF-SERVICE PORTAL -->
+  <div id="linking-view" class="linking-card">
+    <div class="card-header">
+      <h2>ระบบเชื่อมต่อข้อมูล LINE</h2>
+      <p>คลินิกเด็กบ้านฮักดี (Hug Dee Home)</p>
+    </div>
+    <div class="card-body">
+      <!-- Profile Box -->
+      <div class="profile-box">
+        <img id="profile-img" class="profile-img" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 24 24' fill='none' stroke='%23C19B6C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M8 14s1.5 2 4 2 4-2 4-2'/><line x1='9' y1='9' x2='9.01' y2='9'/><line x1='15' y1='9' x2='15.01' y2='9'/></svg>" alt="LINE Profile" />
+        <div>
+          <div style="font-size: 0.75rem; color: #8E7F70; font-weight: 500;">บัญชี LINE ปัจจุบันของคุณ</div>
+          <div id="profile-name" class="profile-name">กำลังดึงข้อมูลโปรไฟล์...</div>
+        </div>
+      </div>
+
+      <!-- Step 1: Input Phone Number -->
+      <div id="step-1">
+        <div class="form-group">
+          <label class="form-label" for="input-phone">ระบุเบอร์โทรศัพท์ที่ลงทะเบียนไว้กับคลินิก</label>
+          <input type="tel" id="input-phone" class="form-control" placeholder="เช่น 0812345678" maxlength="10" />
+        </div>
+        <button id="btn-search" class="btn btn-primary">ค้นหาประวัติคนไข้</button>
+      </div>
+
+      <!-- Step 2: Confirm linked Patients -->
+      <div id="step-2" style="display: none;">
+        <div class="alert-box alert-success">
+          <div style="font-weight: bold; margin-bottom: 0.5rem;">พบประวัติคนไข้ที่ผูกกับเบอร์โทรศัพท์นี้:</div>
+          <div id="patient-list"></div>
+        </div>
+        <div style="font-size: 0.85rem; color: #8E7F70; margin-bottom: 1.5rem; line-height: 1.4;">
+          เมื่อกดยืนยัน ระบบจะทำความเชื่อมโยงบัญชี LINE นี้ เพื่อใช้สำหรับรับการแจ้งเตือนนัดหมาย และบัตรยืนยันนัดในนามของคลินิกโดยตรง
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <button id="btn-confirm-link" class="btn btn-success">ยืนยันการเชื่อมโยงระบบ</button>
+          <button id="btn-back" class="btn btn-secondary">แก้ไขเบอร์โทรศัพท์</button>
+        </div>
+      </div>
+
+      <!-- Result Screen -->
+      <div id="result-box" style="display: none; text-align: center; padding: 1rem 0;">
+        <div style="font-size: 3.5rem; margin-bottom: 1rem;">🎉</div>
+        <h3 id="result-title" style="color: #2E7D32; margin: 0 0 0.5rem 0; font-size: 1.3rem;">เชื่อมต่อระบบสำเร็จ!</h3>
+        <p id="result-desc" style="color: #8E7F70; margin: 0 0 1.5rem 0; font-size: 0.95rem; line-height: 1.5;">
+          ระบบได้เชื่อมโยง LINE ของท่านเข้ากับประวัติผู้ป่วยของบุตรหลานเรียบร้อยแล้ว ท่านจะได้รับการแจ้งเตือนนัดหมายจากคลินิกผ่านทาง LINE OA โดยตรง
+        </p>
+        <button id="btn-close" class="btn btn-primary">ปิดหน้าต่างแชท</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const supabaseUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co';
+    const apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtcGxmdXpreXl1cXRsZmdpZnZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMTgwNjcsImV4cCI6MjA5Nzc5NDA2N30.mhegnIyPtEq9zFL70wb0W9Ivz7YP3wVU0OUR0fUR_BE';
+    
+    let lineUserId = '';
+    let foundPatients = [];
+    let clinicPhoneFallback = '0946753557';
+    let clinicLineOaIdFallback = '@hugdeehome';
+
+    async function main() {
+      // 1. ตรวจสอบพารามิเตอร์ของ URL
+      const urlParams = new URLSearchParams(window.location.search);
+      let liffId = urlParams.get('liffId');
+      let phone = urlParams.get('phone');
+      let oaId = urlParams.get('oaId');
+      
+      const nickname = urlParams.get('nickname');
+      const date = urlParams.get('date');
+      const time = urlParams.get('time');
+      const therapist = urlParams.get('therapist');
+
+      // 2. ดึงข้อมูลคลินิกสำรองจาก Supabase (ถ้า Url Params ไม่มีมาให้)
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id&limit=1`, {
+          headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+        });
+        const data = await response.json();
+        if (data && data[0]) {
+          if (!liffId) liffId = data[0].liff_id;
+          if (!phone) phone = data[0].phone;
+          if (!oaId) oaId = data[0].line_id;
+          
+          clinicPhoneFallback = data[0].phone || clinicPhoneFallback;
+          clinicLineOaIdFallback = data[0].line_id || clinicLineOaIdFallback;
+        }
+      } catch (e) {
+        console.error('Error fetching fallback config:', e);
+      }
+
+      if (!liffId) {
+        document.getElementById('status-text').innerHTML = "<span style='color:#C53030; font-weight:bold;'>ไม่พบระบบเชื่อมต่อ (LIFF ID) กรุณาติดต่อแอดมินคลินิก</span>";
+        return;
+      }
+
+      try {
+        // 3. เริ่มต้นระบบ LIFF SDK
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        // ดึง Profile ข้อมูลผู้ส่ง/ผู้ลงทะเบียน
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+        
+        document.getElementById('profile-name').innerText = profile.displayName;
+        if (profile.pictureUrl) {
+          document.getElementById('profile-img').src = profile.pictureUrl;
+        }
+
+        // 4. ตัดสินใจโหมดทำงาน (โหมดส่งบัตรนัดแชร์ต่อ VS โหมดเชื่อมสิทธิ์ข้อมูล)
+        const isSendMode = nickname && date && time;
+
+        if (isSendMode) {
+          // ==========================================
+          // โหมดส่งบัตรนัดแชร์ต่อ (Share Target Picker)
+          // ==========================================
+          document.getElementById('sending-view').style.display = 'block';
+          document.getElementById('linking-view').style.display = 'none';
+
+          const therapistName = therapist || 'คุณครูผู้บำบัด';
+          const displayPhone = phone || clinicPhoneFallback;
+          const confirmText = `ยืนยันนัดของน้อง${nickname} วันที่ ${date} เวลา ${time}`;
+          const confirmUri = oaId 
+            ? `https://line.me/R/oaMessage/${oaId}/?${encodeURIComponent(confirmText)}`
+            : "https://line.me/";
+
+          const flexMessage = {
+            type: "flex",
+            altText: `ใบนัดหมายกิจกรรมบำบัด น้อง${nickname}`,
+            contents: {
+              type: "bubble",
+              hero: {
+                type: "image",
+                url: "https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png",
+                size: "full",
+                aspectRatio: "20:13",
+                aspectMode: "cover"
+              },
+              body: {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                  { type: "text", text: "ใบนัดหมายกิจกรรมบำบัด", weight: "bold", size: "xl", color: "#4A4036" },
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    margin: "lg",
+                    spacing: "sm",
+                    contents: [
+                      {
+                        type: "box",
+                        layout: "baseline",
+                        spacing: "sm",
+                        contents: [
+                          { type: "text", text: "คนไข้", color: "#aaaaaa", size: "sm", flex: 2 },
+                          { type: "text", text: `น้อง${nickname}`, wrap: true, color: "#666666", size: "sm", flex: 5, weight: "bold" }
+                        ]
+                      },
+                      {
+                        type: "box",
+                        layout: "baseline",
+                        spacing: "sm",
+                        contents: [
+                          { type: "text", text: "วันที่ฝึก", color: "#aaaaaa", size: "sm", flex: 2 },
+                          { type: "text", text: date, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        ]
+                      },
+                      {
+                        type: "box",
+                        layout: "baseline",
+                        spacing: "sm",
+                        contents: [
+                          { type: "text", text: "เวลาฝึก", color: "#aaaaaa", size: "sm", flex: 2 },
+                          { type: "text", text: `${time} น.`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        ]
+                      },
+                      {
+                        type: "box",
+                        layout: "baseline",
+                        spacing: "sm",
+                        contents: [
+                          { type: "text", text: "ผู้สอน", color: "#aaaaaa", size: "sm", flex: 2 },
+                          { type: "text", text: `ครู${therapistName}`, wrap: true, color: "#666666", size: "sm", flex: 5 }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              footer: {
+                type: "box",
+                layout: "vertical",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "button",
+                    style: "primary",
+                    height: "sm",
+                    color: "#C19B6C",
+                    action: { type: "uri", label: "ยืนยันวัน-เวลาเข้ารับการฝึก", uri: confirmUri }
+                  },
+                  {
+                    type: "button",
+                    style: "secondary",
+                    height: "sm",
+                    action: { type: "uri", label: "โทรติดต่อคลินิก", uri: `tel:${displayPhone}` }
+                  }
+                ]
+              }
+            }
+          };
+
+          if (liff.isApiAvailable('shareTargetPicker')) {
+            const res = await liff.shareTargetPicker([flexMessage]);
+            if (res) {
+              document.getElementById('status-text').innerHTML = "ส่งบัตรนัดหมายสำเร็จแล้ว! กำลังปิดหน้าต่าง...";
+              setTimeout(() => { liff.closeWindow(); }, 1500);
+            } else {
+              document.getElementById('status-text').innerHTML = "ยกเลิกการส่งข้อความ";
+              setTimeout(() => { liff.closeWindow(); }, 1000);
+            }
+          } else {
+            document.getElementById('status-text').innerHTML = "<span style='color:#C53030'>ฟีเจอร์ Share Target Picker ยังไม่เปิดใช้งานในบัญชีนักพัฒนาของ LINE</span>";
+          }
+        } else {
+          // ==========================================
+          // โหมดเชื่อมต่อสิทธิ์ผู้ปกครอง (Self-Service)
+          // ==========================================
+          document.getElementById('sending-view').style.display = 'none';
+          document.getElementById('linking-view').style.display = 'block';
+
+          setupLinkingEventListeners();
+        }
+      } catch (err) {
+        console.error("LIFF Init Error: ", err);
+        document.getElementById('status-text').innerHTML = `<span style='color:#C53030'>เกิดข้อผิดพลาดในการโหลดระบบ LINE:<br/>${err.message || err.toString()}</span>`;
+      }
+    }
+
+    // ฟังก์ชันปุ่มกดโหมดลงทะเบียนเชื่อมโยงไลน์
+    function setupLinkingEventListeners() {
+      const inputPhone = document.getElementById('input-phone');
+      const btnSearch = document.getElementById('btn-search');
+      const step1 = document.getElementById('step-1');
+      const step2 = document.getElementById('step-2');
+      const patientList = document.getElementById('patient-list');
+      const btnConfirmLink = document.getElementById('btn-confirm-link');
+      const btnBack = document.getElementById('btn-back');
+      const resultBox = document.getElementById('result-box');
+      const btnClose = document.getElementById('btn-close');
+
+      btnSearch.onclick = async () => {
+        const phoneVal = inputPhone.value.trim();
+        if (!phoneVal || phoneVal.length < 9) {
+          alert('กรุณากรอกเบอร์โทรศัพท์ที่ถูกต้อง (เช่น 0812345678)');
+          return;
+        }
+
+        btnSearch.disabled = true;
+        btnSearch.innerText = 'กำลังค้นหาประวัติ...';
+
+        try {
+          // ค้นหา HN ในตาราง patients ที่มีเบอร์โทรตรงกัน
+          const res = await fetch(`${supabaseUrl}/rest/v1/patients?phone=eq.${phoneVal}&select=hn,title,firstname,lastname,nickname`, {
+            headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+          });
+          
+          if (!res.ok) throw new Error('ไม่สามารถตรวจสอบข้อมูลได้');
+          
+          foundPatients = await res.json();
+          
+          if (foundPatients.length === 0) {
+            alert('ไม่พบข้อมูลเบอร์โทรศัพท์นี้ในทะเบียนผู้ป่วยของคลินิก กรุณาตรวจสอบเบอร์โทรหรือติดต่อแอดมิน');
+            btnSearch.disabled = false;
+            btnSearch.innerText = 'ค้นหาประวัติคนไข้';
+            return;
+          }
+
+          // แสดงคนไข้ที่ค้นพบ
+          patientList.innerHTML = '';
+          foundPatients.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'patient-item';
+            div.innerHTML = `<strong>HN ${p.hn}</strong>: น้อง${p.nickname || p.firstname} (${p.title}${p.firstname} ${p.lastname})`;
+            patientList.appendChild(div);
+          });
+
+          // สลับเข้าสู่ Step 2
+          step1.style.display = 'none';
+          step2.style.display = 'block';
+
+        } catch (e) {
+          alert('เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล: ' + e.message);
+          btnSearch.disabled = false;
+          btnSearch.innerText = 'ค้นหาประวัติคนไข้';
+        }
+      };
+
+      btnBack.onclick = () => {
+        step2.style.display = 'none';
+        step1.style.display = 'block';
+        btnSearch.disabled = false;
+        btnSearch.innerText = 'ค้นหาประวัติคนไข้';
+      };
+
+      btnConfirmLink.onclick = async () => {
+        btnConfirmLink.disabled = true;
+        btnConfirmLink.innerText = 'กำลังส่งคำขอลงทะเบียน...';
+
+        try {
+          const phoneVal = inputPhone.value.trim();
+          
+          // ทำการ PATCH อัปเดตฟิลด์ line_user_id ใน Supabase
+          const resUpdate = await fetch(`${supabaseUrl}/rest/v1/patients?phone=eq.${phoneVal}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': 'Bearer ' + apiKey,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({ line_user_id: lineUserId })
+          });
+
+          if (!resUpdate.ok) throw new Error('อัปเดตข้อมูลล้มเหลว');
+
+          // ยิงคำขอไปหา Serverless Backend เพื่อยิง Push Welcome Message หรือแจ้งเตือนแอดมิน
+          try {
+            await fetch('/api/send-line-message', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'welcome',
+                lineUserId: lineUserId,
+                phone: phoneVal,
+                patients: foundPatients.map(p => `น้อง${p.nickname || p.firstname}`)
+              })
+            });
+          } catch(err) {
+            console.error('Error triggering welcome push message:', err);
+          }
+
+          // แสดงหน้าจอสำเร็จ
+          step2.style.display = 'none';
+          resultBox.style.display = 'block';
+
+        } catch (e) {
+          alert('เกิดข้อผิดพลาดในการผูกบัญชี: ' + e.message);
+          btnConfirmLink.disabled = false;
+          btnConfirmLink.innerText = 'ยืนยันการเชื่อมโยงระบบ';
+        }
+      };
+
+      btnClose.onclick = () => {
+        liff.closeWindow();
+      };
+    }
+
+    main();
+  </script>
+</body>
+</html>

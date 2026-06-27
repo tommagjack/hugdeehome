@@ -33,7 +33,8 @@ const headersMap = {
   conditionsDetails: ['conditionsdetails', 'รายละเอียดโรคประจำตัว', 'ประวัติโรคประจำตัว'],
   channels: ['channels', 'ช่องทางรู้จักคลินิก', 'ช่องทางรู้จัก', 'ช่องทางที่รู้จัก'],
   channelsOtherDetails: ['channelsotherdetails', 'รายละเอียดช่องทางอื่นๆ', 'ช่องทางอื่นๆ'],
-  worries: ['worries', 'พฤติกรรมหรืออาการที่กังวล', 'อาการหรือพฤติกรรมที่กังวล', 'อาการกังวล']
+  worries: ['worries', 'พฤติกรรมหรืออาการที่กังวล', 'อาการหรือพฤติกรรมที่กังวล', 'อาการกังวล'],
+  lineUserId: ['line_user_id', 'lineuserid', 'line user id', 'รหัสไลน์']
 };
 
 export default function PatientRegister({ 
@@ -71,6 +72,7 @@ export default function PatientRegister({
   const [ageText, setAgeText] = useState('0 ปี 0 เดือน');
   const [guardian, setGuardian] = useState('');
   const [phone, setPhone] = useState('');
+  const [lineUserId, setLineUserId] = useState('');
   
   const [allergies, setAllergies] = useState('ปฏิเสธการแพ้ยา');
   const [allergiesDetails, setAllergiesDetails] = useState('');
@@ -106,7 +108,7 @@ export default function PatientRegister({
       return { years: 0, months: 0, text: 'วันเกิดไม่ถูกต้อง' };
     }
     const normalizedBirthYear = birthDate.getFullYear();
-    const today = new Date('2026-06-05'); // อิงเวลาของระบบจำลอง มิถุนายน 2026
+    const today = new Date(); // อิงเวลาปัจจุบัน
     
     let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();
@@ -128,7 +130,7 @@ export default function PatientRegister({
 
   // 3. คำนวณรัน HN อัตโนมัติ (เช่น ปี 69 รันเป็น 69001)
   const generateNextHn = () => {
-    const today = new Date('2026-06-05');
+    const today = new Date();
     const beYear = today.getFullYear() + 543; // แปลง ค.ศ. เป็น พ.ศ.
     const yearSuffix = beYear.toString().slice(-2); // ได้ "69"
     
@@ -222,6 +224,7 @@ export default function PatientRegister({
     setAgeText('0 ปี 0 เดือน');
     setGuardian('');
     setPhone('');
+    setLineUserId('');
     setAllergies('ปฏิเสธการแพ้ยา');
     setAllergiesDetails('');
     setConditions('ไม่มี');
@@ -263,6 +266,7 @@ export default function PatientRegister({
       channels: selectedChannels,
       channelsOtherDetails: selectedChannels.includes('อื่นๆ') ? channelsOtherDetails : '',
       worries,
+      lineUserId,
       created_at: isEditing ? ((patients || []).find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString(),
       createdBy: isEditing 
         ? ((patients || []).find(p => p.hn === formHn)?.createdBy || '')
@@ -310,6 +314,7 @@ export default function PatientRegister({
     setSelectedChannels(p.channels || []);
     setChannelsOtherDetails(p.channelsOtherDetails || '');
     setWorries(p.worries || '');
+    setLineUserId(p.lineUserId || '');
     setShowRegisterModal(true);
   };
 
@@ -337,7 +342,8 @@ export default function PatientRegister({
           <div>
             <strong>วันเกิด (พ.ศ.):</strong> ${dobText}<br/>
             <strong>ผู้ปกครอง:</strong> ${p.guardian || 'ไม่ระบุ'}<br/>
-            <strong>เบอร์โทรติดต่อ:</strong> ${p.phone}
+            <strong>เบอร์โทรติดต่อ:</strong> ${p.phone}<br/>
+            <strong>LINE User ID:</strong> ${p.lineUserId || 'ยังไม่ได้ผูกสิทธิ์'}
           </div>
           <div style="border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem">
             <strong>ประวัติการแพ้ยา:</strong> ${p.allergies === 'มี' ? `<span style="color:var(--danger)">${p.allergiesDetails}</span>` : 'ปฏิเสธการแพ้ยา'}<br/>
@@ -387,7 +393,7 @@ export default function PatientRegister({
       'รหัส HN', 'สถานะ', 'เพศ', 'คำนำหน้าชื่อ', 'ชื่อ', 'นามสกุล',
       'ชื่อเล่น', 'วันเกิด (ค.ศ. YYYY-MM-DD)', 'ผู้ปกครอง', 'เบอร์โทร',
       'การแพ้ยา', 'รายละเอียดการแพ้ยา', 'โรคประจำตัว', 'รายละเอียดโรคประจำตัว',
-      'ช่องทางที่รู้จัก', 'รายละเอียดช่องทางอื่นๆ', 'พฤติกรรมหรืออาการที่กังวล'
+      'ช่องทางที่รู้จัก', 'รายละเอียดช่องทางอื่นๆ', 'พฤติกรรมหรืออาการที่กังวล', 'LINE User ID'
     ];
 
     let rows = [];
@@ -420,7 +426,8 @@ export default function PatientRegister({
         p.conditionsDetails || '',
         (p.channels || []).join('|'),
         p.channelsOtherDetails || '',
-        p.worries || ''
+        p.worries || '',
+        p.lineUserId || ''
       ]);
     }
 
@@ -506,7 +513,7 @@ export default function PatientRegister({
 
         if (!hn || (!exists && isNaN(parseInt(hn)))) {
           const generateTempHn = (tempList) => {
-            const today = new Date('2026-06-05');
+            const today = new Date();
             const beYear = today.getFullYear() + 543;
             const yearSuffix = beYear.toString().slice(-2);
             
@@ -541,6 +548,7 @@ export default function PatientRegister({
           channels,
           channelsOtherDetails: val('channelsOtherDetails'),
           worries: val('worries'),
+          lineUserId: val('lineUserId'),
           created_at: new Date().toISOString()
         };
 
@@ -716,6 +724,11 @@ export default function PatientRegister({
                     <label className="form-label">เบอร์โทรติดต่อ <span style={{ color: 'var(--danger)' }}>*</span></label>
                     <input type="tel" className="form-control" placeholder="เช่น 0812345678" value={phone} onChange={(e) => setPhone(e.target.value)} required />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">รหัส LINE User ID ผู้ปกครอง</label>
+                  <input type="text" className="form-control" placeholder="เช่น U1a2b3c4d5e... (ปกติจะผูกผ่านระบบ Self-Service)" value={lineUserId} onChange={(e) => setLineUserId(e.target.value)} />
                 </div>
 
                 <div className="form-row">

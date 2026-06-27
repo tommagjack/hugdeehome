@@ -113,7 +113,10 @@ export default function DevelopmentalAssessment({
   const [patientSearchText, setPatientSearchText] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [therapistId, setTherapistId] = useState('');
-  const [evalDate, setEvalDate] = useState('2026-06-05');
+  const [evalDate, setEvalDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [comment, setComment] = useState('');
   
   // Modals & General UI States
@@ -166,7 +169,7 @@ export default function DevelopmentalAssessment({
     if (!selectedPatient) return { years: 0, months: 0, totalMonths: 0, text: 'กรุณาเลือกผู้รับบริการ' };
     const birthDate = parseDateToAD(selectedPatient.dob);
     if (!birthDate) return { years: 0, months: 0, totalMonths: 0, text: 'วันเกิดไม่ถูกต้อง' };
-    const today = evalDate ? (parseDateToAD(evalDate) || new Date('2026-06-05')) : new Date('2026-06-05');
+    const today = evalDate ? (parseDateToAD(evalDate) || new Date()) : new Date();
     
     let years = today.getFullYear() - birthDate.getFullYear();
     let months = today.getMonth() - birthDate.getMonth();

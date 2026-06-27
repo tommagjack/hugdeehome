@@ -14,7 +14,8 @@ import {
   Trash2,
   Upload,
   Download,
-  Plus
+  Plus,
+  MessageCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
@@ -39,11 +40,15 @@ export default function Appointments({
   onUpdateAppointmentStatus,
   onDeleteAppointment,
   onUpdateAppointment,
-  currentUser
+  currentUser,
+  clinicInfo
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
-  const [bookingDate, setBookingDate] = useState('2026-06-05'); // ค่าเริ่มต้นวันที่ระบบ
+  const [bookingDate, setBookingDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }); // ค่าเริ่มต้นวันที่ระบบ
   const [selectedTherapistId, setSelectedTherapistId] = useState('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
@@ -335,6 +340,120 @@ export default function Appointments({
         }
       }
     });
+  };
+
+  // ส่งเตือนนัดคนไข้รายบุคคลผ่าน LINE OA (Messaging API) ตรงถึงห้องแชท
+  const handleSendLineReminder = async (app) => {
+    const liffId = clinicInfo?.liffId;
+    if (!liffId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ระบบ LINE ยังไม่ได้ตั้งค่า',
+        text: 'กรุณากรอก LINE LIFF ID ในหน้าตั้งค่าระบบก่อนใช้งาน',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const patient = patients.find(p => p.hn === app.hn);
+    const nickname = patient ? (patient.nickname || patient.firstname) : 'ผู้รับบริการ';
+    const therapist = therapists.find(t => t.id === app.therapistId);
+    const therapistName = therapist ? (therapist.nickname || therapist.fullname) : 'ครูผู้บำบัด';
+    const dateStr = getLocalDateString(app.date);
+    const timeStr = app.timeSlot || '';
+
+    // แสดงสถานะการส่งข้อความ
+    Swal.fire({
+      title: 'กำลังส่งข้อความเตือนนัด...',
+      text: `ส่งการ์ดนัดหมายหาผู้ปกครองของน้อง${nickname} ผ่านระบบ LINE OA`,
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const response = await fetch('/api/send-line-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'appointment',
+          patientHn: app.hn,
+          nickname: nickname,
+          date: dateStr,
+          time: timeStr,
+          therapist: therapistName
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('การเชื่อมต่อหลังบ้านล้มเหลว');
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'ส่งข้อความสำเร็จ!',
+          text: `ส่งการ์ดนัดหมายของน้อง${nickname} เข้าแชท LINE OA ผู้ปกครองเรียบร้อยแล้ว`,
+          confirmButtonColor: 'var(--secondary)'
+        });
+      } else if (result.status === 'not_linked') {
+        const registerUrl = result.liffUrl || `https://liff.line.me/${liffId}`;
+        
+        Swal.fire({
+          icon: 'info',
+          title: 'ผู้ปกครองยังไม่ได้ผูกสิทธิ์ LINE',
+          html: `
+            <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.5;">
+              <p>ผู้ปกครองของ <strong>น้อง${nickname} (HN ${app.hn})</strong> ยังไม่ได้ผูกสิทธิ์รับข้อความของทางคลินิก</p>
+              <p style="margin-bottom: 0.8rem;">กรุณาส่งลิงก์นี้ให้ผู้ปกครองเพื่อลงทะเบียนผูกสิทธิ์ผ่านหน้าแชท:</p>
+              <input type="text" id="copy-liff-url-input" value="${registerUrl}" readonly style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.85rem; background-color: var(--light); text-align: center; font-weight: bold;" />
+            </div>
+          `,
+          showCancelButton: true,
+          confirmButtonText: 'คัดลอกลิงก์สมัคร',
+          cancelButtonText: 'ปิดหน้าต่าง',
+          confirmButtonColor: 'var(--secondary)',
+          cancelButtonColor: '#aaa',
+          preConfirm: () => {
+            const inputEl = document.getElementById('copy-liff-url-input');
+            if (inputEl) {
+              inputEl.select();
+              document.execCommand('copy');
+              Swal.showValidationMessage('คัดลอกลิงก์แล้ว!');
+              setTimeout(() => { Swal.resetValidationMessage(); }, 1500);
+            }
+            return false;
+          }
+        });
+      } else {
+        throw new Error(result.error || 'LINE Server Error');
+      }
+
+    } catch (error) {
+      console.error('Error sending LINE message:', error);
+      
+      // กรณีระบบคลาวด์ขัดข้องหรือไม่ได้ตั้งค่า Token ให้ทำงานเป็นโหมดแชร์สำรอง
+      Swal.fire({
+        icon: 'error',
+        title: 'ไม่สามารถส่งข้อความตรงได้',
+        text: 'ระบบส่งข้อความตรงของบอท LINE OA ไม่สามารถติดต่อได้ ต้องการเปิดใช้ระบบส่งแชร์สำรองตามเดิมชั่วคราวหรือไม่?',
+        showCancelButton: true,
+        confirmButtonText: 'เปิดแชร์ข้อความสำรอง',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: 'var(--secondary)',
+        cancelButtonColor: '#aaa'
+      }).then((choice) => {
+        if (choice.isConfirmed) {
+          const phone = clinicInfo?.phone || '0946753557';
+          const oaId = clinicInfo?.lineId || '';
+          const fallbackLiffUrl = `https://hugdeehome.vercel.app/liff/index.html?liffId=${encodeURIComponent(liffId)}&nickname=${encodeURIComponent(nickname)}&date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}&therapist=${encodeURIComponent(therapistName)}&phone=${encodeURIComponent(phone)}&oaId=${encodeURIComponent(oaId)}`;
+          window.open(fallbackLiffUrl, '_blank', 'noopener');
+        }
+      });
+    }
   };
 
   // 7. รายการนัดหมายทั้งหมดที่จะแสดงในตารางพร้อมตัวกรอง
@@ -946,6 +1065,17 @@ export default function Appointments({
                           >
                             <Eye size={14} color="var(--dark)" />
                           </button>
+                          {isAdmin && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              onClick={() => handleSendLineReminder(app)}
+                              title="ส่งการ์ดนัดหมาย LINE"
+                              type="button"
+                              style={{ backgroundColor: '#e2f0d9', border: '1px solid #c3e6cb' }}
+                            >
+                              <MessageCircle size={14} color="#28a745" />
+                            </button>
+                          )}
                           {currentUser?.role !== 'OT' && (
                             <button 
                               className="btn btn-light btn-icon-only" 

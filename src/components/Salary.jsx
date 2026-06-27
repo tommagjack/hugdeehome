@@ -32,10 +32,19 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
   const [editingPayrollId, setEditingPayrollId] = useState(null);
 
   // ข้อมูลฟอร์มคำนวณเงินเดือน
-  const [calcYear, setCalcYear] = useState('2026');
-  const [calcMonth, setCalcMonth] = useState('มิถุนายน');
+  const [calcYear, setCalcYear] = useState(() => String(new Date().getFullYear()));
+  const [calcMonth, setCalcMonth] = useState(() => {
+    const monthsThai = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    return monthsThai[new Date().getMonth()];
+  });
   const [selectedUsername, setSelectedUsername] = useState('');
-  const [calcPaymentDate, setCalcPaymentDate] = useState('2026-06-05');
+  const [calcPaymentDate, setCalcPaymentDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   
   // ยอดรายรับคำนวณตามจำนวนคูณ
   const [earningCounts, setEarningCounts] = useState({}); // { 'earn-ot': 2 }
@@ -221,11 +230,16 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
   };
 
   const resetCalcForm = () => {
+    const today = new Date();
+    const monthsThai = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
     setEditingPayrollId(null);
-    setCalcYear('2026');
-    setCalcMonth('มิถุนายน');
+    setCalcYear(String(today.getFullYear()));
+    setCalcMonth(monthsThai[today.getMonth()]);
     setSelectedUsername('');
-    setCalcPaymentDate('2026-06-05');
+    setCalcPaymentDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
     setEarningCounts({});
     // ติ๊กถูกเริ่มต้นสำหรับรายการหักเปอร์เซ็นต์ทั้งหมด
     const initialApplied = {};
@@ -256,7 +270,14 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     setCalcYear(String(p.year));
     setCalcMonth(String(p.month));
     setSelectedUsername(p.employeeUsername);
-    setCalcPaymentDate(parseToDateInputStr(p.paymentDate) || parseToDateInputStr(p.created_at) || '2026-06-05');
+    setCalcPaymentDate(
+      parseToDateInputStr(p.paymentDate) || 
+      parseToDateInputStr(p.created_at) || 
+      (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })()
+    );
     
     // ตั้งค่า Counts
     const counts = {};

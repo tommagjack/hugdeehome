@@ -558,7 +558,10 @@ function createUserFolder(parentFolderId, folderName) {
   const [therapistWorkHours, setTherapistWorkHours] = useState({});
   const [therapistStatus, setTherapistStatus] = useState('Active');
   // 5. ฟอร์มเพิ่ม/แก้ไข วันหยุดคลินิก
-  const [holidayDate, setHolidayDate] = useState('2026-06-05');
+  const [holidayDate, setHolidayDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [holidayName, setHolidayName] = useState('');
   const [holidayType, setHolidayType] = useState('วันหยุดคลินิก');
   const [editingHolidayDate, setEditingHolidayDate] = useState(null);
@@ -992,7 +995,10 @@ function createUserFolder(parentFolderId, folderName) {
 
   const handleCancelEditHoliday = () => {
     setEditingHolidayDate(null);
-    setHolidayDate('2026-06-05');
+    setHolidayDate((() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })());
     setHolidayName('');
     setHolidayType('วันหยุดคลินิก');
   };
@@ -1175,10 +1181,28 @@ function createUserFolder(parentFolderId, folderName) {
                     <label className="form-label">อีเมลติดต่อ</label>
                     <input type="email" className="form-control" value={localClinicInfo?.email || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, email: e.target.value })} />
                   </div>
+                </div>
+
+                <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Line ID คลินิก</label>
-                    <input type="text" className="form-control" value={localClinicInfo?.lineId || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, lineId: e.target.value })} />
+                    <label className="form-label">Line ID / LINE OA ID คลินิก (เช่น @hugdeehome)</label>
+                    <input type="text" className="form-control" placeholder="เช่น @hugdeehome" value={localClinicInfo?.lineId || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, lineId: e.target.value })} />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">LINE LIFF ID (สำหรับส่งการ์ดนัดหมาย)</label>
+                    <input type="text" className="form-control" placeholder="เช่น 2008270606-xxxxxx" value={localClinicInfo?.liffId || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, liffId: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">LINE OA Channel Access Token (สำหรับส่ง Push Message)</label>
+                  <input 
+                    type="password" 
+                    className="form-control" 
+                    placeholder="ใส่ Channel Access Token (ขึ้นต้นด้วย y7H...)" 
+                    value={localClinicInfo?.lineChannelAccessToken || ''} 
+                    onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, lineChannelAccessToken: e.target.value })} 
+                  />
                 </div>
 
                 <div className="form-group">

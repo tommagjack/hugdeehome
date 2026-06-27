@@ -265,7 +265,7 @@ const TABLE_COLUMNS = {
   clinic_info: [
     'id', 'name', 'license_no', 'phone', 'email', 'line_id', 'address', 
     'logo_url', 'stamp_url', 'receipt_footer', 'folder_id', 'folder_url',
-    'type', 'payslip_footer'
+    'type', 'payslip_footer', 'liff_id', 'line_channel_access_token'
   ],
   users: [
     'username', 'password', 'fullname', 'role', 'status', 'employee_id', 
@@ -337,7 +337,7 @@ const TABLE_COLUMNS = {
     'hn', 'title', 'firstname', 'lastname', 'nickname', 'dob', 
     'gender', 'guardian', 'phone', 'status', 'allergies',
     'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries',
-    'allergies_details', 'created_by'
+    'allergies_details', 'created_by', 'line_user_id'
   ]
 };
 
@@ -444,7 +444,7 @@ export const syncFromSupabase = async () => {
 const getPrimaryKey = (tableName) => {
   if (tableName === 'patients') return 'hn';
   if (tableName === 'users') return 'username';
-  if (tableName === 'promotions' || tableName === 'rewards') return 'code';
+  if (tableName === 'promotions' || tableName === 'rewards' || tableName === 'services') return 'code';
   return 'id';
 };
 
@@ -511,10 +511,21 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
       return mapped;
     });
 
-    if (snakeRecords.length === 0) return true;
+    const pk = getPrimaryKey(tableName);
+
+    if (snakeRecords.length === 0) {
+      if (tableName !== 'clinic_info' && tableName !== 'salary_rules') {
+        const { error: deleteError } = await supabase.from(tableName).delete().neq(pk, '_impossible_val_');
+        if (deleteError) {
+          console.error(`Error clearing ${tableName} in Supabase:`, deleteError.message);
+          if (throwOnError) throw new Error(deleteError.message);
+          return false;
+        }
+      }
+      return true;
+    }
 
     // ลบเรคคอร์ดที่มี Primary Key ซ้ำกันเพื่อป้องกันข้อผิดพลาด ON CONFLICT DO UPDATE ใน PostgreSQL
-    const pk = getPrimaryKey(tableName);
     const uniqueMap = new Map();
     snakeRecords.forEach(rec => {
       const val = rec[pk];
@@ -530,20 +541,128 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
     if (tableName === 'holidays') {
       await supabase.from('holidays').delete().neq('date', '');
     }
-    const { error } = await supabase.from(tableName).upsert(uniqueSnakeRecords);
-    if (error) {
-      console.error(`Error syncing ${tableName} to Supabase:`, error.message);
+    const { error: upsertError } = await supabase.from(tableName).upsert(uniqueSnakeRecords);
+    if (upsertError) {
+      console.error(`Error syncing ${tableName} to Supabase:`, upsertError.message);
       if (throwOnError) {
-        throw new Error(error.message);
+        throw new Error(upsertError.message);
       }
       return false;
     }
+
+    // ลบเรคคอร์ดที่ไม่ได้อยู่ในรายการปัจจุบัน ( Obsolete / Deleted rows )
+    if (tableName !== 'clinic_info' && tableName !== 'salary_rules' && tableName !== 'holidays') {
+      const pksToKeep = uniqueSnakeRecords.map(rec => rec[pk]).filter(val => val !== undefined && val !== null);
+      if (pksToKeep.length > 0) {
+        const { error: deleteError } = await supabase
+          .from(tableName)
+          .delete()
+          .not(pk, 'in', `(${pksToKeep.map(val => String(val)).join(',')})`);
+        if (deleteError) {
+          console.error(`Error deleting obsolete rows from ${tableName}:`, deleteError.message);
+          if (throwOnError) {
+            throw new Error(deleteError.message);
+          }
+          return false;
+        }
+      }
+    }
+
     return true;
   } catch (e) {
     console.error(`Exception syncing ${key} to Supabase:`, e);
     if (throwOnError) {
       throw e;
     }
+    return false;
+  }
+};
+
+// --- ฟังก์ชันซิงค์เฉพาะส่วนต่าง (Delta Sync) ไปยัง Supabase ---
+export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] }, throwOnError = false) => {
+  const tableName = TABLE_MAP[key];
+  if (!tableName) {
+    console.error(`Unknown sync key for delta: ${key}`);
+    if (throwOnError) throw new Error(`Unknown sync key for delta: ${key}`);
+    return false;
+  }
+
+  try {
+    const pk = getPrimaryKey(tableName);
+
+    // 1. จัดการลบข้อมูล (Delete) ตาม ID ที่ถูกลบออกไปจริง
+    if (toDelete.length > 0) {
+      const idsToDelete = toDelete.map(row => row[pk]).filter(val => val !== undefined && val !== null);
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from(tableName)
+          .delete()
+          .in(pk, idsToDelete);
+        if (deleteError) {
+          console.error(`Error deleting rows from ${tableName}:`, deleteError.message);
+          if (throwOnError) throw new Error(deleteError.message);
+          return false;
+        }
+      }
+    }
+
+    // 2. จัดการอัปเดต/เพิ่มข้อมูล (Upsert)
+    if (toUpsert.length > 0) {
+      const snakeRecords = toUpsert.map(record => {
+        const mapped = {};
+        const validCols = TABLE_COLUMNS[tableName];
+        for (const k in record) {
+          if ((k === 'createdAt' || k === 'updatedAt') && !record[k]) {
+            continue;
+          }
+          const snakeKey = toSnakeCase(k);
+          if (validCols && validCols.length > 0 && !validCols.includes(snakeKey)) {
+            continue;
+          }
+          
+          let val = record[k];
+          const numericKeys = [
+            'total_amount', 'discount', 'received_amount', 'change_amount',
+            'discount_value', 'reward_discount_amount', 'price', 'amount',
+            'basic_salary', 'total_earnings', 'total_deductions', 'net_pay',
+            'value', 'full_price', 'points', 'max_uses'
+          ];
+          if (numericKeys.includes(snakeKey)) {
+            if (val === '' || val === undefined || val === null) {
+              val = 0;
+            } else {
+              val = Number(val);
+              if (isNaN(val)) val = 0;
+            }
+          }
+          mapped[snakeKey] = val;
+        }
+        return mapped;
+      });
+
+      const uniqueMap = new Map();
+      snakeRecords.forEach(rec => {
+        const val = rec[pk];
+        if (val !== undefined && val !== null) {
+          uniqueMap.set(String(val), rec);
+        } else {
+          uniqueMap.set(Math.random().toString(), rec);
+        }
+      });
+      const uniqueSnakeRecords = Array.from(uniqueMap.values());
+
+      const { error: upsertError } = await supabase.from(tableName).upsert(uniqueSnakeRecords);
+      if (upsertError) {
+        console.error(`Error upserting delta to ${tableName}:`, upsertError.message);
+        if (throwOnError) throw new Error(upsertError.message);
+        return false;
+      }
+    }
+
+    return true;
+  } catch (e) {
+    console.error(`Exception during delta sync for ${key}:`, e);
+    if (throwOnError) throw e;
     return false;
   }
 };

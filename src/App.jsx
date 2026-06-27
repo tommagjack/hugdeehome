@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { initDatabase, db, syncFromSupabase, syncToSupabase, getGasUrl } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl } from './utils/db';
+import { supabase } from './utils/supabaseClient';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PatientRegister from './components/PatientRegister';
@@ -23,10 +24,40 @@ import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw } from 'lucide-react';
 import Swal from 'sweetalert2';
+const isObjectEqual = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    const valA = a[k];
+    const valB = b[k];
+    if (typeof valA === 'object' && typeof valB === 'object') {
+      if (JSON.stringify(valA) !== JSON.stringify(valB)) return false;
+    } else if (valA !== valB) {
+      return false;
+    }
+  }
+  return true;
+};
 
 export default function App() {
   const [isSyncing, setIsSyncing] = useState(true);
   const hasLoadedRef = useRef(false);
+  const [pendingSyncs, setPendingSyncs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hdh_pending_syncs');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // บันทึกคิวลง LocalStorage เสมอเมื่อคิวเปลี่ยน
+  useEffect(() => {
+    localStorage.setItem('hdh_pending_syncs', JSON.stringify(pendingSyncs));
+  }, [pendingSyncs]);
 
   // 2. โหลดข้อมูลจาก LocalStorage เข้า State หลักของ React SPA
   const [clinicInfo, setClinicInfo] = useState(() => db.getClinicInfo());
@@ -72,6 +103,26 @@ export default function App() {
   const [rewards, setRewards] = useState(() => db.getRewards());
   const [referrals, setReferrals] = useState(() => db.getReferrals());
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
+
+  // Refs for tracking the last synced database state to perform delta sync (only syncing inserts, updates, and deletes)
+  const lastClinicInfoRef = useRef(clinicInfo);
+  const lastUsersRef = useRef(users);
+  const lastTherapistsRef = useRef(therapists);
+  const lastServicesRef = useRef(services);
+  const lastPromotionsRef = useRef(promotions);
+  const lastBankAccountsRef = useRef(bankAccounts);
+  const lastHolidaysRef = useRef(holidays);
+  const lastPatientsRef = useRef(patients);
+  const lastAppointmentsRef = useRef(appointments);
+  const lastReceiptsRef = useRef(receipts);
+  const lastAssessmentsRef = useRef(assessments);
+  const lastSalaryRulesRef = useRef(salaryRules);
+  const lastPayrollsRef = useRef(payrolls);
+  const lastTransactionsRef = useRef(transactions);
+  const lastOpdRecordsRef = useRef(opdRecords);
+  const lastRewardsRef = useRef(rewards);
+  const lastReferralsRef = useRef(referrals);
+  const lastAssessmentTemplatesRef = useRef(assessmentTemplates);
 
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
   useEffect(() => {
@@ -215,6 +266,26 @@ export default function App() {
       }
       
       setTimeout(() => {
+        // อัปเดตตัวติดตามค่าดั้งเดิมให้ตรงกับที่ดึงมาจากคลาวด์ เพื่อเตรียมตรวจหาเฉพาะส่วนต่าง (Delta) ในคำสั่งถัดไป
+        lastClinicInfoRef.current = db.getClinicInfo();
+        lastUsersRef.current = db.getUsers();
+        lastTherapistsRef.current = db.getTherapists();
+        lastServicesRef.current = db.getServices();
+        lastPromotionsRef.current = db.getPromotions();
+        lastBankAccountsRef.current = db.getBankAccounts();
+        lastHolidaysRef.current = db.getHolidays();
+        lastPatientsRef.current = db.getPatients();
+        lastAppointmentsRef.current = db.getAppointments();
+        lastReceiptsRef.current = db.getReceipts();
+        lastAssessmentsRef.current = db.getAssessments();
+        lastSalaryRulesRef.current = db.getSalaryRules();
+        lastPayrollsRef.current = db.getPayrolls();
+        lastTransactionsRef.current = db.getTransactions();
+        lastOpdRecordsRef.current = db.getOpdRecords();
+        lastRewardsRef.current = db.getRewards();
+        lastReferralsRef.current = db.getReferrals();
+        lastAssessmentTemplatesRef.current = db.getAssessmentTemplates();
+
         setIsSyncing(false);
         hasLoadedRef.current = true;
       }, 1500);
@@ -222,112 +293,285 @@ export default function App() {
     runInitialSync();
   }, []);
 
-  const syncData = async (key, value) => {
+  // 1.2 ระบบสมัครติดตามอัปเดตเรียลไทม์ (Supabase Real-time Subscriptions)
+  useEffect(() => {
     if (isSyncing || !hasLoadedRef.current) return;
-    try {
-      await syncToSupabase(key, value, true);
-    } catch (error) {
-      console.warn(`[Sync Failed] Key: ${key}`, error);
+
+    // ตารางหลักที่จำแนกไอดีและฟังก์ชันสเตท
+    const tablesToSubscribe = [
+      { name: 'patients', pk: 'hn', setState: setPatients, dbSet: db.setPatients, ref: lastPatientsRef },
+      { name: 'appointments', pk: 'id', setState: setAppointments, dbSet: db.setAppointments, ref: lastAppointmentsRef },
+      { name: 'receipts', pk: 'id', setState: setReceipts, dbSet: db.setReceipts, ref: lastReceiptsRef },
+      { name: 'assessments', pk: 'id', setState: setAssessments, dbSet: db.setAssessments, ref: lastAssessmentsRef },
+      { name: 'opd_records', pk: 'id', setState: setOpdRecords, dbSet: db.setOpdRecords, ref: lastOpdRecordsRef }
+    ];
+
+    const toCamelCase = (str) => {
+      if (str === 'snap_iv') return 'snapIV';
+      return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
+    };
+
+    const safeJsonParse = (val) => {
+      if (typeof val === 'string') {
+        let trimmed = val.trim();
+        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+          try { trimmed = JSON.parse(trimmed); } catch (e) {}
+        }
+        if (typeof trimmed === 'string') {
+          if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+            try { return JSON.parse(trimmed); } catch (e) { return val; }
+          }
+        } else {
+          return trimmed;
+        }
+      }
+      return val;
+    };
+
+    const subscriptions = tablesToSubscribe.map(table => {
+      return supabase
+        .channel(`public:${table.name}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: table.name }, payload => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+
+          const mapRow = (row) => {
+            if (!row) return null;
+            const mapped = {};
+            for (const k in row) {
+              mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+            }
+            return mapped;
+          };
+
+          const mappedNewRow = mapRow(newRow);
+          const mappedOldRow = mapRow(oldRow);
+
+          table.setState(prevList => {
+            const list = Array.isArray(prevList) ? prevList : [];
+            let updatedList = [...list];
+
+            if (eventType === 'INSERT') {
+              const exists = list.some(item => item[table.pk] === mappedNewRow[table.pk]);
+              if (!exists) {
+                updatedList = [...list, mappedNewRow];
+              }
+            } else if (eventType === 'UPDATE') {
+              updatedList = list.map(item => item[table.pk] === mappedNewRow[table.pk] ? mappedNewRow : item);
+            } else if (eventType === 'DELETE') {
+              const deletePkValue = mappedOldRow ? mappedOldRow[table.pk] : (payload.errors ? null : oldRow[table.pk]);
+              if (deletePkValue) {
+                updatedList = list.filter(item => item[table.pk] !== deletePkValue);
+              }
+            }
+
+            table.dbSet(updatedList);
+            table.ref.current = updatedList;
+            return updatedList;
+          });
+        })
+        .subscribe();
+    });
+
+    return () => {
+      subscriptions.forEach(sub => supabase.removeChannel(sub));
+    };
+  }, [isSyncing]);
+
+  // 1.3 ระบบประมวลผลคิวค้างซิงค์ (Retry Pending Syncs Queue)
+  const processPendingSyncs = async (currentQueue = pendingSyncs) => {
+    if (currentQueue.length === 0) return;
+
+    let queue = [...currentQueue];
+    let successCount = 0;
+
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      try {
+        await syncDeltaToSupabase(item.key, item.delta, true);
+        successCount++;
+      } catch (err) {
+        console.warn(`[Retry Pending Failed] Key: ${item.key}`, err);
+        break;
+      }
+    }
+
+    if (successCount > 0) {
+      const remainingQueue = queue.slice(successCount);
+      setPendingSyncs(remainingQueue);
+      
       Swal.fire({
-        icon: 'warning',
-        title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
-        text: `ตาราง ${key} ซิงค์ล้มเหลว: ${error.message || error} (บันทึกข้อมูลในคอมพิวเตอร์เครื่องนี้แล้ว)`,
+        icon: 'success',
+        title: 'ซิงค์ข้อมูลออฟไลน์สำเร็จ',
+        text: `อัปโหลดข้อมูลที่ค้างอยู่ ${successCount} รายการขึ้นระบบคลาวด์เรียบร้อยแล้ว`,
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
-        timer: 6000
+        timer: 4000
       });
     }
   };
 
-  // บันทึก State ลง LocalStorage และ Supabase เมื่อมีค่าเปลี่ยนแปลง
-  useEffect(() => { 
-    db.setClinicInfo(clinicInfo); 
-    syncData('hdh_clinic_info', clinicInfo);
+  // ดักจับเมื่ออินเทอร์เน็ตกลับมาออนไลน์
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Internet connected. Processing pending syncs...');
+      processPendingSyncs();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [pendingSyncs]);
+
+  const handleSyncDelta = async (key, pk, newValue, ref, setDbFunc) => {
+    // 1. บันทึกลง LocalStorage เสมอเพื่อความเสถียรของระบบออฟไลน์
+    setDbFunc(newValue);
+
+    if (isSyncing || !hasLoadedRef.current) {
+      ref.current = newValue;
+      return;
+    }
+
+    const oldValue = ref.current || [];
+    ref.current = newValue;
+
+    // หาตัวที่เพิ่มหรืออัปเดต
+    const toUpsert = newValue.filter(newItem => {
+      const oldItem = oldValue.find(o => o && o[pk] === newItem[pk]);
+      return !oldItem || !isObjectEqual(oldItem, newItem);
+    });
+
+    // หาตัวที่ถูกลบ
+    const toDelete = oldValue.filter(oldItem => {
+      return oldItem && !newValue.some(n => n && n[pk] === oldItem[pk]);
+    });
+
+    if (toUpsert.length > 0 || toDelete.length > 0) {
+      const delta = { toUpsert, toDelete };
+      try {
+        await syncDeltaToSupabase(key, delta, true);
+      } catch (error) {
+        console.warn(`[Sync Delta Failed] Key: ${key}`, error);
+        
+        // บันทึกลงคิวรอซิงค์
+        setPendingSyncs(prev => [...prev, { key, delta, timestamp: new Date().toISOString() }]);
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
+          text: `ตาราง ${key} ซิงค์ล้มเหลว (บันทึกข้อมูลในคอมพิวเตอร์เครื่องนี้แล้ว และระบบจะพยายามอัปโหลดอีกครั้งเมื่อมีเน็ต)`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 6000
+        });
+      }
+    }
+  };
+
+  const handleSyncSingleConfig = async (key, newValue, ref, setDbFunc) => {
+    setDbFunc(newValue);
+
+    if (isSyncing || !hasLoadedRef.current) {
+      ref.current = newValue;
+      return;
+    }
+
+    const oldValue = ref.current;
+    ref.current = newValue;
+
+    if (!isObjectEqual(oldValue, newValue)) {
+      const delta = { toUpsert: [newValue] };
+      try {
+        await syncDeltaToSupabase(key, delta, true);
+      } catch (error) {
+        console.warn(`[Sync Config Failed] Key: ${key}`, error);
+        
+        // บันทึกลงคิวรอซิงค์
+        setPendingSyncs(prev => [...prev, { key, delta, timestamp: new Date().toISOString() }]);
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'การเชื่อมต่อคลาวด์ล้มเหลว',
+          text: `ตาราง ${key} ซิงค์ล้มเหลว (บันทึกข้อมูลในคอมพิวเตอร์เครื่องนี้แล้ว และระบบจะพยายามอัปโหลดอีกครั้งเมื่อมีเน็ต)`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 6000
+        });
+      }
+    }
+  };
+
+  // บันทึก State ลง LocalStorage และ Supabase เมื่อมีค่าเปลี่ยนแปลงเฉพาะส่วนต่าง (Delta)
+  useEffect(() => {
+    handleSyncSingleConfig('hdh_clinic_info', clinicInfo, lastClinicInfoRef, db.setClinicInfo);
   }, [clinicInfo]);
 
-  useEffect(() => { 
-    db.setUsers(users); 
-    syncData('hdh_users', users);
+  useEffect(() => {
+    handleSyncDelta('hdh_users', 'username', users, lastUsersRef, db.setUsers);
   }, [users]);
 
-  useEffect(() => { 
-    db.setTherapists(therapists); 
-    syncData('hdh_therapists', therapists);
+  useEffect(() => {
+    handleSyncDelta('hdh_therapists', 'id', therapists, lastTherapistsRef, db.setTherapists);
   }, [therapists]);
 
-  useEffect(() => { 
-    db.setServices(services); 
-    syncData('hdh_services', services);
+  useEffect(() => {
+    handleSyncDelta('hdh_services', 'code', services, lastServicesRef, db.setServices);
   }, [services]);
 
-  useEffect(() => { 
-    db.setPromotions(promotions); 
-    syncData('hdh_promotions', promotions);
+  useEffect(() => {
+    handleSyncDelta('hdh_promotions', 'code', promotions, lastPromotionsRef, db.setPromotions);
   }, [promotions]);
 
-  useEffect(() => { 
-    db.setBankAccounts(bankAccounts); 
-    syncData('hdh_bank_accounts', bankAccounts);
+  useEffect(() => {
+    handleSyncDelta('hdh_bank_accounts', 'id', bankAccounts, lastBankAccountsRef, db.setBankAccounts);
   }, [bankAccounts]);
 
-  useEffect(() => { 
-    db.setHolidays(holidays); 
-    syncData('hdh_holidays', holidays);
+  useEffect(() => {
+    handleSyncDelta('hdh_holidays', 'id', holidays, lastHolidaysRef, db.setHolidays);
   }, [holidays]);
 
-  useEffect(() => { 
-    db.setPatients(patients); 
-    syncData('hdh_patients', patients);
+  useEffect(() => {
+    handleSyncDelta('hdh_patients', 'hn', patients, lastPatientsRef, db.setPatients);
   }, [patients]);
 
-  useEffect(() => { 
-    db.setAppointments(appointments); 
-    syncData('hdh_appointments', appointments);
+  useEffect(() => {
+    handleSyncDelta('hdh_appointments', 'id', appointments, lastAppointmentsRef, db.setAppointments);
   }, [appointments]);
 
-  useEffect(() => { 
-    db.setReceipts(receipts); 
-    syncData('hdh_receipts', receipts);
+  useEffect(() => {
+    handleSyncDelta('hdh_receipts', 'id', receipts, lastReceiptsRef, db.setReceipts);
   }, [receipts]);
 
-  useEffect(() => { 
-    db.setAssessments(assessments); 
-    syncData('hdh_assessments', assessments);
+  useEffect(() => {
+    handleSyncDelta('hdh_assessments', 'id', assessments, lastAssessmentsRef, db.setAssessments);
   }, [assessments]);
 
-  useEffect(() => { 
-    db.setSalaryRules(salaryRules); 
-    syncData('hdh_salary_rules', salaryRules);
+  useEffect(() => {
+    handleSyncSingleConfig('hdh_salary_rules', salaryRules, lastSalaryRulesRef, db.setSalaryRules);
   }, [salaryRules]);
 
-  useEffect(() => { 
-    db.setPayrolls(payrolls); 
-    syncData('hdh_payrolls', payrolls);
+  useEffect(() => {
+    handleSyncDelta('hdh_payrolls', 'id', payrolls, lastPayrollsRef, db.setPayrolls);
   }, [payrolls]);
 
-  useEffect(() => { 
-    db.setTransactions(transactions); 
-    syncData('hdh_transactions', transactions);
+  useEffect(() => {
+    handleSyncDelta('hdh_transactions', 'id', transactions, lastTransactionsRef, db.setTransactions);
   }, [transactions]);
 
-  useEffect(() => { 
-    db.setOpdRecords(opdRecords); 
-    syncData('hdh_opd_records', opdRecords);
+  useEffect(() => {
+    handleSyncDelta('hdh_opd_records', 'id', opdRecords, lastOpdRecordsRef, db.setOpdRecords);
   }, [opdRecords]);
 
-  useEffect(() => { 
-    db.setRewards(rewards); 
-    syncData('hdh_rewards', rewards);
+  useEffect(() => {
+    handleSyncDelta('hdh_rewards', 'code', rewards, lastRewardsRef, db.setRewards);
   }, [rewards]);
 
-  useEffect(() => { 
-    db.setReferrals(referrals); 
-    syncData('hdh_referrals', referrals);
+  useEffect(() => {
+    handleSyncDelta('hdh_referrals', 'id', referrals, lastReferralsRef, db.setReferrals);
   }, [referrals]);
 
-  useEffect(() => { 
-    db.setAssessmentTemplates(assessmentTemplates); 
+  useEffect(() => {
+    handleSyncDelta('hdh_assessment_templates', 'id', assessmentTemplates, lastAssessmentTemplatesRef, db.setAssessmentTemplates);
   }, [assessmentTemplates]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
@@ -693,17 +937,18 @@ export default function App() {
 
   // ปุ่มลัดเพิ่มคอร์สแบบแมนนวล (Manual)
   const handleManualAddCourse = (hn, sessions, remark) => {
-    const today = new Date('2026-06-05');
+    const today = new Date();
     const beYear = today.getFullYear() + 543;
     const yearSuffix = beYear.toString().slice(-2);
     
     // สร้างรหัสบิลแบบกำหนดปรับปรุง
     const billId = `M${yearSuffix}` + Math.floor(1000 + Math.random() * 9000);
+    const localDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const manualReceipt = {
       id: billId,
       hn: hn,
-      date: '2026-06-05',
+      date: localDateStr,
       items: [
         { code: 'MANUAL_ADD', name: `ปรับปรุงเพิ่มคอร์สแมนนวล (${remark})`, price: 0, quantity: sessions, type: 'บริการ' }
       ],
@@ -725,7 +970,7 @@ export default function App() {
 
   // ปุ่มลัดโอนคอร์ส (Transfer): หักสิทธิ์จากผู้โอน และเพิ่มให้ผู้รับ (สร้างบิล 2 ใบอัตโนมัติ)
   const handleTransferCourse = (transferorHn, transfereeHn, sessions, remark) => {
-    const today = new Date('2026-06-05');
+    const today = new Date();
     const beYear = today.getFullYear() + 543;
     const yearSuffix = beYear.toString().slice(-2);
     const suffixRnd = Math.floor(1000 + Math.random() * 9000);
@@ -735,12 +980,13 @@ export default function App() {
 
     const billId1 = `TR${yearSuffix}A${suffixRnd}`;
     const billId2 = `TR${yearSuffix}B${suffixRnd}`;
+    const localDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     // ใบที่ 1: บิลหักยอดของครึ่งทางผู้โอน
     const receipt1 = {
       id: billId1,
       hn: transferorHn,
-      date: '2026-06-05',
+      date: localDateStr,
       items: [
         { code: 'TRANSFER_OUT', name: `โอนสิทธิ์คอร์สให้ น้อง${transferee.nickname} (${transferee.title}${transferee.firstname})`, price: 0, quantity: sessions, type: 'บริการ' }
       ],
@@ -761,7 +1007,7 @@ export default function App() {
     const receipt2 = {
       id: billId2,
       hn: transfereeHn,
-      date: '2026-06-05',
+      date: localDateStr,
       items: [
         { code: 'TRANSFER_IN', name: `รับโอนสิทธิ์คอร์สจาก น้อง${transferor.nickname} (${transferor.title}${transferor.firstname})`, price: 0, quantity: sessions, type: 'บริการ' }
       ],
@@ -1166,6 +1412,40 @@ export default function App() {
     );
   }
 
+  // แสดงหน้าโหลดระหว่างซิงค์ข้อมูลเริ่มต้นเฉพาะผู้ใช้ที่เข้าสู่ระบบแล้ว
+  if (isSyncing) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#FEF8F1',
+        fontFamily: 'var(--font-family)',
+        gap: '1rem'
+      }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          border: '4px solid rgba(193, 155, 108, 0.2)',
+          borderTop: '4px solid #c19b6c',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <div style={{ fontWeight: 600, color: '#4A4036', fontSize: '1.1rem' }}>
+          กำลังเชื่อมต่อและซิงค์ข้อมูลกับคลาวด์...
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       
@@ -1184,8 +1464,57 @@ export default function App() {
 
       {/* 7. ส่วนแสดงเนื้อหา SPA ตามเมนูย่อย */}
       <div className="main-content" style={{ position: 'relative' }}>
-        {/* ปุ่มรีเฟรชลอยสำหรับทุกหน้าจอ */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-1.5rem', zIndex: 999 }}>
+        {/* ปุ่มรีเฟรชลอยและตัวแสดงสถานะคลาวด์ */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.5rem', marginBottom: '-1.5rem', zIndex: 999 }}>
+          <style>{`
+            @keyframes pulse {
+              0% { opacity: 0.4; }
+              50% { opacity: 1; }
+              100% { opacity: 0.4; }
+            }
+          `}</style>
+          {pendingSyncs.length === 0 ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.35rem 0.75rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: '20px',
+              border: '1px solid #d4edda',
+              backgroundColor: '#e2f0d9',
+              color: '#155724',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#28a745' }} />
+              ออนไลน์ (คลาวด์ปกติ)
+            </div>
+          ) : (
+            <button
+              onClick={() => processPendingSyncs()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.35rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: '20px',
+                border: '1px solid #ffeeba',
+                backgroundColor: '#fff3cd',
+                color: '#856404',
+                boxShadow: 'var(--shadow-sm)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              title="มีข้อมูลที่บันทึกในเครื่องแต่ยังไม่อัปโหลดขึ้นคลาวด์เนื่องจากเน็ตหลุด กดเพื่อซิงค์ใหม่"
+            >
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffc107', animation: 'pulse 1.5s infinite' }} />
+              ค้างซิงค์ {pendingSyncs.length} รายการ (กดซิงค์ใหม่)
+            </button>
+          )}
+
           <button 
             className="btn btn-light" 
             onClick={() => window.location.reload()} 
@@ -1248,6 +1577,7 @@ export default function App() {
             onDeleteAppointment={handleDeleteAppointment}
             onUpdateAppointment={handleUpdateAppointment}
             currentUser={currentUser}
+            clinicInfo={clinicInfo}
           />
         )}
 

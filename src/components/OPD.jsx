@@ -71,7 +71,10 @@ export default function OPD({
   }, [patients, patientSearchText]);
 
   // ฟอร์มข้อมูลการฝึก
-  const [formDate, setFormDate] = useState('2026-06-05'); // อิงเวลาของระบบ
+  const [formDate, setFormDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }); // อิงเวลาของระบบ
   const [formTherapist, setFormTherapist] = useState('');
   const [formDetails, setFormDetails] = useState('');
   const [formFileUrl, setFormFileUrl] = useState('');
@@ -128,7 +131,7 @@ export default function OPD({
     const birthDate = parseDateToAD(dob);
     if (!birthDate) return 'วันเกิดไม่ถูกต้อง';
     const normalizedBirthYear = birthDate.getFullYear();
-    const today = new Date('2026-06-05');
+    const today = new Date();
     let years = today.getFullYear() - normalizedBirthYear;
     let months = today.getMonth() - birthDate.getMonth();
     if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
