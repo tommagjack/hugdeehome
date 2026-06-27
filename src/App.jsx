@@ -59,6 +59,21 @@ export default function App() {
     localStorage.setItem('hdh_pending_syncs', JSON.stringify(pendingSyncs));
   }, [pendingSyncs]);
 
+  // เคลียร์คิวค้างซิงค์ของตารางระบบ/การเงินสำหรับบทบาทที่ไม่ใช่ Admin ป้องกันข้อผิดพลาด RLS บล็อก
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'Admin' && pendingSyncs.length > 0) {
+      const adminOnlyKeys = [
+        'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
+        'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+        'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
+      ];
+      const filtered = pendingSyncs.filter(item => !adminOnlyKeys.includes(item.key));
+      if (filtered.length !== pendingSyncs.length) {
+        setPendingSyncs(filtered);
+      }
+    }
+  }, [currentUser, pendingSyncs]);
+
   // 2. โหลดข้อมูลจาก LocalStorage เข้า State หลักของ React SPA
   const [clinicInfo, setClinicInfo] = useState(() => db.getClinicInfo());
   const [users, setUsers] = useState(() => {
@@ -446,6 +461,17 @@ export default function App() {
       return;
     }
 
+    // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase (ป้องกันความปลอดภัย RLS)
+    const adminOnlyKeys = [
+      'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
+      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+      'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
+    ];
+    if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {
+      ref.current = newValue;
+      return;
+    }
+
     const oldValue = ref.current || [];
     ref.current = newValue;
 
@@ -487,6 +513,17 @@ export default function App() {
     setDbFunc(newValue);
 
     if (isSyncing || !hasLoadedRef.current) {
+      ref.current = newValue;
+      return;
+    }
+
+    // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase
+    const adminOnlyKeys = [
+      'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
+      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+      'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
+    ];
+    if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {
       ref.current = newValue;
       return;
     }
