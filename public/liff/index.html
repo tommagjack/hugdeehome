@@ -186,6 +186,28 @@
     let clinicPhoneFallback = '0946753557';
     let clinicLineOaIdFallback = '@hugdeehome';
 
+    function getPhoneVariations(phoneVal) {
+      const digits = phoneVal.replace(/\D/g, '');
+      const variations = [phoneVal];
+      if (digits.length === 10) {
+        variations.push(digits);
+        variations.push(`${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`);
+        variations.push(`${digits.slice(0,3)}-${digits.slice(3)}`);
+        variations.push(`${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6)}`);
+        variations.push(`${digits.slice(0,3)} ${digits.slice(3)}`);
+        
+        const digits66 = '66' + digits.slice(1);
+        variations.push(`+${digits66}`);
+        variations.push(`+66-${digits.slice(1,3)}-${digits.slice(3,6)}-${digits.slice(6)}`);
+        variations.push(`+66 ${digits.slice(1,3)} ${digits.slice(3,6)} ${digits.slice(6)}`);
+      } else if (digits.length === 9) {
+        variations.push(digits);
+        variations.push(`${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`);
+        variations.push(`${digits.slice(0,2)}-${digits.slice(2)}`);
+      }
+      return [...new Set(variations)];
+    }
+
     async function main() {
       // 1. ตรวจสอบพารามิเตอร์ของ URL
       const urlParams = new URLSearchParams(window.location.search);
@@ -391,8 +413,11 @@
         btnSearch.innerText = 'กำลังค้นหาประวัติ...';
 
         try {
-          // ค้นหา HN ในตาราง patients ที่มีเบอร์โทรตรงกัน
-          const res = await fetch(`${supabaseUrl}/rest/v1/patients?phone=eq.${phoneVal}&select=hn,title,firstname,lastname,nickname`, {
+          // ค้นหา HN ในตาราง patients ที่มีเบอร์โทรตรงกับรูปแบบต่างๆ
+          const variations = getPhoneVariations(phoneVal);
+          const inQuery = variations.map(v => `"${v}"`).join(',');
+          
+          const res = await fetch(`${supabaseUrl}/rest/v1/patients?phone=in.(${encodeURIComponent(inQuery)})&select=hn,title,firstname,lastname,nickname`, {
             headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
           });
           
@@ -441,8 +466,9 @@
         try {
           const phoneVal = inputPhone.value.trim();
           
-          // ทำการ PATCH อัปเดตฟิลด์ line_user_id ใน Supabase
-          const resUpdate = await fetch(`${supabaseUrl}/rest/v1/patients?phone=eq.${phoneVal}`, {
+          // ทำการ PATCH อัปเดตฟิลด์ line_user_id ใน Supabase โดยระบุเฉพาะรหัส HN ของคนไข้ที่ค้นพบ
+          const hnList = foundPatients.map(p => p.hn).join(',');
+          const resUpdate = await fetch(`${supabaseUrl}/rest/v1/patients?hn=in.(${hnList})`, {
             method: 'PATCH',
             headers: {
               'apikey': apiKey,
