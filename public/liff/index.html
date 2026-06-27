@@ -211,6 +211,8 @@
     async function main() {
       // 1. ตรวจสอบพารามิเตอร์ของ URL
       const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      const appId = urlParams.get('appId');
       let liffId = urlParams.get('liffId');
       let phone = urlParams.get('phone');
       let oaId = urlParams.get('oaId');
@@ -220,9 +222,74 @@
       const time = urlParams.get('time');
       const therapist = urlParams.get('therapist');
 
+      // 1.1 โหมดการยืนยันการนัดหมายโดยผู้ปกครอง (ทำงานโดยตรงไม่ต้องรอล็อกอิน)
+      if (action === 'confirm' && appId) {
+        document.getElementById('sending-view').style.display = 'block';
+        document.getElementById('sending-title').innerText = 'กำลังดำเนินการยืนยันนัดหมาย...';
+        document.getElementById('status-text').innerText = 'กรุณารอสักครู่ ระบบกำลังยืนยันคิวนัดเรียน';
+        document.getElementById('linking-view').style.display = 'none';
+        
+        try {
+          // เรียกใช้ RPC confirm_appointment_parent เพื่อเปลี่ยนสถานะเป็น 'ยืนยันแล้ว'
+          const res = await fetch(`${supabaseUrl}/rest/v1/rpc/confirm_appointment_parent`, {
+            method: 'POST',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': 'Bearer ' + apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ app_id: appId })
+          });
+          
+          if (!res.ok) throw new Error('ไม่สามารถยืนยันนัดได้');
+          const isConfirmed = await res.json();
+          
+          if (isConfirmed) {
+            document.getElementById('sending-title').innerText = 'ยืนยันนัดหมายสำเร็จ! 🎉';
+            document.getElementById('status-text').innerHTML = `
+              <div style="font-size: 1.15rem; color: #2E7D32; font-weight: bold; margin-bottom: 0.8rem;">
+                การนัดหมายเรียนของท่านได้รับการยืนยันแล้วค่ะ
+              </div>
+              <p style="margin: 0; font-size: 0.95rem; color: #666;">ทางคลินิกบ้านฮักดียินดีให้บริการค่ะ 🤎</p>
+            `;
+          } else {
+            document.getElementById('sending-title').innerText = 'ไม่สามารถดำเนินการได้ ⚠️';
+            document.getElementById('status-text').innerHTML = `
+              <p style="margin: 0; font-size: 0.95rem; color: #c53030; font-weight: bold;">
+                ขออภัยค่ะ ไม่พบคิวนัดหมายนี้ หรือคิวนัดหมายนี้อาจได้รับการยืนยัน/ยกเลิกไปแล้ว
+              </p>
+            `;
+          }
+          
+        } catch (e) {
+          document.getElementById('sending-title').innerText = 'เกิดข้อผิดพลาด ❌';
+          document.getElementById('status-text').innerText = 'เกิดปัญหาในการติดต่อฐานข้อมูล: ' + e.message;
+        }
+
+        // ลองปิดหน้าต่างหลังจาก 3 วินาที (หากเปิดใน LINE LIFF)
+        try {
+          if (!liffId) {
+            const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id&limit=1`, {
+              headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+            });
+            const data = await response.json();
+            if (data && data[0]) liffId = data[0].liff_id;
+          }
+          if (liffId) {
+            await liff.init({ liffId });
+            setTimeout(() => { liff.closeWindow(); }, 3500);
+          }
+        } catch (err) {
+          console.log('Close window warning:', err);
+        }
+        return;
+      }
+
       // 2. ดึงข้อมูลคลินิกสำรองจาก Supabase (ถ้า Url Params ไม่มีมาให้)
+      let heroImageUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png';
+      
       try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id&limit=1`, {
+        const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id,hero_image_url&limit=1`, {
           headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
         });
         const data = await response.json();
@@ -233,6 +300,7 @@
           
           clinicPhoneFallback = data[0].phone || clinicPhoneFallback;
           clinicLineOaIdFallback = data[0].line_id || clinicLineOaIdFallback;
+          heroImageUrl = data[0].hero_image_url || heroImageUrl;
         }
       } catch (e) {
         console.error('Error fetching fallback config:', e);
@@ -272,10 +340,7 @@
 
           const therapistName = therapist || 'คุณครูผู้บำบัด';
           const displayPhone = phone || clinicPhoneFallback;
-          const confirmText = `ยืนยันนัดของน้อง${nickname} วันที่ ${date} เวลา ${time}`;
-          const confirmUri = oaId 
-            ? `https://line.me/R/oaMessage/${oaId}/?${encodeURIComponent(confirmText)}`
-            : "https://line.me/";
+          const confirmUri = `https://liff.line.me/${liffId}?action=confirm&appId=${encodeURIComponent(urlParams.get('appId') || '')}`;
 
           const flexMessage = {
             type: "flex",
@@ -284,7 +349,7 @@
               type: "bubble",
               hero: {
                 type: "image",
-                url: "https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png",
+                url: heroImageUrl,
                 size: "full",
                 aspectRatio: "20:13",
                 aspectMode: "cover"

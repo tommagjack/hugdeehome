@@ -265,7 +265,7 @@ const TABLE_COLUMNS = {
   clinic_info: [
     'id', 'name', 'license_no', 'phone', 'email', 'line_id', 'address', 
     'logo_url', 'stamp_url', 'receipt_footer', 'folder_id', 'folder_url',
-    'type', 'payslip_footer', 'liff_id', 'line_channel_access_token'
+    'type', 'payslip_footer', 'liff_id', 'line_channel_access_token', 'hero_image_url'
   ],
   users: [
     'username', 'password', 'fullname', 'role', 'status', 'employee_id', 

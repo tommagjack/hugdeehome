@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName, getLocalDateString } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, getLocalDateString, formatDateBE } from '../utils/format';
 import { 
   Calendar, 
   Clock, 
@@ -359,7 +359,7 @@ export default function Appointments({
     const nickname = patient ? (patient.nickname || patient.firstname) : 'ผู้รับบริการ';
     const therapist = therapists.find(t => t.id === app.therapistId);
     const therapistName = therapist ? (therapist.nickname || therapist.fullname) : 'ครูผู้บำบัด';
-    const dateStr = getLocalDateString(app.date);
+    const dateStr = formatDateBE(app.date);
     const timeStr = app.timeSlot || '';
 
     // แสดงสถานะการส่งข้อความ
@@ -378,6 +378,7 @@ export default function Appointments({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'appointment',
+          appId: app.id,
           patientHn: app.hn,
           nickname: nickname,
           date: dateStr,
@@ -449,7 +450,7 @@ export default function Appointments({
         if (choice.isConfirmed) {
           const phone = clinicInfo?.phone || '0946753557';
           const oaId = clinicInfo?.lineId || '';
-          const fallbackLiffUrl = `https://hugdeehome.vercel.app/liff/index.html?liffId=${encodeURIComponent(liffId)}&nickname=${encodeURIComponent(nickname)}&date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}&therapist=${encodeURIComponent(therapistName)}&phone=${encodeURIComponent(phone)}&oaId=${encodeURIComponent(oaId)}`;
+          const fallbackLiffUrl = `https://hugdeehome.vercel.app/liff/index.html?liffId=${encodeURIComponent(liffId)}&nickname=${encodeURIComponent(nickname)}&date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}&therapist=${encodeURIComponent(therapistName)}&phone=${encodeURIComponent(phone)}&oaId=${encodeURIComponent(oaId)}&appId=${encodeURIComponent(app.id)}`;
           window.open(fallbackLiffUrl, '_blank', 'noopener');
         }
       });

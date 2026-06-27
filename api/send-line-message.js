@@ -44,16 +44,17 @@ export default async function handler(req, res) {
 
   try {
     const env = loadEnv();
-    const { type, patientHn, nickname, date, time, therapist, lineUserId, phone, patients } = req.body;
+    const { type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients } = req.body;
 
     // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info)
     let channelAccessToken = '';
     let clinicPhone = '0946753557';
     let clinicLineOaId = '@hugdeehome';
     let liffId = '';
+    let heroImageUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png';
 
     try {
-      const clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id&limit=1`, {
+      const clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url&limit=1`, {
         headers: {
           'apikey': env.VITE_SUPABASE_ANON_KEY,
           'Authorization': 'Bearer ' + env.VITE_SUPABASE_ANON_KEY
@@ -66,6 +67,7 @@ export default async function handler(req, res) {
           clinicPhone = clinicData[0].phone || clinicPhone;
           clinicLineOaId = clinicData[0].line_id || clinicLineOaId;
           liffId = clinicData[0].liff_id || '';
+          heroImageUrl = clinicData[0].hero_image_url || heroImageUrl;
         }
       }
     } catch (e) {
@@ -119,9 +121,8 @@ export default async function handler(req, res) {
     let messages = [];
 
     if (type === 'appointment') {
-      const confirmText = `ยืนยันนัดของน้อง${nickname} วันที่ ${date} เวลา ${time}`;
-      const confirmUri = clinicLineOaId 
-        ? `https://line.me/R/oaMessage/${clinicLineOaId}/?${encodeURIComponent(confirmText)}`
+      const confirmUri = liffId 
+        ? `https://liff.line.me/${liffId}?action=confirm&appId=${encodeURIComponent(appId || '')}`
         : "https://line.me/";
 
       const flexPayload = {
@@ -131,7 +132,7 @@ export default async function handler(req, res) {
           type: "bubble",
           hero: {
             type: "image",
-            url: "https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png",
+            url: heroImageUrl,
             size: "full",
             aspectRatio: "20:13",
             aspectMode: "cover"

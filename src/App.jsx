@@ -124,6 +124,27 @@ export default function App() {
   const lastReferralsRef = useRef(referrals);
   const lastAssessmentTemplatesRef = useRef(assessmentTemplates);
 
+  const refreshAllLocalStates = () => {
+    setClinicInfo(db.getClinicInfo());
+    setUsers(db.getUsers());
+    setTherapists(db.getTherapists());
+    setServices(db.getServices());
+    setPromotions(db.getPromotions());
+    setBankAccounts(db.getBankAccounts());
+    setHolidays(db.getHolidays());
+    setPatients(db.getPatients());
+    setAppointments(db.getAppointments());
+    setReceipts(db.getReceipts());
+    setAssessments(db.getAssessments());
+    setSalaryRules(db.getSalaryRules());
+    setPayrolls(db.getPayrolls());
+    setTransactions(db.getTransactions());
+    setOpdRecords(db.getOpdRecords());
+    setRewards(db.getRewards());
+    setReferrals(db.getReferrals());
+    setAssessmentTemplates(db.getAssessmentTemplates());
+  };
+
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
   useEffect(() => {
     const runInitialSync = async () => {
@@ -225,23 +246,7 @@ export default function App() {
           });
         } else if (success) {
           // โหลดสเตทใหม่จาก LocalStorage ทันที
-          setClinicInfo(db.getClinicInfo());
-          setUsers(db.getUsers());
-          setTherapists(db.getTherapists());
-          setServices(db.getServices());
-          setPromotions(db.getPromotions());
-          setBankAccounts(db.getBankAccounts());
-          setHolidays(db.getHolidays());
-          setPatients(db.getPatients());
-          setAppointments(db.getAppointments());
-          setReceipts(db.getReceipts());
-          setAssessments(db.getAssessments());
-          setSalaryRules(db.getSalaryRules());
-          setPayrolls(db.getPayrolls());
-          setTransactions(db.getTransactions());
-          setOpdRecords(db.getOpdRecords());
-          setRewards(db.getRewards());
-          setAssessmentTemplates(db.getAssessmentTemplates());
+          refreshAllLocalStates();
           
           Swal.fire({
             icon: 'success',
@@ -679,6 +684,9 @@ export default function App() {
       // สั่งให้ระบบทำการซิงค์ประวัติข้อมูลทั้งหมดในคลาวด์ทันทีหลังจากผ่านด่านความปลอดภัย RLS สำเร็จ
       setIsSyncing(true);
       await syncFromSupabase();
+      
+      // อัปเดตข้อมูลทุกอย่างใน React State ให้ตรงตามที่ซิงค์มาล่าสุดทันที
+      refreshAllLocalStates();
 
       // ดึงสิทธิ์ที่แท้จริงจากฐานข้อมูลที่อัปเดตซิงค์เรียบร้อยแล้ว
       let finalProfile = localProfile;

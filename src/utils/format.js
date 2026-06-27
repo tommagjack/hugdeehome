@@ -94,3 +94,18 @@ export const getLocalDateString = (dateInput) => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * จัดรูปแบบวันที่ให้เป็น DD-MM-YYYY (พ.ศ.) สำหรับส่งใน LINE Flex Message
+ * @param {string|Date} dateInput 
+ * @returns {string} วันที่ฟอร์แมตพ.ศ.
+ */
+export const formatDateBE = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return dateInput;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const yearBE = d.getFullYear() + 543;
+  return `${day}-${month}-${yearBE}`;
+};
+

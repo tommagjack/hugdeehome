@@ -1221,6 +1221,11 @@ function createUserFolder(parentFolderId, folderName) {
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label">ลิงก์รูปภาพประกอบการ์ดนัดหมาย (Hero Image URL สำหรับ FLEX Message)</label>
+                  <input type="url" className="form-control" placeholder="ระบุ URL รูปภาพ เช่น https://example.com/banner.png" value={localClinicInfo?.heroImageUrl || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, heroImageUrl: e.target.value })} />
+                </div>
+
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Folder ID (รหัสโฟลเดอร์หลักเก็บเอกสาร)</label>
