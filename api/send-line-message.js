@@ -6,7 +6,8 @@ import path from 'path';
 function loadEnv() {
   const env = {
     VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
-    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY
+    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
   };
   
   if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
 
   try {
     const env = loadEnv();
+    const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
     const { type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients } = req.body;
 
     // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info)
@@ -54,12 +56,23 @@ export default async function handler(req, res) {
     let heroImageUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png';
 
     try {
-      const clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url&limit=1`, {
+      let clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url&limit=1`, {
         headers: {
-          'apikey': env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': 'Bearer ' + env.VITE_SUPABASE_ANON_KEY
+          'apikey': dbKey,
+          'Authorization': 'Bearer ' + dbKey
         }
       });
+      
+      // Fallback ถ้าคอลัมน์ hero_image_url ยังไม่ได้ถูกสร้างขึ้น
+      if (!clinicRes.ok) {
+        clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id&limit=1`, {
+          headers: {
+            'apikey': dbKey,
+            'Authorization': 'Bearer ' + dbKey
+          }
+        });
+      }
+
       if (clinicRes.ok) {
         const clinicData = await clinicRes.json();
         if (clinicData && clinicData[0]) {
@@ -89,8 +102,8 @@ export default async function handler(req, res) {
       try {
         const patientRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/patients?hn=eq.${patientHn}&select=line_user_id`, {
           headers: {
-            'apikey': env.VITE_SUPABASE_ANON_KEY,
-            'Authorization': 'Bearer ' + env.VITE_SUPABASE_ANON_KEY
+            'apikey': dbKey,
+            'Authorization': 'Bearer ' + dbKey
           }
         });
         if (patientRes.ok) {

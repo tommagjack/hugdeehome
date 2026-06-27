@@ -289,9 +289,17 @@
       let heroImageUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png';
       
       try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id,hero_image_url&limit=1`, {
+        let response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id,hero_image_url&limit=1`, {
           headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
         });
+        
+        // ถ้าคอลัมน์ hero_image_url ยังไม่มีในฐานข้อมูล (กรณีผู้ใช้ยังไม่ได้รัน SQL) ให้ดึงข้อมูลโดยไม่มีคอลัมน์นี้
+        if (!response.ok) {
+          response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id,phone,line_id&limit=1`, {
+            headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+          });
+        }
+        
         const data = await response.json();
         if (data && data[0]) {
           if (!liffId) liffId = data[0].liff_id;
