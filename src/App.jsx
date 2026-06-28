@@ -45,6 +45,12 @@ const isObjectEqual = (a, b) => {
 export default function App() {
   const [isSyncing, setIsSyncing] = useState(true);
   const hasLoadedRef = useRef(false);
+
+  // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน (เลื่อนขึ้นมาบนสุดเพื่อป้องกัน TDZ Error ใน Hook/Function อื่นๆ ที่ทำงานก่อนหน้า)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('hdh_logged_in_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [pendingSyncs, setPendingSyncs] = useState(() => {
     try {
       const saved = localStorage.getItem('hdh_pending_syncs');
@@ -644,10 +650,6 @@ export default function App() {
   }, [assessmentTemplates]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('hdh_logged_in_user');
-    return saved ? JSON.parse(saved) : null;
-  });
 
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -1648,7 +1650,54 @@ export default function App() {
 
           <button 
             className="btn btn-light" 
-            onClick={() => window.location.reload()} 
+            onClick={async () => {
+              setIsSyncing(true);
+              // Clear any stuck queues on manual refresh to prevent persistent blocking
+              localStorage.removeItem('hdh_pending_syncs');
+              setPendingSyncs([]);
+              
+              const success = await syncFromSupabase();
+              if (success === "empty_but_has_local") {
+                setIsSyncing(false);
+                Swal.fire({
+                  title: 'พบข้อมูลในเครื่องนี้!',
+                  text: 'ระบบตรวจพบประวัติคนไข้และประวัติเดิมในบราวเซอร์เครื่องนี้ แต่ฐานข้อมูลคลาวด์ Supabase ยังว่างเปล่า คุณต้องการย้ายข้อมูลขึ้นระบบออนไลน์หรือไม่?',
+                  icon: 'info',
+                  showCancelButton: true,
+                  confirmButtonText: 'โอนย้ายขึ้นออนไลน์ (แนะนำ)',
+                  cancelButtonText: 'ใช้งานในเครื่องไปก่อน',
+                  confirmButtonColor: 'var(--secondary)',
+                  cancelButtonColor: '#aaa',
+                  allowOutsideClick: false
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    triggerDirectMigration();
+                  }
+                });
+              } else if (success) {
+                refreshAllLocalStates();
+                Swal.fire({
+                  icon: 'success',
+                  title: 'รีเฟรชข้อมูลสำเร็จ',
+                  text: 'ดึงข้อมูลล่าสุดจากคลาวด์และล้างคิวงานที่ค้างเรียบร้อยแล้ว',
+                  toast: true,
+                  position: 'top-end',
+                  showConfirmButton: false,
+                  timer: 2000
+                });
+              } else {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'การเชื่อมต่อขัดข้อง',
+                  text: 'ไม่สามารถดึงข้อมูลล่าสุดได้ ระบบกำลังใช้ข้อมูลในเครื่อง',
+                  toast: true,
+                  position: 'top-end',
+                  showConfirmButton: false,
+                  timer: 2000
+                });
+              }
+              setIsSyncing(false);
+            }} 
             style={{ 
               display: 'flex', 
               alignItems: 'center', 

@@ -1118,7 +1118,27 @@ export default function Appointments({
               >
                 ก่อนหน้า
               </button>
-              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า {currentPage} / {maxPages}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>หน้า</span>
+                <select 
+                  value={currentPage} 
+                  onChange={(e) => setCurrentPage(Number(e.target.value))}
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.88rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  {Array.from({ length: maxPages }, (_, i) => i + 1).map(page => (
+                    <option key={page} value={page}>{page}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>/ {maxPages}</span>
+              </div>
               <button 
                 className="btn btn-light" 
                 disabled={currentPage === maxPages}

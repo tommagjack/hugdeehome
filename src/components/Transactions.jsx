@@ -125,6 +125,18 @@ export default function Transactions({
     setTransactions(prev => {
       const prevList = Array.isArray(prev) ? prev : [];
       
+      // Deduplicate by ID to clean up any historical duplicate entries in the state
+      const dedupedPrevList = [];
+      const seenIds = new Set();
+      prevList.forEach(t => {
+        if (t && t.id) {
+          if (!seenIds.has(t.id)) {
+            seenIds.add(t.id);
+            dedupedPrevList.push(t);
+          }
+        }
+      });
+      
       const paidReceipts = receipts.filter(r => r.status === 'ชำระเงินแล้ว');
       const validPayrolls = payrolls;
       
@@ -132,7 +144,7 @@ export default function Transactions({
       const activePayrollIds = new Set(validPayrolls.map(p => p.id));
       
       // กำจัดธุรกรรมที่ถูกลบหรือถูกยกเลิกแล้ว
-      const cleanedPrev = prevList.filter(t => {
+      const cleanedPrev = dedupedPrevList.filter(t => {
         if (t.id && t.id.startsWith('TX-RC-')) {
           const rId = t.refId || t.id.replace('TX-RC-', '');
           return activeReceiptIds.has(rId);
@@ -161,7 +173,11 @@ export default function Transactions({
         const cleanDate = r.date ? String(r.date).split('T')[0] : '';
         const txId = `TX-RC-${r.id}`;
         
-        const existingTx = uniquePrevMap.get(r.id) || uniquePrevMap.get(txId);
+        let foundKey = null;
+        if (uniquePrevMap.has(r.id)) foundKey = r.id;
+        else if (uniquePrevMap.has(txId)) foundKey = txId;
+
+        const existingTx = foundKey ? uniquePrevMap.get(foundKey) : null;
         if (existingTx) {
           const patient = patients.find(p => p.hn === r.hn);
           const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
@@ -173,12 +189,13 @@ export default function Transactions({
             existingTx.description !== expectedDesc ||
             existingTx.slipUrl !== (r.slipUrl || '')
           ) {
-            uniquePrevMap.set(r.id || txId, {
+            uniquePrevMap.set(foundKey, {
               ...existingTx,
               amount: r.totalAmount,
               date: cleanDate,
               description: expectedDesc,
-              slipUrl: r.slipUrl || ''
+              slipUrl: r.slipUrl || '',
+              refId: r.id
             });
             hasUpdates = true;
           }
@@ -213,18 +230,23 @@ export default function Transactions({
         }
         const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 
-        const existingTx = uniquePrevMap.get(p.id) || uniquePrevMap.get(txId);
+        let foundKey = null;
+        if (uniquePrevMap.has(p.id)) foundKey = p.id;
+        else if (uniquePrevMap.has(txId)) foundKey = txId;
+
+        const existingTx = foundKey ? uniquePrevMap.get(foundKey) : null;
         if (existingTx) {
           if (
             existingTx.amount !== p.netPay ||
             existingTx.date !== txDate ||
             existingTx.description !== expectedDesc
           ) {
-            uniquePrevMap.set(p.id || txId, {
+            uniquePrevMap.set(foundKey, {
               ...existingTx,
               amount: p.netPay,
               date: txDate,
-              description: expectedDesc
+              description: expectedDesc,
+              refId: p.id
             });
             hasUpdates = true;
           }
@@ -298,7 +320,7 @@ export default function Transactions({
 
         return matchesQuery && matchesYear && matchesMonth && matchesType;
       })
-      .sort((a, b) => new Date(b.date) - new Date(a.date) || b.id.localeCompare(a.id)); // เรียงวันที่ใหม่ไปเก่า
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || ''))); // เรียงวันที่ใหม่ไปเก่า
   }, [propTransactions, searchQuery, yearFilter, monthFilter, typeFilter]);
 
   // คำนวณยอดเงินรวม (รายรับ, รายจ่าย, คงเหลือสุทธิ)
@@ -418,8 +440,20 @@ export default function Transactions({
     const activeReceiptIds = new Set(paidReceipts.map(r => r.id));
     const activePayrollIds = new Set(validPayrolls.map(p => p.id));
 
+    // Deduplicate by ID to clean up any historical duplicate entries in the state
+    const dedupedTransactions = [];
+    const seenIds = new Set();
+    transactions.forEach(t => {
+      if (t && t.id) {
+        if (!seenIds.has(t.id)) {
+          seenIds.add(t.id);
+          dedupedTransactions.push(t);
+        }
+      }
+    });
+
     // ทำความสะอาดธุรกรรมที่ถูกลบหรือถูกยกเลิกแล้ว
-    const cleanedTransactions = transactions.filter(t => {
+    const cleanedTransactions = dedupedTransactions.filter(t => {
       if (t.id && t.id.startsWith('TX-RC-')) {
         const rId = t.refId || t.id.replace('TX-RC-', '');
         return activeReceiptIds.has(rId);
@@ -452,7 +486,11 @@ export default function Transactions({
       const cleanDate = r.date ? String(r.date).split('T')[0] : '';
       const txId = `TX-RC-${r.id}`;
       
-      const existingTx = uniquePrevMap.get(r.id) || uniquePrevMap.get(txId);
+      let foundKey = null;
+      if (uniquePrevMap.has(r.id)) foundKey = r.id;
+      else if (uniquePrevMap.has(txId)) foundKey = txId;
+
+      const existingTx = foundKey ? uniquePrevMap.get(foundKey) : null;
       if (existingTx) {
         const patient = patients.find(p => p.hn === r.hn);
         const patientName = patient ? `${patient.title}${patient.firstname} ${patient.lastname}` : `HN ${r.hn}`;
@@ -464,12 +502,13 @@ export default function Transactions({
           existingTx.description !== expectedDesc ||
           existingTx.slipUrl !== (r.slipUrl || '')
         ) {
-          uniquePrevMap.set(r.id || txId, {
+          uniquePrevMap.set(foundKey, {
             ...existingTx,
             amount: r.totalAmount,
             date: cleanDate,
             description: expectedDesc,
-            slipUrl: r.slipUrl || ''
+            slipUrl: r.slipUrl || '',
+            refId: r.id
           });
           updateCount++;
         }
@@ -507,18 +546,23 @@ export default function Transactions({
       }
       const expectedDesc = `เงินเดือน ${monthThaiToNum[p.month] || p.month} ของคุณ ${p.employeeName}`;
 
-      const existingTx = uniquePrevMap.get(p.id) || uniquePrevMap.get(txId);
+      let foundKey = null;
+      if (uniquePrevMap.has(p.id)) foundKey = p.id;
+      else if (uniquePrevMap.has(txId)) foundKey = txId;
+
+      const existingTx = foundKey ? uniquePrevMap.get(foundKey) : null;
       if (existingTx) {
         if (
           existingTx.amount !== p.netPay ||
           existingTx.date !== txDate ||
           existingTx.description !== expectedDesc
         ) {
-          uniquePrevMap.set(p.id || txId, {
+          uniquePrevMap.set(foundKey, {
             ...existingTx,
             amount: p.netPay,
             date: txDate,
-            description: expectedDesc
+            description: expectedDesc,
+            refId: p.id
           });
           updateCount++;
         }
@@ -953,9 +997,27 @@ export default function Transactions({
             >
               ก่อนหน้า
             </button>
-            <span style={{ alignSelf: 'center', fontSize: '0.875rem', fontWeight: 600, color: 'var(--dark-light)', padding: '0 0.5rem' }}>
-              หน้า {currentPage} / {totalPages}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', alignSelf: 'center', padding: '0 0.5rem' }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--dark-light)' }}>หน้า</span>
+              <select 
+                value={currentPage} 
+                onChange={(e) => handlePageChange(Number(e.target.value))}
+                style={{
+                  padding: '0.2rem 0.5rem',
+                  fontSize: '0.85rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <option key={page} value={page}>{page}</option>
+                ))}
+              </select>
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--dark-light)' }}>/ {totalPages}</span>
+            </div>
             <button 
               className="btn btn-light" 
               onClick={() => handlePageChange(currentPage + 1)} 

@@ -831,8 +831,26 @@ export default function DevelopmentalAssessment({
       {/* Pagination Controls */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: 'var(--dark-light)' }}>
-            แสดงหน้า {currentPage} จากทั้งหมด {totalPages} หน้า
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+            <span>แสดงหน้า</span>
+            <select 
+              value={currentPage} 
+              onChange={(e) => setCurrentPage(Number(e.target.value))}
+              style={{
+                padding: '0.15rem 0.4rem',
+                fontSize: '0.85rem',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                backgroundColor: 'white',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <option key={page} value={page}>{page}</option>
+              ))}
+            </select>
+            <span>จากทั้งหมด {totalPages} หน้า</span>
           </div>
           <div style={{ display: 'flex', gap: '0.25rem' }}>
             <button 

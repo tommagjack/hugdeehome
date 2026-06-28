@@ -1008,7 +1008,7 @@ export default function OPD({
                     แสดง {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRecords.length)} จากทั้งหมด {filteredRecords.length}
                   </span>
                   
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button 
                       className="btn btn-light btn-icon-only"
                       disabled={currentPage === 1}
@@ -1017,16 +1017,26 @@ export default function OPD({
                       <ChevronLeft size={16} />
                     </button>
                     
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <button 
-                        key={page} 
-                        className={`btn ${currentPage === page ? 'btn-secondary' : 'btn-light'}`}
-                        style={{ padding: '0.4rem 0.8rem', fontWeight: 600 }}
-                        onClick={() => setCurrentPage(page)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <select 
+                        value={currentPage} 
+                        onChange={(e) => setCurrentPage(Number(e.target.value))}
+                        style={{
+                          padding: '0.35rem 0.5rem',
+                          fontSize: '0.85rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          fontWeight: 600
+                        }}
                       >
-                        {page}
-                      </button>
-                    ))}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                          <option key={page} value={page}>หน้า {page}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--dark-light)', fontWeight: 600 }}>/ {totalPages}</span>
+                    </div>
                     
                     <button 
                       className="btn btn-light btn-icon-only"
