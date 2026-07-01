@@ -1758,6 +1758,7 @@ export default function App() {
             onUpdateAppointment={handleUpdateAppointment}
             currentUser={currentUser}
             clinicInfo={clinicInfo}
+            receipts={receipts}
           />
         )}
 

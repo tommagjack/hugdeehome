@@ -41,7 +41,8 @@ export default function Appointments({
   onDeleteAppointment,
   onUpdateAppointment,
   currentUser,
-  clinicInfo
+  clinicInfo,
+  receipts = []
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
@@ -187,11 +188,52 @@ export default function Appointments({
 
 
 
+  // คำนวณชั่วโมงสอนคงเหลือของคนไข้ (ยอดซื้อสะสม - ยอดใช้สะสม)
+  const getPatientCourseBalance = (hn) => {
+    if (!receipts) return 0;
+    
+    // ยอดซื้อสะสม (เฉพาะบิลชำระเงินแล้ว)
+    const patientReceipts = receipts.filter(r => r.hn === hn && r.status === 'ชำระเงินแล้ว');
+    let totalPurchased = 0;
+    patientReceipts.forEach(r => {
+      r.items.forEach(item => {
+        if (item.type === 'บริการ') {
+          if (item.code === 'TRANSFER_OUT') {
+            totalPurchased -= item.quantity;
+          } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
+            totalPurchased += item.quantity;
+          } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+            // ไม่เอา ประเมินพัฒนาการครั้งแรกมานับ
+          } else {
+            const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+            totalPurchased += item.quantity * sessionsPerUnit;
+          }
+        }
+      });
+    });
+
+    // ยอดใช้สะสม (สถานะ รับบริการแล้ว)
+    const totalUsed = appointments.filter(
+      app => String(app.hn) === String(hn) && app.status === 'รับบริการแล้ว' && app.type === 'ฝึกกระตุ้นพัฒนาการ'
+    ).length;
+    
+    return totalPurchased - totalUsed;
+  };
+
   // 5. บันทึกคิวจอง
   const handleBooking = (e) => {
     e.preventDefault();
     if (!selectedHn) {
       Swal.fire({ icon: 'warning', title: 'กรุณาเลือกผู้รับบริการ', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    if (appointmentType === 'ฝึกกระตุ้นพัฒนาการ' && getPatientCourseBalance(selectedHn) <= 0) {
+      Swal.fire({
+        icon: 'error',
+        title: 'จำนวนครั้ง คอร์สฝึกฯ คงเหลือไม่เพียงพอ',
+        text: 'ไม่สามารถทำรายการจองนัดหมายได้เนื่องจากจำนวนครั้งคอร์สฝึกหมดลงแล้ว กรุณาซื้อคอร์สเพิ่มก่อนทำการจองนัดหมาย',
+        confirmButtonColor: 'var(--secondary)'
+      });
       return;
     }
     if (!selectedTimeSlot) {
@@ -781,6 +823,15 @@ export default function Appointments({
                                  setSelectedHn(p.hn);
                                  setPatientSearchText(`HN: ${p.hn} | ${formatPatientNickname(p.nickname)} (${p.title}${p.firstname} ${p.lastname})`);
                                  setShowPatientDropdown(false);
+
+                                 if (appointmentType === 'ฝึกกระตุ้นพัฒนาการ' && getPatientCourseBalance(p.hn) <= 0) {
+                                   Swal.fire({
+                                     icon: 'warning',
+                                     title: 'จำนวนครั้ง คอร์สฝึกฯ คงเหลือไม่เพียงพอ',
+                                     text: `ผู้รับบริการรายนี้มีชั่วโมงสะสมคงเหลือ 0 ครั้ง กรุณาซื้อคอร์สเพิ่มเติมก่อนทำการนัดหมาย`,
+                                     confirmButtonColor: 'var(--secondary)'
+                                   });
+                                 }
                                }}
                              >
                                HN: {p.hn} | {formatPatientNickname(p.nickname)} ({p.title}${p.firstname} ${p.lastname})
@@ -797,7 +848,18 @@ export default function Appointments({
                   <select 
                     className="form-control" 
                     value={appointmentType} 
-                    onChange={(e) => setAppointmentType(e.target.value)}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setAppointmentType(newType);
+                      if (newType === 'ฝึกกระตุ้นพัฒนาการ' && selectedHn && getPatientCourseBalance(selectedHn) <= 0) {
+                        Swal.fire({
+                          icon: 'warning',
+                          title: 'จำนวนครั้ง คอร์สฝึกฯ คงเหลือไม่เพียงพอ',
+                          text: `ผู้รับบริการรายนี้มีชั่วโมงสะสมคงเหลือ 0 ครั้ง กรุณาซื้อคอร์สเพิ่มเติมก่อนทำการนัดหมาย`,
+                          confirmButtonColor: 'var(--secondary)'
+                        });
+                      }
+                    }}
                     required
                   >
                     <option value="ฝึกกระตุ้นพัฒนาการ">ฝึกกระตุ้นพัฒนาการ</option>
