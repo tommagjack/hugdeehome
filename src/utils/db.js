@@ -431,6 +431,11 @@ export const syncFromSupabase = async () => {
       const pk = getPrimaryKey(tableName);
 
       if (pk) {
+        // 1. อ่านข้อมูลเดิมใน LocalStorage ก่อนโดนทับ
+        const localRaw = localStorage.getItem(key);
+        const localList = localRaw ? JSON.parse(localRaw) : [];
+
+        // 2. ดึงข้อมูลจาก pendingSyncs
         const tableSyncs = pendingSyncs.filter(item => item && item.key === key);
         const upsertMap = new Map();
         const deleteSet = new Set();
@@ -453,6 +458,35 @@ export const syncFromSupabase = async () => {
             }
           }
         });
+
+        // 3. ตรวจหาประวัติงานที่ตกค้างในเครื่อง (ไม่อยู่ใน Supabase และไม่อยู่ในคิวลบหรือคิวส่งปัจจุบัน)
+        const dbIds = new Set(mappedData.map(item => String(item[pk])));
+        const recoveredItems = [];
+
+        if (Array.isArray(localList) && ['hdh_receipts', 'hdh_patients', 'hdh_appointments', 'hdh_assessments', 'hdh_opd_records'].includes(key)) {
+          localList.forEach(localItem => {
+            if (localItem && localItem[pk] !== undefined && localItem[pk] !== null) {
+              const idStr = String(localItem[pk]);
+              if (!dbIds.has(idStr) && !deleteSet.has(idStr) && !upsertMap.has(idStr)) {
+                // รายการนี้อยู่แค่ในเครื่องนี้และยังไม่เคยส่งขึ้นคลาวด์! กู้คืนและเตรียมนำส่ง
+                recoveredItems.push(localItem);
+                upsertMap.set(idStr, localItem);
+              }
+            }
+          });
+        }
+
+        // หากมีรายการกู้คืน ให้สร้างคิวซิงค์ใหม่
+        if (recoveredItems.length > 0) {
+          console.log(`Recovered ${recoveredItems.length} unsynced items for ${key}`);
+          const newSyncItem = {
+            key,
+            delta: { toUpsert: recoveredItems },
+            timestamp: new Date().toISOString()
+          };
+          pendingSyncs.push(newSyncItem);
+          localStorage.setItem('hdh_pending_syncs', JSON.stringify(pendingSyncs));
+        }
 
         if (upsertMap.size > 0 || deleteSet.size > 0) {
           const merged = [];
