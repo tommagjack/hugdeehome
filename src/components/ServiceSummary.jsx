@@ -17,12 +17,47 @@ export default function ServiceSummary({
   therapists,
   currentUser
 }) {
-  // สเปก: กำหนดค่าเริ่มต้นเป็น วันที่ 26 ของเดือนก่อน ถึง วันที่ 25 ของเดือนปัจจุบัน (รอบเงินเดือน)
-  // อิงวันที่ของระบบ: 5 มิถุนายน 2026
-  // เดือนก่อนหน้า: พฤษภาคม (05) -> เริ่มวันที่ 26 พ.ค. 2026
-  // เดือนปัจจุบัน: มิถุนายน (06) -> สิ้นสุดวันที่ 25 มิ.ย. 2026
-  const [startDate, setStartDate] = useState('2026-05-26');
-  const [endDate, setEndDate] = useState('2026-06-25');
+  // คำนวณรอบเงินเดือนปัจจุบันโดยอัตโนมัติ (วันที่ 26 ของเดือนก่อน ถึง วันที่ 25 ของเดือนปัจจุบัน)
+  const defaultDates = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth(); // 0 = ม.ค.
+    const date = today.getDate();
+
+    let startYear, startMonth, endYear, endMonth;
+
+    if (date <= 25) {
+      // รอบบิลสิ้นสุดในวันที่ 25 ของเดือนนี้
+      endYear = year;
+      endMonth = month;
+      
+      const prev = new Date(year, month - 1, 26);
+      startYear = prev.getFullYear();
+      startMonth = prev.getMonth();
+    } else {
+      // รอบบิลสิ้นสุดในวันที่ 25 ของเดือนถัดไป
+      const next = new Date(year, month + 1, 25);
+      endYear = next.getFullYear();
+      endMonth = next.getMonth();
+      
+      startYear = year;
+      startMonth = month;
+    }
+
+    const format = (y, m, d) => {
+      const mm = String(m + 1).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      return `${y}-${mm}-${dd}`;
+    };
+
+    return {
+      start: format(startYear, startMonth, 26),
+      end: format(endYear, endMonth, 25)
+    };
+  }, []);
+
+  const [startDate, setStartDate] = useState(defaultDates.start);
+  const [endDate, setEndDate] = useState(defaultDates.end);
   
   // สถานะเปิด Modal รายละเอียด
   const [showDetailModal, setShowDetailModal] = useState(false);
