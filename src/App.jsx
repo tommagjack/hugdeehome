@@ -70,7 +70,7 @@ export default function App() {
     if (currentUser && currentUser.role !== 'Admin' && pendingSyncs.length > 0) {
       const adminOnlyKeys = [
         'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
-        'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+        'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 
         'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
       ];
       const filtered = pendingSyncs.filter(item => !adminOnlyKeys.includes(item.key));
@@ -486,7 +486,7 @@ export default function App() {
     // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase (ป้องกันความปลอดภัย RLS)
     const adminOnlyKeys = [
       'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
-      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 
       'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
     ];
     if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {
@@ -542,7 +542,7 @@ export default function App() {
     // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase
     const adminOnlyKeys = [
       'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
-      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 'hdh_receipts', 
+      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 
       'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
     ];
     if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {

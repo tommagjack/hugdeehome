@@ -412,6 +412,9 @@ export const syncFromSupabase = async () => {
       }
     }
     
+    const pendingSyncsRaw = localStorage.getItem('hdh_pending_syncs');
+    const pendingSyncs = pendingSyncsRaw ? JSON.parse(pendingSyncsRaw) : [];
+
     results.forEach(({ key, data }) => {
       // แปลงข้อมูลจาก snake_case กลับมาเป็น camelCase
       const mappedData = data.map(row => {
@@ -421,16 +424,73 @@ export const syncFromSupabase = async () => {
         }
         return mapped;
       });
+
+      // ดึงข้อมูลการซิงค์ที่ค้างสำหรับตารางนี้มาควบรวม (Merge) เพื่อป้องกันข้อมูลใหม่ในเครื่องสูญหาย
+      let finalData = mappedData;
+      const tableName = TABLE_MAP[key];
+      const pk = getPrimaryKey(tableName);
+
+      if (pk) {
+        const tableSyncs = pendingSyncs.filter(item => item && item.key === key);
+        const upsertMap = new Map();
+        const deleteSet = new Set();
+
+        tableSyncs.forEach(s => {
+          if (s.delta) {
+            if (Array.isArray(s.delta.toUpsert)) {
+              s.delta.toUpsert.forEach(item => {
+                if (item && item[pk] !== undefined && item[pk] !== null) {
+                  upsertMap.set(String(item[pk]), item);
+                }
+              });
+            }
+            if (Array.isArray(s.delta.toDelete)) {
+              s.delta.toDelete.forEach(id => {
+                if (id !== undefined && id !== null) {
+                  deleteSet.add(String(id));
+                }
+              });
+            }
+          }
+        });
+
+        if (upsertMap.size > 0 || deleteSet.size > 0) {
+          const merged = [];
+          const dbItemIds = new Set();
+
+          mappedData.forEach(item => {
+            const idStr = String(item[pk]);
+            if (deleteSet.has(idStr)) {
+              return; // ข้าม (จำลองว่าถูกลบแล้วในเครื่องนี้)
+            }
+            if (upsertMap.has(idStr)) {
+              merged.push(upsertMap.get(idStr)); // ใช้ข้อมูลใหม่กว่าในเครื่อง
+              dbItemIds.add(idStr);
+            } else {
+              merged.push(item);
+              dbItemIds.add(idStr);
+            }
+          });
+
+          // แทรกรายการใหม่ที่ยังไม่เคยขึ้น Supabase
+          for (const [idStr, localItem] of upsertMap.entries()) {
+            if (!dbItemIds.has(idStr)) {
+              merged.push(localItem);
+            }
+          }
+          finalData = merged;
+        }
+      }
       
       // บันทึกลง LocalStorage
       if (key === KEYS.CLINIC_INFO) {
-        const infoObj = mappedData[0] || mock.INITIAL_CLINIC_INFO;
+        const infoObj = finalData[0] || mock.INITIAL_CLINIC_INFO;
         localStorage.setItem(key, JSON.stringify(infoObj));
       } else if (key === KEYS.SALARY_RULES) {
-        const rulesObj = mappedData[0] || mock.INITIAL_SALARY_RULES;
+        const rulesObj = finalData[0] || mock.INITIAL_SALARY_RULES;
         localStorage.setItem(key, JSON.stringify(rulesObj));
       } else {
-        localStorage.setItem(key, JSON.stringify(mappedData));
+        localStorage.setItem(key, JSON.stringify(finalData));
       }
     });
     
