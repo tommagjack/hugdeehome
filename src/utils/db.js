@@ -463,7 +463,7 @@ export const syncFromSupabase = async () => {
         const dbIds = new Set(mappedData.map(item => String(item[pk])));
         const recoveredItems = [];
 
-        if (Array.isArray(localList) && ['hdh_receipts', 'hdh_patients', 'hdh_appointments', 'hdh_assessments', 'hdh_opd_records'].includes(key)) {
+        if (Array.isArray(localList) && ['hdh_receipts', 'hdh_patients', 'hdh_appointments', 'hdh_assessments', 'hdh_opd_records', 'hdh_referrals', 'hdh_transactions', 'hdh_payrolls', 'hdh_rewards', 'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays'].includes(key)) {
           localList.forEach(localItem => {
             if (localItem && localItem[pk] !== undefined && localItem[pk] !== null) {
               const idStr = String(localItem[pk]);
