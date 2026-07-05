@@ -1725,6 +1725,7 @@ export default function App() {
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             currentUser={currentUser}
             holidays={holidays}
+            promotions={promotions}
           />
         )}
 

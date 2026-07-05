@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   LayoutDashboard,
   Users, 
@@ -6,7 +6,8 @@ import {
   CalendarDays, 
   CircleDollarSign, 
   AlertTriangle,
-  ChevronRight
+  ChevronRight,
+  Tag
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { formatPatientNickname, formatTherapistName, getLocalDateString } from '../utils/format';
@@ -18,7 +19,8 @@ export default function Dashboard({
   therapists, 
   onUpdateAppointmentStatus,
   currentUser,
-  holidays = []
+  holidays = [],
+  promotions = []
 }) {
   const todayLocalDateString = getLocalDateString(new Date());
 
@@ -27,6 +29,7 @@ export default function Dashboard({
   const [availDate, setAvailDate] = useState(todayLocalDateString);
   const [availTherapistId, setAvailTherapistId] = useState('All');
   const [availPage, setAvailPage] = useState(1);
+  const [promoPage, setPromoPage] = useState(1);
 
   // คำนวณรหัสครูผู้ใช้งานปัจจุบันเพื่อล็อกสิทธิ์ OT
   const myTherapistId = useMemo(() => {
@@ -276,6 +279,41 @@ export default function Dashboard({
   React.useEffect(() => {
     setAlertPage(1);
   }, [courseAlerts.length]);
+
+  // คำนวณโปรโมชั่นที่มีสถานะ Active
+  const activePromotions = useMemo(() => {
+    if (!promotions) return [];
+    const list = promotions.map(p => {
+      const usedCount = receipts ? receipts.filter(r => r.promotionId === p.code && r.status !== 'ยกเลิก').length : 0;
+      const maxUses = parseInt(p.maxUses, 10) || 0;
+      const remaining = Math.max(0, maxUses - usedCount);
+      const isExpired = !(todayLocalDateString >= p.startDate && todayLocalDateString <= p.endDate);
+      const isActive = !isExpired && remaining > 0;
+      return {
+        ...p,
+        usedCount,
+        remaining,
+        isActive
+      };
+    }).filter(p => p.isActive);
+
+    // เรียงจากจำนวนสิทธิ์คงเหลือจากมากไปน้อย
+    return list.sort((a, b) => b.remaining - a.remaining);
+  }, [promotions, receipts, todayLocalDateString]);
+
+  const promoPerPage = 10;
+  const maxPromoPages = useMemo(() => {
+    return Math.ceil(activePromotions.length / promoPerPage) || 1;
+  }, [activePromotions]);
+
+  const paginatedPromotions = useMemo(() => {
+    const startIndex = (promoPage - 1) * promoPerPage;
+    return activePromotions.slice(startIndex, startIndex + promoPerPage);
+  }, [activePromotions, promoPage]);
+
+  React.useEffect(() => {
+    setPromoPage(1);
+  }, [activePromotions.length]);
 
   const handleStatusChange = (appId, newStatus) => {
     onUpdateAppointmentStatus(appId, newStatus);
@@ -563,78 +601,163 @@ export default function Dashboard({
 
         </div>
 
-        {/* 6. แจ้งเตือนคอร์สใกล้หมด */}
-        <div className="card-3xl">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-            <AlertTriangle color="var(--danger)" size={20} />
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>เตือนคอร์สใกล้หมด</h2>
-          </div>
+        {/* คอลัมน์ขวา: แจ้งเตือนโปรโมชั่น และ เตือนคอร์สใกล้หมด */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
-            แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง (เรียงจากจำนวนคงเหลือน้อยไปมาก)
-          </p>
-
-          {courseAlerts.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--success)', fontSize: '0.9rem' }}>
-              ✓ ไม่มีคิวลูกค้าคอร์สใกล้หมด
+          {/* แจ้งเตือนโปรโมชั่น */}
+          <div className="card-3xl">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <Tag color="var(--primary)" size={20} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>แจ้งเตือนโปรโมชั่นใช้งานอยู่ (Active)</h2>
             </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {paginatedAlerts.map((alert) => (
-                  <div 
-                    key={alert.hn}
-                    style={{ 
-                      border: '1px solid var(--border-light)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '0.75rem',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      backgroundColor: alert.balance <= 0 ? 'var(--danger-light)' : 'var(--warning-light)'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatPatientNickname(alert.nickname)} ({alert.name})</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {alert.hn} | ซื้อ {alert.purchased} ใช้ {alert.used}</div>
-                    </div>
-                    
-                    <span className={`badge ${alert.balance <= 0 ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.85rem', padding: '0.3rem 0.6rem' }}>
-                      คงเหลือ {alert.balance} ครั้ง
-                    </span>
-                  </div>
-                ))}
-              </div>
+            
+            <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
+              แสดงโปรโมชั่นที่เปิดใช้งานอยู่ ณ วันปัจจุบัน และแสดงสิทธิ์คงเหลือที่ใช้ได้ (เรียงจากสิทธิ์มากไปน้อย)
+            </p>
 
-              {maxAlertPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '0.5rem' }}>
-                  <button 
-                    className="btn btn-light" 
-                    disabled={alertPage === 1}
-                    onClick={() => setAlertPage(alertPage - 1)}
-                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                    type="button"
-                  >
-                    ก่อนหน้า
-                  </button>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{alertPage} / {maxAlertPages}</span>
-                  <button 
-                    className="btn btn-light" 
-                    disabled={alertPage === maxAlertPages}
-                    onClick={() => setAlertPage(alertPage + 1)}
-                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                    type="button"
-                  >
-                    ถัดไป
-                  </button>
+            {activePromotions.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--dark-light)', fontSize: '0.9rem' }}>
+                ไม่มีโปรโมชั่นที่มีสถานะ Active ในขณะนี้
+              </div>
+            ) : (
+              <>
+                <div className="table-container" style={{ margin: 0, border: 'none', boxShadow: 'none' }}>
+                  <table className="hdh-table" style={{ fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: '0.5rem 0.75rem' }}>รหัส</th>
+                        <th style={{ padding: '0.5rem 0.75rem' }}>ชื่อโปรโมชั่น</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', width: '90px' }}>คงเหลือ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedPromotions.map((promo) => (
+                        <tr key={promo.code}>
+                          <td style={{ fontWeight: 700, fontFamily: 'monospace', padding: '0.6rem 0.75rem' }}>{promo.code}</td>
+                          <td style={{ padding: '0.6rem 0.75rem' }}>
+                            <div style={{ fontWeight: 600 }}>{promo.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }} title={promo.description}>
+                              {promo.description || '-'}
+                            </div>
+                          </td>
+                          <td style={{ 
+                            textAlign: 'center', 
+                            fontWeight: 700, 
+                            padding: '0.6rem 0.75rem',
+                            color: promo.remaining <= 2 ? 'var(--danger)' : 'inherit'
+                          }}>
+                            {promo.remaining} สิทธิ์
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
 
-              <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '0.5rem' }}>
-                แสดง {courseAlerts.length === 0 ? 0 : (alertPage - 1) * alertsPerPage + 1} - {Math.min(alertPage * alertsPerPage, courseAlerts.length)} จากทั้งหมด {courseAlerts.length} รายการ
+                {maxPromoPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '0.5rem' }}>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={promoPage === 1}
+                      onClick={() => setPromoPage(promoPage - 1)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                      type="button"
+                    >
+                      ก่อนหน้า
+                    </button>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{promoPage} / {maxPromoPages}</span>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={promoPage === maxPromoPages}
+                      onClick={() => setPromoPage(promoPage + 1)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                      type="button"
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '0.5rem' }}>
+                  แสดง {activePromotions.length === 0 ? 0 : (promoPage - 1) * promoPerPage + 1} - {Math.min(promoPage * promoPerPage, activePromotions.length)} จากทั้งหมด {activePromotions.length} รายการ
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 6. แจ้งเตือนคอร์สใกล้หมด */}
+          <div className="card-3xl">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <AlertTriangle color="var(--danger)" size={20} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>เตือนคอร์สใกล้หมด</h2>
+            </div>
+            
+            <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
+              แสดงลูกค้า Active ที่มียอดคอร์สคงเหลือ ≤ 2 ครั้ง (เรียงจากจำนวนคงเหลือน้อยไปมาก)
+            </p>
+
+            {courseAlerts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--success)', fontSize: '0.9rem' }}>
+                ✓ ไม่มีคิวลูกค้าคอร์สใกล้หมด
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {paginatedAlerts.map((alert) => (
+                    <div 
+                      key={alert.hn}
+                      style={{ 
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '0.75rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: alert.balance <= 0 ? 'var(--danger-light)' : 'var(--warning-light)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatPatientNickname(alert.nickname)} ({alert.name})</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {alert.hn} | ซื้อ {alert.purchased} ใช้ {alert.used}</div>
+                      </div>
+                      
+                      <span className={`badge ${alert.balance <= 0 ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.85rem', padding: '0.3rem 0.6rem' }}>
+                        คงเหลือ {alert.balance} ครั้ง
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {maxAlertPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '0.5rem' }}>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={alertPage === 1}
+                      onClick={() => setAlertPage(alertPage - 1)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                      type="button"
+                    >
+                      ก่อนหน้า
+                    </button>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{alertPage} / {maxAlertPages}</span>
+                    <button 
+                      className="btn btn-light" 
+                      disabled={alertPage === maxAlertPages}
+                      onClick={() => setAlertPage(alertPage + 1)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                      type="button"
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '0.5rem' }}>
+                  แสดง {courseAlerts.length === 0 ? 0 : (alertPage - 1) * alertsPerPage + 1} - {Math.min(alertPage * alertsPerPage, courseAlerts.length)} จากทั้งหมด {courseAlerts.length} รายการ
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
