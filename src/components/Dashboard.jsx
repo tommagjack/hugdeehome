@@ -297,8 +297,8 @@ export default function Dashboard({
       };
     }).filter(p => p.isActive);
 
-    // เรียงจากจำนวนสิทธิ์คงเหลือจากมากไปน้อย
-    return list.sort((a, b) => b.remaining - a.remaining);
+    // เรียงจากจำนวนสิทธิ์คงเหลือจากน้อยไปมาก
+    return list.sort((a, b) => a.remaining - b.remaining);
   }, [promotions, receipts, todayLocalDateString]);
 
   const promoPerPage = 10;
@@ -612,7 +612,7 @@ export default function Dashboard({
             </div>
             
             <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', marginBottom: '1rem' }}>
-              แสดงโปรโมชั่นที่เปิดใช้งานอยู่ ณ วันปัจจุบัน และแสดงสิทธิ์คงเหลือที่ใช้ได้ (เรียงจากสิทธิ์มากไปน้อย)
+              แสดงโปรโมชั่นที่เปิดใช้งานอยู่ ณ วันปัจจุบัน และแสดงสิทธิ์คงเหลือที่ใช้ได้ (เรียงจากสิทธิ์น้อยไปมาก)
             </p>
 
             {activePromotions.length === 0 ? (
