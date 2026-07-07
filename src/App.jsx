@@ -1652,9 +1652,10 @@ export default function App() {
             className="btn btn-light" 
             onClick={async () => {
               setIsSyncing(true);
-              // Clear any stuck queues on manual refresh to prevent persistent blocking
-              localStorage.removeItem('hdh_pending_syncs');
-              setPendingSyncs([]);
+              // พยายามอัปโหลดคิวข้อมูลค้างส่งขึ้นระบบออนไลน์ก่อนเพื่อไม่ให้ข้อมูลสูญหาย
+              if (pendingSyncs.length > 0) {
+                await processPendingSyncs();
+              }
               
               const success = await syncFromSupabase();
               if (success === "empty_but_has_local") {
