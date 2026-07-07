@@ -474,6 +474,120 @@ export default function App() {
     return () => window.removeEventListener('online', handleOnline);
   }, [pendingSyncs]);
 
+  // 1.4 ระบบซิงค์ข้อมูลแบบเรียลไทม์ผ่าน Supabase Realtime (Instant Sync Across Devices)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log("Initializing Supabase Realtime channels for instant synchronization...");
+
+    const tablesToListen = [
+      { table: 'patients', pk: 'hn', setState: setPatients, ref: lastPatientsRef, dbSet: db.setPatients },
+      { table: 'appointments', pk: 'id', setState: setAppointments, ref: lastAppointmentsRef, dbSet: db.setAppointments },
+      { table: 'receipts', pk: 'id', setState: setReceipts, ref: lastReceiptsRef, dbSet: db.setReceipts },
+      { table: 'referrals', pk: 'id', setState: setReferrals, ref: lastReferralsRef, dbSet: db.setReferrals },
+      { table: 'opd_records', pk: 'id', setState: setOpdRecords, ref: lastOpdRecordsRef, dbSet: db.setOpdRecords },
+      { table: 'assessments', pk: 'id', setState: setAssessments, ref: lastAssessmentsRef, dbSet: db.setAssessments },
+      { table: 'transactions', pk: 'id', setState: setTransactions, ref: lastTransactionsRef, dbSet: db.setTransactions },
+      { table: 'promotions', pk: 'code', setState: setPromotions, ref: lastPromotionsRef, dbSet: db.setPromotions },
+      { table: 'rewards', pk: 'code', setState: setRewards, ref: lastRewardsRef, dbSet: db.setRewards },
+      { table: 'bank_accounts', pk: 'id', setState: setBankAccounts, ref: lastBankAccountsRef, dbSet: db.setBankAccounts },
+      { table: 'holidays', pk: 'id', setState: setHolidays, ref: lastHolidaysRef, dbSet: db.setHolidays },
+      { table: 'users', pk: 'username', setState: setUsers, ref: lastUsersRef, dbSet: db.setUsers },
+      { table: 'therapists', pk: 'id', setState: setTherapists, ref: lastTherapistsRef, dbSet: db.setTherapists },
+      { table: 'services', pk: 'code', setState: setServices, ref: lastServicesRef, dbSet: db.setServices },
+      { table: 'assessment_templates', pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates }
+    ];
+
+    const toCamelCase = (str) => {
+      if (str === 'snap_iv') return 'snapIV';
+      return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
+    };
+
+    const safeJsonParse = (val) => {
+      if (typeof val === 'string') {
+        let trimmed = val.trim();
+        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+          try { trimmed = JSON.parse(trimmed); } catch (e) {}
+        }
+        if (typeof trimmed === 'string') {
+          if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+            try { return JSON.parse(trimmed); } catch (e) { return val; }
+          }
+        } else {
+          return trimmed;
+        }
+      }
+      return val;
+    };
+
+    const mapDatabaseRowToState = (row) => {
+      if (!row) return null;
+      const mapped = {};
+      for (const k in row) {
+        mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+      }
+      return mapped;
+    };
+
+    const channels = tablesToListen.map(t => {
+      return supabase
+        .channel(`realtime-${t.table}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: t.table
+          },
+          (payload) => {
+            console.log(`[Realtime postgres_changes] Table ${t.table}:`, payload.eventType, payload.new, payload.old);
+            
+            t.setState(currentState => {
+              let updatedList = Array.isArray(currentState) ? [...currentState] : [];
+              const pk = t.pk;
+
+              if (payload.eventType === 'INSERT') {
+                const newRecord = mapDatabaseRowToState(payload.new);
+                if (newRecord) {
+                  const exists = updatedList.some(item => item && String(item[pk]) === String(newRecord[pk]));
+                  if (!exists) {
+                    updatedList.push(newRecord);
+                  }
+                }
+              } else if (payload.eventType === 'UPDATE') {
+                const updatedRecord = mapDatabaseRowToState(payload.new);
+                if (updatedRecord) {
+                  updatedList = updatedList.map(item => 
+                    (item && String(item[pk]) === String(updatedRecord[pk])) ? updatedRecord : item
+                  );
+                }
+              } else if (payload.eventType === 'DELETE') {
+                const deletedRecord = payload.old;
+                if (deletedRecord && deletedRecord[pk] !== undefined && deletedRecord[pk] !== null) {
+                  updatedList = updatedList.filter(item => 
+                    item && String(item[pk]) !== String(deletedRecord[pk])
+                  );
+                }
+              }
+
+              // บันทึกความเปลี่ยนแปลงลงใน LocalStorage
+              t.dbSet(updatedList);
+              // อัปเดต Ref ทันทีเพื่อป้องกันไม่ให้ handleSyncDelta ตรวจเจอความต่างแล้วเขียนกลับ Supabase ซ้ำ
+              t.ref.current = updatedList;
+
+              return updatedList;
+            });
+          }
+        )
+        .subscribe();
+    });
+
+    return () => {
+      console.log("Cleaning up Supabase Realtime channels...");
+      channels.forEach(ch => ch.unsubscribe());
+    };
+  }, [currentUser]);
+
   const handleSyncDelta = async (key, pk, newValue, ref, setDbFunc) => {
     // 1. บันทึกลง LocalStorage เสมอเพื่อความเสถียรของระบบออฟไลน์
     setDbFunc(newValue);
