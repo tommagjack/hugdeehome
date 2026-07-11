@@ -11,7 +11,8 @@ import {
   Calendar,
   Trash2,
   Download,
-  Upload
+  Upload,
+  AlertCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
@@ -70,6 +71,14 @@ export default function ReceiptHistory({
   const [editItems, setEditItems] = useState([]);
   const [editVoidReason, setEditVoidReason] = useState('');
   const [editRewardDiscountAmount, setEditRewardDiscountAmount] = useState(0);
+  const [editReason, setEditReason] = useState('');
+
+  // ฟังก์ชันดึงประวัติการยกเลิก/แก้ไขจากอาร์เรย์ items
+  const getAuditInfo = (r) => {
+    if (!r || !r.items) return {};
+    const auditItem = r.items.find(it => it && it.isAudit);
+    return auditItem || {};
+  };
 
   // ซิงค์คำค้นตาม editHn
   React.useEffect(() => {
@@ -106,8 +115,14 @@ export default function ReceiptHistory({
     setEditDiscountValue(receipt.discountValue || 0);
     setEditDiscountType(receipt.discountType || 'flat');
     setEditDiscountReason(receipt.discountReason || '');
-    setEditItems(receipt.items ? receipt.items.map(it => ({ ...it })) : []);
-    setEditVoidReason(receipt.voidReason || '');
+    // กรองเอา Audit Item ออกเมื่อนำเข้าตะกร้าแก้ไข
+    setEditItems(receipt.items ? receipt.items.filter(it => it && !it.isAudit).map(it => ({ ...it })) : []);
+    
+    // ดึงข้อมูลประวัติการยกเลิกหรือแก้ไขเดิม
+    const audit = getAuditInfo(receipt);
+    setEditVoidReason(audit.voidReason || receipt.voidReason || '');
+    setEditReason(audit.editReason || '');
+    
     setEditRewardDiscountAmount(receipt.rewardDiscountAmount || 0);
     setShowEditModal(true);
   };
@@ -146,6 +161,10 @@ export default function ReceiptHistory({
       Swal.fire('กรุณาระบุเหตุผลในการยกเลิก', 'หากปรับสถานะเป็นยกเลิก ต้องระบุเหตุผลการยกเลิกเสมอ', 'error');
       return;
     }
+    if (editStatus !== 'ยกเลิก' && !editReason.trim()) {
+      Swal.fire('กรุณาระบุเหตุผลในการแก้ไข', 'กรุณาระบุเหตุผลการแก้ไขเอกสารการเงิน เพื่อใช้ในการตรวจสอบภายหลัง', 'error');
+      return;
+    }
 
     const subtotal = editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
     let discount = 0;
@@ -155,6 +174,24 @@ export default function ReceiptHistory({
       discount = subtotal * (editDiscountValue / 100);
     }
     const finalTotal = Math.max(0, subtotal - discount - editRewardDiscountAmount);
+
+    // สร้างหรืออัปเดตประวัติการยกเลิก/แก้ไข
+    const cleanItems = editItems.filter(it => it && !it.isAudit);
+    const existingAudit = getAuditInfo(editingReceipt);
+    const auditItem = {
+      ...existingAudit,
+      isAudit: true
+    };
+
+    if (editStatus === 'ยกเลิก') {
+      auditItem.voidReason = editVoidReason.trim();
+      auditItem.voidBy = currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ';
+      auditItem.voidAt = new Date().toISOString();
+    } else {
+      auditItem.editReason = editReason.trim();
+      auditItem.editBy = currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ';
+      auditItem.editAt = new Date().toISOString();
+    }
 
     const updatedReceipt = {
       ...editingReceipt,
@@ -167,7 +204,7 @@ export default function ReceiptHistory({
       discountType: editDiscountType,
       discountReason: editDiscountReason,
       rewardDiscountAmount: editRewardDiscountAmount,
-      items: editItems,
+      items: [...cleanItems, auditItem],
       totalAmount: finalTotal,
       voidReason: editStatus === 'ยกเลิก' ? editVoidReason.trim() : ''
     };
@@ -204,7 +241,7 @@ export default function ReceiptHistory({
       r.id,
       r.hn,
       r.date,
-      r.items.map(it => `${it.name}:${it.quantity}:${it.price}:${it.code || ''}:${it.type || ''}`).join('|'),
+      (r.items || []).filter(it => it && !it.isAudit).map(it => `${it.name}:${it.quantity}:${it.price}:${it.code || ''}:${it.type || ''}`).join('|'),
       r.discountValue || 0,
       r.discountType || 'flat',
       r.discountReason || '',
@@ -678,7 +715,7 @@ export default function ReceiptHistory({
                       </td>
                       <td>
                         <div style={{ fontSize: '0.85rem' }}>
-                          {r.items.map((it, idx) => (
+                          {(r.items || []).filter(it => it && !it.isAudit).map((it, idx) => (
                             <div key={idx}>
                               • {it.name} x{it.quantity}
                             </div>
@@ -704,15 +741,76 @@ export default function ReceiptHistory({
                         ฿{r.totalAmount.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${
-                          r.status === 'ชำระเงินแล้ว' ? 'badge-success' : 
-                          r.status === 'รอชำระเงิน' ? 'badge-warning' : 'badge-danger'
-                        }`}>
-                          {r.status}
-                        </span>
-                        {r.status === 'ยกเลิก' && r.voidReason && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                          <span className={`badge ${
+                            r.status === 'ชำระเงินแล้ว' ? 'badge-success' : 
+                            r.status === 'รอชำระเงิน' ? 'badge-warning' : 'badge-danger'
+                          }`}>
+                            {r.status}
+                          </span>
+
+                          {/* แสดงไอคอน ! เฉพาะผู้ดูแลระบบเมื่อมีการยกเลิกหรือแก้ไขเอกสาร */}
+                          {(() => {
+                            const audit = getAuditInfo(r);
+                            const hasVoid = r.status === 'ยกเลิก' && (audit.voidReason || r.voidReason);
+                            const hasEdit = audit.editReason;
+
+                            if (isAdmin && (hasVoid || hasEdit)) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="btn-icon-only"
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    padding: 0,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    color: hasVoid ? 'var(--danger)' : '#d97706'
+                                  }}
+                                  title={hasVoid ? 'คลิกเพื่อดูเหตุผลการยกเลิกบิล' : 'คลิกเพื่อดูเหตุผลการแก้ไขบิล'}
+                                  onClick={() => {
+                                    let htmlContent = '';
+                                    if (hasVoid) {
+                                      htmlContent = `
+                                        <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6;">
+                                          <div style="margin-bottom: 0.5rem;"><strong style="color: var(--danger);">ประเภทรายการ:</strong> ยกเลิกเอกสาร (Void)</div>
+                                          <div style="margin-bottom: 0.5rem;"><strong>เหตุผลการยกเลิก:</strong> ${audit.voidReason || r.voidReason}</div>
+                                          <div style="margin-bottom: 0.5rem;"><strong>ผู้ดำเนินการยกเลิก:</strong> ${audit.voidBy || r.createdBy || 'ไม่ระบุชื่อ'}</div>
+                                          ${audit.voidAt ? `<div><strong>วันเวลาที่ยกเลิก:</strong> ${new Date(audit.voidAt).toLocaleString('th-TH')}</div>` : ''}
+                                        </div>
+                                      `;
+                                    } else {
+                                      htmlContent = `
+                                        <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6;">
+                                          <div style="margin-bottom: 0.5rem;"><strong style="color: #d97706;">ประเภทรายการ:</strong> แก้ไขรายละเอียดบิล</div>
+                                          <div style="margin-bottom: 0.5rem;"><strong>เหตุผลการแก้ไข:</strong> ${audit.editReason}</div>
+                                          <div style="margin-bottom: 0.5rem;"><strong>ผู้ดำเนินการแก้ไข:</strong> ${audit.editBy || 'ไม่ระบุชื่อ'}</div>
+                                          ${audit.editAt ? `<div><strong>วันเวลาที่แก้ไขล่าสุด:</strong> ${new Date(audit.editAt).toLocaleString('th-TH')}</div>` : ''}
+                                        </div>
+                                      `;
+                                    }
+
+                                    Swal.fire({
+                                      title: hasVoid ? 'ประวัติการยกเลิกเอกสาร' : 'ประวัติการแก้ไขเอกสาร',
+                                      html: htmlContent,
+                                      icon: 'info',
+                                      confirmButtonText: 'ปิด',
+                                      confirmButtonColor: 'var(--secondary)'
+                                    });
+                                  }}
+                                >
+                                  <AlertCircle size={16} />
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                        {(r.status === 'ยกเลิก') && (r.voidReason || getAuditInfo(r).voidReason) && (
                           <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '0.25rem', maxWidth: '150px', wordBreak: 'break-word', textAlign: 'center' }}>
-                            เหตุผล: {r.voidReason}
+                            เหตุผล: {getAuditInfo(r).voidReason || r.voidReason}
                           </div>
                         )}
                       </td>
@@ -978,6 +1076,22 @@ export default function ReceiptHistory({
                       placeholder="กรุณาระบุเหตุผลในการยกเลิกใบเสร็จ (เช่น ลูกค้าเปลี่ยนใจ, คีย์ข้อมูลผิด ฯลฯ)"
                       value={editVoidReason}
                       onChange={(e) => setEditVoidReason(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                {editStatus !== 'ยกเลิก' && (
+                  <div className="form-group" style={{ border: '1px solid #fde68a', padding: '1rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fffdf5' }}>
+                    <label className="form-label" style={{ color: '#b45309', fontWeight: 600 }}>
+                      เหตุผลในการแก้ไขเอกสาร <span style={{ color: 'var(--danger)' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="กรุณาระบุเหตุผลในการแก้ไขใบเสร็จ (เช่น คีย์ยอดเงินผิด, เปลี่ยนช่องชำระเงิน ฯลฯ)"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
                       required
                     />
                   </div>

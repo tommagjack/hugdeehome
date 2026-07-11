@@ -880,7 +880,13 @@ export default function PDFViewer({
 
   // --- 3. เอกสารใบเสร็จ (HDR) หรือใบแจ้งหนี้ ---
   const renderReceipt = () => {
-    const bill = documentData;
+    // กรองเอา Audit Item ออกเพื่อความถูกต้องในการพิมพ์ใบเสร็จ PDF
+    const bill = documentData ? {
+      ...documentData,
+      items: (documentData.items || []).filter(item => item && !item.isAudit)
+    } : null;
+    
+    if (!bill) return null;
     const pInfo = getPatientInfo(bill.hn);
     
     const isDraft = bill.status === 'รอชำระเงิน';

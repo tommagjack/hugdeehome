@@ -1102,8 +1102,25 @@ export default function App() {
   };
 
   const handleVoidReceipt = (id, reason) => {
-    // ปรับสถานะเป็น "ยกเลิก" และบันทึกเหตุผล
-    setReceipts(receipts.map(r => r.id === id ? { ...r, status: 'ยกเลิก', voidReason: reason || 'ไม่ได้ระบุเหตุผลในการยกเลิก' } : r));
+    // ปรับสถานะเป็น "ยกเลิก" และบันทึกเหตุผลลงในคิวประวัติ
+    setReceipts(receipts.map(r => {
+      if (r.id === id) {
+        const cleanItems = (r.items || []).filter(item => item && !item.isAudit);
+        const auditItem = {
+          isAudit: true,
+          voidReason: reason || 'ไม่ได้ระบุเหตุผลในการยกเลิก',
+          voidBy: currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ',
+          voidAt: new Date().toISOString()
+        };
+        return {
+          ...r,
+          status: 'ยกเลิก',
+          items: [...cleanItems, auditItem],
+          voidReason: reason || 'ไม่ได้ระบุเหตุผลในการยกเลิก'
+        };
+      }
+      return r;
+    }));
   };
 
   const handleDeleteReceipt = (id, reason) => {
@@ -1116,7 +1133,7 @@ export default function App() {
         date: target.date,
         totalAmount: target.totalAmount,
         reason: reason || 'ไม่ได้ระบุเหตุผลในการลบ',
-        deletedBy: currentUser?.fullname || 'ผู้ดูแลระบบ',
+        deletedBy: currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ',
         deletedAt: new Date().toISOString(),
         receiptData: target
       };
@@ -1132,9 +1149,9 @@ export default function App() {
   };
 
   const handleEditDraftReceipt = (receipt) => {
-    // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง
+    // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง (กรองเอาข้อมูล Audit ออก)
     setPosSelectedHn(receipt.hn);
-    setPosCart(receipt.items.filter(item => item.code !== 'REWARD_REDEEM').map(item => {
+    setPosCart((receipt.items || []).filter(item => item && item.code !== 'REWARD_REDEEM' && !item.isAudit).map(item => {
       // ดึงรายละเอียดราคาและหมวดหมู่อ้างอิงกลับมา
       const orig = services.find(s => s.code === item.code);
       const isReward = item.name.includes('[แลก');
