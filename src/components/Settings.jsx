@@ -16,7 +16,8 @@ import {
   Eye,
   Printer,
   Database,
-  Gift
+  Gift,
+  History
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -38,10 +39,56 @@ export default function Settings({
   users,
   setUsers,
   onPrintAnnualHolidays,
-  receipts
+  receipts,
+  logActivity,
+  currentUser
 }) {
-  const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users, integration
+  const [activeSubMenu, setActiveSubMenu] = useState('clinic'); // clinic, services, promos, banks, therapists, holidays, users, integration, activityLog
   const fileInputRef = useRef(null);
+
+  // States สำหรับค้นหาในประวัติกิจกรรม (Activity Log)
+  const [logSearchDate, setLogSearchDate] = useState('');
+  const [logSearchUser, setLogSearchUser] = useState('');
+  const [logSearchDetail, setLogSearchDetail] = useState('');
+  const [logPage, setLogPage] = useState(1);
+
+  // กรองประวัติกิจกรรมตามตัวเลือกเงื่อนไข (วันที่ ชื่อคน รายละเอียด) และเรียงใหม่ไปเก่า
+  const filteredLogs = useMemo(() => {
+    if (!promotions) return [];
+    let list = promotions.filter(p => p && p.type === 'activity_log');
+
+    if (logSearchDate) {
+      list = list.filter(l => l.startDate === logSearchDate);
+    }
+    if (logSearchUser.trim()) {
+      const q = logSearchUser.trim().toLowerCase();
+      list = list.filter(l => l.name && l.name.toLowerCase().includes(q));
+    }
+    if (logSearchDetail.trim()) {
+      const q = logSearchDetail.trim().toLowerCase();
+      list = list.filter(l => l.description && l.description.toLowerCase().includes(q));
+    }
+
+    // เรียงตามเวลาล่าสุดไปเก่าสุด
+    return list.sort((a, b) => {
+      const timeA = new Date(a.endDate || a.created_at).getTime();
+      const timeB = new Date(b.endDate || b.created_at).getTime();
+      return timeB - timeA;
+    });
+  }, [promotions, logSearchDate, logSearchUser, logSearchDetail]);
+
+  const itemsPerLogPage = 20;
+  const maxLogPages = Math.ceil(filteredLogs.length / itemsPerLogPage) || 1;
+
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (logPage - 1) * itemsPerLogPage;
+    return filteredLogs.slice(startIndex, startIndex + itemsPerLogPage);
+  }, [filteredLogs, logPage]);
+
+  // รีเซ็ตเลขหน้าแสดงเมื่อค้นหาใหม่
+  React.useEffect(() => {
+    setLogPage(1);
+  }, [logSearchDate, logSearchUser, logSearchDetail]);
 
   const [localClinicInfo, setLocalClinicInfo] = useState(clinicInfo);
 
@@ -53,6 +100,7 @@ export default function Settings({
 
   const handleSaveClinicInfo = () => {
     setClinicInfo(localClinicInfo);
+    logActivity('แก้ไขข้อมูลทั่วไปของคลินิก');
     Swal.fire({
       icon: 'success',
       title: 'บันทึกข้อมูลคลินิกเรียบร้อย',
@@ -613,12 +661,14 @@ function createUserFolder(parentFolderId, folderName) {
         return;
       }
       setServices(services.map(s => s.code === editingServiceCode ? newService : s));
+      logActivity(`แก้ไขสินค้า/บริการ รหัส: ${editingServiceCode} เป็น "${newService.name}"`);
     } else {
       if (services.find(s => s.code === serviceCode)) {
         Swal.fire('รหัสซ้ำ', 'รหัสบริการนี้มีอยู่ในระบบแล้ว', 'error');
         return;
       }
       setServices([...services, newService]);
+      logActivity(`เพิ่มสินค้า/บริการใหม่ รหัส: ${newService.code} ("${newService.name}")`);
     }
     setShowServiceModal(false);
     resetServiceForm();
@@ -659,6 +709,7 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setServices(services.filter(s => s.code !== code));
+        logActivity(`ลบสินค้า/บริการ รหัส: ${code}`);
       }
     });
   };
@@ -683,12 +734,14 @@ function createUserFolder(parentFolderId, folderName) {
         return;
       }
       setPromotions(promotions.map(p => p.code === editingPromoCode ? newPromo : p));
+      logActivity(`แก้ไขโปรโมชั่น รหัส: ${editingPromoCode} เป็น "${newPromo.name}"`);
     } else {
       if (promotions.find(p => p.code === promoCode)) {
         Swal.fire('รหัสโปรโมชั่นซ้ำ', 'รหัสโปรโมชั่นนี้มีอยู่ในระบบแล้ว', 'error');
         return;
       }
       setPromotions([...promotions, newPromo]);
+      logActivity(`เพิ่มโปรโมชั่นใหม่ รหัส: ${newPromo.code} ("${newPromo.name}")`);
     }
     setShowPromoModal(false);
     resetPromoForm();
@@ -729,6 +782,7 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setPromotions(promotions.filter(p => p.code !== code));
+        logActivity(`ลบโปรโมชั่น รหัส: ${code}`);
       }
     });
   };
@@ -756,12 +810,14 @@ function createUserFolder(parentFolderId, folderName) {
         return;
       }
       setRewards((rewards || []).map(r => r.code === editingRewardCode ? newReward : r));
+      logActivity(`แก้ไขของรางวัล รหัส: ${editingRewardCode} เป็น "${newReward.name}"`);
     } else {
       if ((rewards || []).find(r => r.code === rewardCode.trim())) {
         Swal.fire('รหัสของรางวัลซ้ำ', 'รหัสของรางวัลนี้มีอยู่ในระบบแล้ว', 'error');
         return;
       }
       setRewards([...(rewards || []), newReward]);
+      logActivity(`เพิ่มของรางวัลใหม่ รหัส: ${newReward.code} ("${newReward.name}")`);
     }
     setShowRewardModal(false);
     resetRewardForm();
@@ -808,6 +864,7 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setRewards((rewards || []).filter(r => r.code !== code));
+        logActivity(`ลบของรางวัล รหัส: ${code}`);
       }
     });
   };
@@ -824,8 +881,10 @@ function createUserFolder(parentFolderId, folderName) {
 
     if (editingBankId) {
       setBankAccounts(bankAccounts.map(b => b.id === editingBankId ? newBank : b));
+      logActivity(`แก้ไขบัญชีธนาคาร ID: ${editingBankId} เป็น "${newBank.bankName} - ${newBank.accountNo}"`);
     } else {
       setBankAccounts([...bankAccounts, newBank]);
+      logActivity(`เพิ่มบัญชีธนาคารใหม่ "${newBank.bankName} - ${newBank.accountNo}"`);
     }
     setShowBankModal(false);
     resetBankForm();
@@ -856,6 +915,7 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setBankAccounts(bankAccounts.filter(b => b.id !== id));
+        logActivity(`ลบบัญชีธนาคาร ID: ${id}`);
       }
     });
   };
@@ -880,8 +940,10 @@ function createUserFolder(parentFolderId, folderName) {
 
     if (editingTherapistId) {
       setTherapists(therapists.map(t => t.id === editingTherapistId ? newTherapist : t));
+      logActivity(`แก้ไขข้อมูลครูผู้สอน/นักบำบัด ID: ${editingTherapistId} ("${newTherapist.fullname}")`);
     } else {
       setTherapists([...therapists, newTherapist]);
+      logActivity(`เพิ่มครูผู้สอน/นักบำบัดใหม่ ID: ${newTherapist.id} ("${newTherapist.fullname}")`);
     }
     setShowTherapistModal(false);
     resetTherapistForm();
@@ -951,6 +1013,7 @@ function createUserFolder(parentFolderId, folderName) {
     }).then(res => {
       if (res.isConfirmed) {
         setTherapists(therapists.filter(t => t.id !== id));
+        logActivity(`ลบข้อมูลครูผู้สอน/นักบำบัด ID: ${id}`);
       }
     });
   };
@@ -969,6 +1032,7 @@ function createUserFolder(parentFolderId, folderName) {
         h.date === editingHolidayDate ? { date: holidayDate, name: holidayName, type: holidayType } : h
       ).sort((a, b) => b.date.localeCompare(a.date));
       setHolidays(updated);
+      logActivity(`แก้ไขข้อมูลวันหยุดประจำวันที่: ${holidayDate} เป็น "${holidayName}" (${holidayType})`);
       setEditingHolidayDate(null);
       setHolidayName('');
       setHolidayType('วันหยุดคลินิก');
@@ -981,6 +1045,7 @@ function createUserFolder(parentFolderId, folderName) {
 
       const newHoliday = { date: holidayDate, name: holidayName, type: holidayType };
       setHolidays([...holidays, newHoliday].sort((a, b) => b.date.localeCompare(a.date)));
+      logActivity(`เพิ่มวันหยุดใหม่ วันที่: ${holidayDate} ("${holidayName}" - ${holidayType})`);
       setHolidayName('');
       Swal.fire({ icon: 'success', title: 'เพิ่มวันหยุดสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
     }
@@ -1014,6 +1079,7 @@ function createUserFolder(parentFolderId, folderName) {
 
   const handleDeleteHoliday = (date) => {
     setHolidays(holidays.filter(h => h.date !== date));
+    logActivity(`ลบวันหยุดประจำวันที่: ${date}`);
   };
 
   // Pagination ของวันหยุด
@@ -1141,6 +1207,9 @@ function createUserFolder(parentFolderId, folderName) {
             </a>
             <a className={`settings-link ${activeSubMenu === 'holidays' ? 'active' : ''}`} onClick={() => setActiveSubMenu('holidays')}>
               <CalendarDays size={16} /> วันหยุดคลินิก
+            </a>
+            <a className={`settings-link ${activeSubMenu === 'activityLog' ? 'active' : ''}`} onClick={() => setActiveSubMenu('activityLog')}>
+              <History size={16} /> ประวัติกิจกรรม (Activity Log)
             </a>
             <a className={`settings-link ${activeSubMenu === 'integration' ? 'active' : ''}`} onClick={() => setActiveSubMenu('integration')}>
               <Database size={16} /> ตั้งค่าคลาวด์และชีท
@@ -1347,7 +1416,7 @@ function createUserFolder(parentFolderId, folderName) {
                     </tr>
                   </thead>
                   <tbody>
-                    {promotions.map(p => {
+                    {promotions.filter(p => p && p.type !== 'activity_log').map(p => {
                       const usedCount = receipts ? receipts.filter(r => r.promotionId === p.code && r.status !== 'ยกเลิก').length : 0;
                       const remaining = Math.max(0, p.maxUses - usedCount);
                       const isExpired = !(todayStr >= p.startDate && todayStr <= p.endDate);
@@ -1695,6 +1764,137 @@ function createUserFolder(parentFolderId, folderName) {
                     className="btn btn-light" 
                     disabled={holidayPage === maxHolidayPages}
                     onClick={() => setHolidayPage(holidayPage + 1)}
+                  >
+                    ถัดไป
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 6.1. ประวัติกิจกรรม (Activity Log) */}
+          {activeSubMenu === 'activityLog' && (
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem' }}>บันทึกกิจกรรมของระบบ (System Activity Logs)</h2>
+
+              {/* ฟอร์มตัวกรองสำหรับค้นหา */}
+              <div className="card-2xl" style={{ backgroundColor: 'var(--light)', padding: '1.25rem', borderRadius: 'var(--radius-lg)', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">ค้นหาจากวันที่</label>
+                    <input 
+                      type="date" 
+                      className="form-control" 
+                      value={logSearchDate} 
+                      onChange={(e) => setLogSearchDate(e.target.value)} 
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">ชื่อผู้ดำเนินการ</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="พิมพ์ชื่อ..." 
+                      value={logSearchUser} 
+                      onChange={(e) => setLogSearchUser(e.target.value)} 
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">รายละเอียด/คำค้น</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="เช่น HN: 69055, บิล..." 
+                      value={logSearchDetail} 
+                      onChange={(e) => setLogSearchDetail(e.target.value)} 
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-light" 
+                      style={{ flex: 1 }}
+                      onClick={() => {
+                        setLogSearchDate('');
+                        setLogSearchUser('');
+                        setLogSearchDetail('');
+                      }}
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ตารางแสดงรายการประวัติกิจกรรม */}
+              <div className="table-container">
+                <table className="hdh-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '200px' }}>วันเวลาดำเนินการ</th>
+                      <th style={{ width: '200px' }}>ผู้ดำเนินการ</th>
+                      <th>รายละเอียดกิจกรรม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" style={{ textAlign: 'center', padding: '4rem', color: 'var(--dark-light)' }}>
+                          ไม่พบข้อมูลบันทึกกิจกรรมตามเงื่อนไขที่ระบุ
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedLogs.map((log) => {
+                        const dateObj = new Date(log.endDate || log.created_at);
+                        const thaiDateStr = dateObj.toLocaleDateString('th-TH', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        });
+                        const thaiTimeStr = dateObj.toLocaleTimeString('th-TH', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        });
+
+                        return (
+                          <tr key={log.code}>
+                            <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                              <div>{thaiDateStr}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{thaiTimeStr} น.</div>
+                            </td>
+                            <td>
+                              <strong style={{ color: 'var(--dark)' }}>{log.name}</strong>
+                            </td>
+                            <td style={{ fontSize: '0.9rem', lineHeight: '1.4', color: '#374151' }}>
+                              {log.description}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ส่วนควบคุมหน้า (Pagination) */}
+              {maxLogPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={logPage === 1}
+                    onClick={() => setLogPage(logPage - 1)}
+                  >
+                    ก่อนหน้า
+                  </button>
+                  <span style={{ fontSize: '0.9rem' }}>หน้า {logPage} / {maxLogPages}</span>
+                  <button 
+                    className="btn btn-light" 
+                    disabled={logPage === maxLogPages}
+                    onClick={() => setLogPage(logPage + 1)}
                   >
                     ถัดไป
                   </button>

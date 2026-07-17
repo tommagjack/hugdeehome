@@ -295,7 +295,7 @@ export default function Dashboard({
         remaining,
         isActive
       };
-    }).filter(p => p.isActive);
+    }).filter(p => p.isActive && p.type !== 'activity_log');
 
     // เรียงจากจำนวนสิทธิ์คงเหลือจากน้อยไปมาก
     return list.sort((a, b) => a.remaining - b.remaining);

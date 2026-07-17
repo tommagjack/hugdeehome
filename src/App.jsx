@@ -182,6 +182,22 @@ export default function App() {
     setAssessmentTemplates(db.getAssessmentTemplates());
   };
 
+  // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
+  const logActivity = (details, userObj = currentUser) => {
+    if (!userObj) return;
+    const newLog = {
+      code: `LOG-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      name: userObj.fullname || userObj.username || 'ผู้ใช้ระบบ',
+      description: details,
+      startDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
+      endDate: new Date().toISOString(), // ISO Timestamp
+      maxUses: 0,
+      type: 'activity_log',
+      value: 0
+    };
+    setPromotions(prev => [...prev, newLog]);
+  };
+
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
   useEffect(() => {
     const runInitialSync = async () => {
@@ -867,6 +883,7 @@ export default function App() {
 
       setCurrentUser(finalProfile);
       localStorage.setItem('hdh_logged_in_user', JSON.stringify(finalProfile));
+      logActivity('เข้าสู่ระบบสำเร็จ', finalProfile);
       setIsSyncing(false);
       
       Swal.fire({
@@ -994,6 +1011,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    logActivity('ออกจากระบบ');
     try {
       await supabase.auth.signOut();
     } catch (err) {
@@ -1060,45 +1078,60 @@ export default function App() {
   // --- ฟังก์ชันดำเนินงาน DB (สืบทอดไปให้ลูกๆ) ---
   const handleAddPatient = (data) => {
     setPatients([...patients, data]);
+    logActivity(`เพิ่มผู้รับบริการใหม่ HN: ${data.hn} (${data.title}${data.firstname} ${data.lastname} - น้อง${data.nickname})`);
   };
 
   const handleUpdatePatient = (data) => {
     setPatients(patients.map(p => p.hn === data.hn ? data : p));
+    logActivity(`แก้ไขข้อมูลผู้รับบริการ HN: ${data.hn} (${data.title}${data.firstname} ${data.lastname})`);
   };
 
   const handleDeletePatient = (hn) => {
+    const p = patients.find(pat => pat.hn === hn);
     setPatients(patients.filter(p => p.hn !== hn));
+    logActivity(`ลบข้อมูลผู้รับบริการ HN: ${hn} (${p ? p.title + p.firstname + ' ' + p.lastname : ''})`);
   };
 
   const handleAddAppointment = (data) => {
     setAppointments([...appointments, data]);
+    const p = patients.find(pat => pat.hn === data.hn);
+    logActivity(`เพิ่มรายการนัดหมาย เลขที่: ${data.id} (HN: ${data.hn}${p ? ' - น้อง' + p.nickname : ''}) วันที่: ${data.date} เวลา: ${data.timeSlot}`);
   };
 
   const handleUpdateAppointmentStatus = (appId, newStatus) => {
+    const app = appointments.find(a => a.id === appId);
     setAppointments(appointments.map(app => app.id === appId ? { ...app, status: newStatus } : app));
+    logActivity(`ปรับสถานะนัดหมาย เลขที่: ${appId} (HN: ${app ? app.hn : ''}) เป็น "${newStatus}"`);
   };
 
   const handleDeleteAppointment = (appId) => {
+    const app = appointments.find(a => a.id === appId);
     setAppointments(appointments.filter(app => app.id !== appId));
+    logActivity(`ลบรายการนัดหมาย เลขที่: ${appId} (HN: ${app ? app.hn : ''})`);
   };
 
   const handleUpdateAppointment = (updatedApp) => {
     setAppointments(appointments.map(app => app.id === updatedApp.id ? updatedApp : app));
+    logActivity(`แก้ไขรายละเอียดนัดหมาย เลขที่: ${updatedApp.id} (HN: ${updatedApp.hn}) เป็นวันที่: ${updatedApp.date} เวลา: ${updatedApp.timeSlot}`);
   };
 
   const handleAddAssessment = (data) => {
     const filtered = assessments.filter(a => a.id !== data.id);
     setAssessments([...filtered, data]);
+    logActivity(`บันทึกใบประเมินพัฒนาการ เลขที่: ${data.id} (HN: ${data.hn})`);
   };
 
   const handleDeleteAssessment = (id) => {
+    const ass = assessments.find(a => a.id === id);
     setAssessments(assessments.filter(a => a.id !== id));
+    logActivity(`ลบใบประเมินพัฒนาการ เลขที่: ${id} (HN: ${ass ? ass.hn : ''})`);
   };
 
   const handleSaveReceipt = (data) => {
     // กรองบิลเก่าออกถ้าเป็นการอัปเดต / บันทึกทับบิลเดิม (สำหรับบิลแจ้งหนี้ชำระเงินต่อ)
     const filtered = receipts.filter(r => r.id !== data.id);
     setReceipts([...filtered, data]);
+    logActivity(`ออกใบเสร็จรับเงิน/ใบแจ้งหนี้ เลขที่: ${data.id} (HN: ${data.hn}) ยอดสุทธิ: ฿${(data.totalAmount || 0).toLocaleString()}`);
   };
 
   const handleVoidReceipt = (id, reason) => {
@@ -1121,6 +1154,7 @@ export default function App() {
       }
       return r;
     }));
+    logActivity(`ยกเลิกใบเสร็จ (Void) เลขที่: ${id} (เหตุผล: ${reason || 'ไม่ได้ระบุเหตุผล'})`);
   };
 
   const handleDeleteReceipt = (id, reason) => {
@@ -1146,6 +1180,79 @@ export default function App() {
       }
     }
     setReceipts(receipts.filter(r => r.id !== id));
+    logActivity(`ลบใบเสร็จ เลขที่: ${id} ถาวร (เหตุผล: ${reason || 'ไม่ได้ระบุเหตุผล'})`);
+  };
+
+  const handleSetOpdRecords = (val) => {
+    if (typeof val === 'function') {
+      setOpdRecords(prev => {
+        const next = val(prev);
+        if (next.length > prev.length) {
+          const added = next.find(n => !prev.some(p => p.id === n.id));
+          if (added) logActivity(`เพิ่มบันทึก OPD คนไข้ HN: ${added.hn}`);
+        } else if (next.length < prev.length) {
+          const deleted = prev.find(p => !next.some(n => n.id === p.id));
+          if (deleted) logActivity(`ลบประวัติ OPD เลขที่: ${deleted.id} (HN: ${deleted.hn})`);
+        } else {
+          const edited = next.find(n => {
+            const old = prev.find(p => p.id === n.id);
+            return old && JSON.stringify(old) !== JSON.stringify(n);
+          });
+          if (edited) logActivity(`แก้ไขบันทึก OPD คนไข้ HN: ${edited.hn}`);
+        }
+        return next;
+      });
+    } else {
+      setOpdRecords(val);
+    }
+  };
+
+  const handleSetReferrals = (val) => {
+    if (typeof val === 'function') {
+      setReferrals(prev => {
+        const next = val(prev);
+        if (next.length > prev.length) {
+          const added = next.find(n => !prev.some(p => p.id === n.id));
+          if (added) logActivity(`เพิ่มหนังสือส่งตัว เลขที่: ${added.id} สำหรับ HN: ${added.hn}`);
+        } else if (next.length < prev.length) {
+          const deleted = prev.find(p => !next.some(n => n.id === p.id));
+          if (deleted) logActivity(`ลบหนังสือส่งตัว เลขที่: ${deleted.id} (HN: ${deleted.hn})`);
+        } else {
+          const edited = next.find(n => {
+            const old = prev.find(p => p.id === n.id);
+            return old && JSON.stringify(old) !== JSON.stringify(n);
+          });
+          if (edited) logActivity(`แก้ไขหนังสือส่งตัว เลขที่: ${edited.id} สำหรับ HN: ${edited.hn}`);
+        }
+        return next;
+      });
+    } else {
+      setReferrals(val);
+    }
+  };
+
+  const handleSetUsers = (val) => {
+    if (typeof val === 'function') {
+      setUsers(prev => {
+        const next = val(prev);
+        if (next.length > prev.length) {
+          const added = next.find(n => !prev.some(p => p.username === n.username));
+          if (added) logActivity(`เพิ่มผู้ใช้งานระบบใหม่ Username: ${added.username} (${added.fullname || ''})`);
+        } else if (next.length < prev.length) {
+          const deleted = prev.find(p => !next.some(n => n.username === p.username));
+          if (deleted) logActivity(`ลบผู้ใช้งานระบบ Username: ${deleted.username}`);
+        } else {
+          const edited = next.find(n => {
+            const old = prev.find(p => p.username === n.username);
+            return old && JSON.stringify(old) !== JSON.stringify(n);
+          });
+          if (edited) logActivity(`แก้ไขรายละเอียดผู้ใช้งาน Username: ${edited.username}`);
+        }
+        return next;
+      });
+    } else {
+      setUsers(val);
+    }
   };
 
   const handleEditDraftReceipt = (receipt) => {
@@ -1917,7 +2024,7 @@ export default function App() {
             patients={patients}
             therapists={therapists}
             opdRecords={opdRecords}
-            setOpdRecords={setOpdRecords}
+            setOpdRecords={handleSetOpdRecords}
             onPrintOPD={(type, data) => {
               setPrintView({ show: true, type, data });
             }}
@@ -1930,7 +2037,7 @@ export default function App() {
             patients={patients}
             therapists={therapists}
             referrals={referrals}
-            setReferrals={setReferrals}
+            setReferrals={handleSetReferrals}
             onPrintReferral={(data) => {
               setPrintView({ show: true, type: 'referral', data });
             }}
@@ -2031,7 +2138,7 @@ export default function App() {
         {activeTab === 'users' && currentUser.role === 'Admin' && (
           <Users 
             users={users}
-            setUsers={setUsers}
+            setUsers={handleSetUsers}
             setPrintView={setPrintView}
           />
         )}
@@ -2083,6 +2190,8 @@ export default function App() {
               setPrintView({ show: true, type: 'holidays_annual', data: { year, list } });
             }}
             receipts={receipts}
+            logActivity={logActivity}
+            currentUser={currentUser}
           />
         )}
 

@@ -153,7 +153,7 @@ export default function ReceiptPOS({
       const start = p.startDate || '1970-01-01';
       const end = p.endDate || '2999-12-31';
       const usedCount = receipts ? receipts.filter(r => r.promotionId === p.code && r.status !== 'ยกเลิก').length : 0;
-      return todayStr >= start && todayStr <= end && usedCount < p.maxUses;
+      return p.type !== 'activity_log' && todayStr >= start && todayStr <= end && usedCount < p.maxUses;
     });
   }, [promotions, receipts]);
 
