@@ -1,7 +1,8 @@
 import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from './defaultAssets';
 
 export const INITIAL_CLINIC_INFO = {
-  name: "คลินิกกิจกรรมบำบัด ฮักดีโฮม (Hug Dee Home)",
+  name: "บ้านฮักดี (Hug Dee Home)",
+  type: "คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด",
   licenseNo: "บ.ป. 25690045",
   phone: "089-123-4567",
   email: "contact@hugdeehome.com",

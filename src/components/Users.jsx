@@ -393,7 +393,7 @@ export default function Users({ users, setUsers, setPrintView }) {
   const handleEditUser = (u) => {
     setEditingUsername(u.username);
     setUUsername(u.username);
-    setUPassword(u.password);
+    setUPassword(u.password || (u.username === 'admin' ? 'admin0100' : '123456'));
     setUFullname(u.fullname);
     setURole(u.role);
     setUEmployeeId(u.employeeId || getNextEmployeeId(users));
@@ -478,7 +478,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     
     const newUser = {
       username: uUsername,
-      password: uPassword || '',
+      password: uPassword || (uUsername === 'admin' ? 'admin0100' : '123456'),
       fullname: uFullname,
       role: uRole,
       employeeId: uEmployeeId,
@@ -1172,7 +1172,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                       type="text" 
                       className="form-control" 
                       placeholder="หรือระบุ URL รูปภาพ (เช่น https://...)" 
-                      value={uAvatarUrl} 
+                      value={uAvatarUrl?.startsWith('data:image') ? '' : (uAvatarUrl || '')} 
                       onChange={(e) => {
                         let val = e.target.value.trim();
                         if (val && !val.startsWith('http://') && !val.startsWith('https://') && !val.startsWith('data:image')) {

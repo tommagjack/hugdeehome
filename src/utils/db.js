@@ -93,6 +93,7 @@ export const db = {
     if (Array.isArray(data)) {
       return data.map(u => ({
         ...u,
+        password: u.password || (u.username === 'admin' ? 'admin0100' : '123456'),
         avatarFile: safeJsonParse(u.avatarFile),
         citizenIdDoc: safeJsonParse(u.citizenIdDoc),
         houseRegDoc: safeJsonParse(u.houseRegDoc),
