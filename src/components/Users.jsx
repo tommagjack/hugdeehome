@@ -76,6 +76,15 @@ const getNextEmployeeId = (userList) => {
   return `HDH${String(maxId + 1).padStart(3, '0')}`;
 };
 
+const getInitials = (name) => {
+  if (!name) return 'U';
+  const parts = String(name).trim().split(/\s+/);
+  if (parts.length > 1 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return String(name).slice(0, 2).toUpperCase();
+};
+
 export default function Users({ users, setUsers, setPrintView }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUsername, setEditingUsername] = useState(null);
