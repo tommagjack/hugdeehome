@@ -90,3 +90,46 @@ export const SmartAvatar = ({ src, name, fontSize = '0.75rem', style = {} }) => 
     </span>
   );
 };
+
+// ฟังก์ชันบีบอัดรูปภาพโปรไฟล์/โลโก้ให้มีขนาดเล็กระดับ KB ก่อนเซฟลง LocalStorage เพื่อป้องกัน QuotaExceededError ใน Microsoft Edge
+export const compressImage = (file, maxWidth = 300, maxHeight = 300, quality = 0.8) => {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) {
+      resolve(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};

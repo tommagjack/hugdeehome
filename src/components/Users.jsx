@@ -11,7 +11,7 @@ import {
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
 import { getGasUrl } from '../utils/db';
-import { SmartAvatar } from '../utils/defaultAssets';
+import { SmartAvatar, compressImage } from '../utils/defaultAssets';
 
 const formatDateToInputDate = (dateStr) => {
   if (!dateStr) return '';
@@ -134,7 +134,7 @@ export default function Users({ users, setUsers, setPrintView }) {
   }, [searchQuery]);
 
   // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง
-  const handleFileUpload = (e, setDocState, docType) => {
+  const handleFileUpload = async (e, setDocState, docType) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -144,9 +144,17 @@ export default function Users({ users, setUsers, setPrintView }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const origName = file.name;
+    let compressedBase64 = null;
+    if (docType === 'รูปถ่ายโปรไฟล์' || (file.type && file.type.startsWith('image/'))) {
+      try {
+        compressedBase64 = await compressImage(file, 300, 300, 0.85);
+      } catch (err) {
+        console.warn('Image compression warning:', err);
+      }
+    }
+
+    const origName = file.name;
+    const processUpload = (dataStr) => {
       const ext = origName.substring(origName.lastIndexOf('.'));
       
       const parts = String(uFullname || '').trim().split(/\s+/);
@@ -184,7 +192,7 @@ export default function Users({ users, setUsers, setPrintView }) {
         parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
       }
 
-      const base64Data = reader.result;
+      const base64Data = dataStr;
 
       // ตั้งค่า Base64 Data URL ทันทีเพื่อให้แสดงผลรูปภาพโปรไฟล์บนเบราว์เซอร์ได้อย่างสดใส 100%
       setDocState({
@@ -232,7 +240,14 @@ export default function Users({ users, setUsers, setPrintView }) {
         });
       }
     };
-    reader.readAsDataURL(file);
+
+    if (compressedBase64) {
+      processUpload(compressedBase64);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => processUpload(reader.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   // ฟังก์ชันสร้างและเชื่อมต่อโฟลเดอร์พนักงานบน Google Drive
