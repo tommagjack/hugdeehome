@@ -217,44 +217,23 @@ export default function Users({ users, setUsers, setPrintView }) {
           Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
         });
       } else {
-        // Fallback to local /api/upload (for local dev environments)
-        fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            folder: folderNameParam,
-            filename: fileName,
-            base64Data: reader.result,
-            gasUrl: gasUrl,
-            parentFolderId: parentFolderId
-          })
-        })
-        .then(async res => {
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || 'อัปโหลดล้มเหลว');
-          }
-          return res.json();
-        })
-        .then(data => {
-          setDocState({
-            name: origName,
-            size: `${(file.size / 1024).toFixed(1)} KB`,
-            path: data.url,
-            data: data.url,
-            uploadedAt: new Date().toISOString()
-          });
-          Swal.fire({
-            icon: 'success',
-            title: 'อัปโหลดสำเร็จ',
-            text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
-            timer: 1200,
-            showConfirmButton: false
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+        const base64Data = reader.result;
+        setDocState({
+          name: origName,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          path: base64Data,
+          data: base64Data,
+          uploadedAt: new Date().toISOString()
+        });
+        if (docType === 'รูปถ่ายโปรไฟล์') {
+          setUAvatarUrl(base64Data);
+        }
+        Swal.fire({
+          icon: 'success',
+          title: 'แนบไฟล์สำเร็จ',
+          text: `แนบไฟล์ ${origName} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
         });
       }
     };

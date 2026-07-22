@@ -1017,15 +1017,19 @@ export default function App() {
   };
 
   const handleUpdateProfile = (updatedUser) => {
-    if (currentUser && currentUser.username === 'admin') {
-      setCurrentUser(updatedUser);
-      localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
+    handleSetUsers(prevUsers => {
+      const list = Array.isArray(prevUsers) ? prevUsers : [];
+      const exists = list.some(u => u.username === updatedUser.username);
+      if (exists) {
+        return list.map(u => u.username === updatedUser.username ? { ...u, ...updatedUser } : u);
+      }
+      return [...list, updatedUser];
+    });
+
+    setCurrentUser(updatedUser);
+    localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
+    if (updatedUser.username === 'admin') {
       localStorage.setItem('hdh_admin_override', JSON.stringify(updatedUser));
-    } else {
-      const updatedUsersList = users.map(u => u.username === currentUser.username ? { ...u, ...updatedUser } : u);
-      setUsers(updatedUsersList);
-      setCurrentUser(updatedUser);
-      localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
     }
   };
 

@@ -22,54 +22,28 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      Swal.fire('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 2MB เพื่อประหยัดพื้นที่ระบบ', 'error');
+    if (file.size > 3 * 1024 * 1024) {
+      Swal.fire('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 3MB เพื่อประหยัดพื้นที่ระบบ', 'error');
       e.target.value = '';
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
-      const origName = file.name;
-      const ext = origName.substring(origName.lastIndexOf('.'));
-      
-      const parts = (currentUser.fullname || 'Unknown').trim().split(/\s+/);
-      const fname = parts[0] || 'Unknown';
-      const lname = parts[1] || 'Unknown';
-      const folderName = `${currentUser.employeeId || 'TEMP'}-${fname}-${lname}`;
-      const fileName = `${currentUser.employeeId || 'TEMP'}-${fname}-${lname}-profile${ext}`;
+      const base64Data = reader.result;
+      setAvatarUrl(base64Data);
+      setAvatarFile({
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        data: base64Data
+      });
 
-      fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folder: folderName,
-          filename: fileName,
-          base64Data: reader.result
-        })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error('อัปโหลดรูปภาพโปรไฟล์ล้มเหลว');
-        return res.json();
-      })
-      .then(data => {
-        setAvatarFile({
-          name: origName,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          data: data.url
-        });
-        setAvatarUrl(data.url);
-        Swal.fire({
-          icon: 'success',
-          title: 'อัปโหลดสำเร็จ',
-          text: `บันทึกรูปภาพโปรไฟล์เรียบร้อย`,
-          timer: 1200,
-          showConfirmButton: false
-        });
-      })
-      .catch(err => {
-        console.error(err);
-        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ', 'error');
+      Swal.fire({
+        icon: 'success',
+        title: 'เลือกรูปโปรไฟล์สำเร็จ',
+        text: 'กรุณากด "บันทึกการเปลี่ยนแปลง" ด้านล่างเพื่อยืนยันการบันทึก',
+        timer: 1500,
+        showConfirmButton: false
       });
     };
     reader.readAsDataURL(file);
