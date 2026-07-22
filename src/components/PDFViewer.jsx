@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Printer, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { formatPatientNickname, formatTherapistName, parseDateToAD } from '../utils/format';
+import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from '../utils/defaultAssets';
 
 const PrintLayout = ({ header, children }) => {
   return (
@@ -234,7 +235,16 @@ export default function PDFViewer({
             <div className="a4-header">
               <div className="a4-header-left">
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
@@ -368,7 +378,16 @@ export default function PDFViewer({
             <div className="a4-header">
               <div className="a4-header-left" style={{ width: '55%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
@@ -580,7 +599,16 @@ export default function PDFViewer({
             <div className="a4-header">
               <div className="a4-header-left" style={{ width: '55%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
@@ -913,7 +941,16 @@ export default function PDFViewer({
             <div className="a4-header">
               <div className="a4-header-left" style={{ width: '60%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
@@ -1042,15 +1079,16 @@ export default function PDFViewer({
           <div className="a4-receipt-signatures print-avoid-break" style={{ marginTop: '50px' }}>
             <div className="a4-sig-line-container">
               {/* มีตราสแตมป์คลินิกเป็นลายน้ำจางๆ ลอยอยู่ถ้าตั้งค่าไว้ */}
-              {clinicInfo.stampUrl && (
-                <img 
-                  src={clinicInfo.stampUrl} 
-                  className="a4-sig-stamp" 
-                  alt="" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              )}
+              <img 
+                src={clinicInfo?.stampUrl || DEFAULT_CLINIC_STAMP} 
+                className="a4-sig-stamp" 
+                alt="Stamp" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = DEFAULT_CLINIC_STAMP;
+                }}
+              />
               <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600 }}>
                 {bill.createdBy || ''}
               </div>
@@ -1516,7 +1554,16 @@ export default function PDFViewer({
             <div className="a4-header" style={{ marginBottom: '15px', borderBottom: '2px solid var(--secondary)', paddingBottom: '10px' }}>
               <div className="a4-header-left" style={{ width: '55%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   {renderClinicHeaderLeftText('1.35rem', '0.9rem')}
@@ -1626,7 +1673,16 @@ export default function PDFViewer({
             <div className="a4-header" style={{ marginBottom: '15px', borderBottom: '2px solid var(--secondary)', paddingBottom: '10px' }}>
               <div className="a4-header-left" style={{ width: '60%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>
@@ -1762,7 +1818,16 @@ export default function PDFViewer({
             <div className="a4-header" style={{ marginBottom: '25px', borderBottom: '2px solid var(--secondary)', paddingBottom: '10px' }}>
               <div className="a4-header-left" style={{ width: '60%' }}>
                 <div className="a4-logo-circle">
-                  {clinicInfo.logoUrl ? <img src={clinicInfo.logoUrl} alt="Logo" referrerPolicy="no-referrer" onError={(e) => { e.target.style.display = 'none'; }} /> : <span>HUG</span>}
+                  <img 
+                    src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = DEFAULT_CLINIC_LOGO;
+                    }} 
+                  />
                 </div>
                 <div className="a4-clinic-details">
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--secondary)' }}>

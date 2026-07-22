@@ -20,6 +20,56 @@ import {
   CircleDollarSign,
   FileSymlink
 } from 'lucide-react';
+import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
+
+const SmartAvatar = ({ src, name, fontSize = '0.75rem' }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [hasError, setHasError] = useState(false);
+  const [triedProxy, setTriedProxy] = useState(false);
+
+  React.useEffect(() => {
+    setImgSrc(src);
+    setHasError(false);
+    setTriedProxy(false);
+  }, [src]);
+
+  const handleError = () => {
+    if (!triedProxy && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('data:image')) {
+      setTriedProxy(true);
+      const cleanUrl = imgSrc.replace(/^https?:\/\//, '');
+      setImgSrc(`https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`);
+    } else {
+      setHasError(true);
+    }
+  };
+
+  const getInitials = (n) => {
+    if (!n) return 'U';
+    const parts = String(n).trim().split(/\s+/);
+    if (parts.length > 1 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return String(n).slice(0, 2).toUpperCase();
+  };
+
+  if (!hasError && imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt={name || ''}
+        referrerPolicy="no-referrer"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }}
+        onError={handleError}
+      />
+    );
+  }
+
+  return (
+    <span style={{ fontSize, fontWeight: 700, color: 'var(--secondary)' }}>
+      {getInitials(name || 'User')}
+    </span>
+  );
+};
 
 export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo }) {
   
@@ -123,17 +173,16 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
       <div className="sidebar-header">
         <a href="#" className="brand" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>
           <div className="brand-icon" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {clinicInfo?.logoUrl ? (
-              <img 
-                src={clinicInfo.logoUrl} 
-                alt="Clinic Logo" 
-                referrerPolicy="no-referrer"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                onError={(e) => { e.target.style.display = 'none'; }} 
-              />
-            ) : (
-              'ฮดี'
-            )}
+            <img 
+              src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+              alt="Logo" 
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }} 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = DEFAULT_CLINIC_LOGO;
+              }} 
+            />
           </div>
           <span className="brand-text">
             {clinicInfo?.name ? (
@@ -234,17 +283,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
       <div className="sidebar-user">
         <div className="user-info">
           <div className="user-avatar" title={user.fullname} style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {user.avatarUrl ? (
-              <img 
-                src={user.avatarUrl} 
-                alt={user.fullname} 
-                referrerPolicy="no-referrer"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                onError={(e) => { e.target.style.display = 'none'; }} 
-              />
-            ) : (
-              getInitials(user.fullname)
-            )}
+            <SmartAvatar src={user?.avatarUrl} name={user?.fullname} fontSize="0.75rem" />
           </div>
           <div className="user-details">
             <span className="user-name">{user.fullname}</span>

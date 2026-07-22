@@ -1,4 +1,4 @@
-// ข้อมูลจำลองตั้งต้นและโครงสร้างตารางระบบบริหารจัดการคลินิก Hug Dee Home (Production Baseline)
+import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from './defaultAssets';
 
 export const INITIAL_CLINIC_INFO = {
   name: "คลินิกกิจกรรมบำบัด ฮักดีโฮม (Hug Dee Home)",
@@ -7,8 +7,8 @@ export const INITIAL_CLINIC_INFO = {
   email: "contact@hugdeehome.com",
   lineId: "@hugdeehome",
   address: "123/45 ถนนมิตรภาพ ต.ในเมือง อ.เมือง จ.ขอนแก่น 40000",
-  logoUrl: "https://images.unsplash.com/photo-1594824813573-246434e33963?auto=format&fit=crop&w=150&h=150&q=80",
-  stampUrl: "https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?auto=format&fit=crop&w=120&h=120&q=80",
+  logoUrl: DEFAULT_CLINIC_LOGO,
+  stampUrl: DEFAULT_CLINIC_STAMP,
   receiptFooter: "ขอบคุณที่ไว้วางใจให้ Hug Dee Home ดูแลและพัฒนาทักษะชีวิตของบุตรหลานท่าน",
   folderId: "1A2B3C4D5E6F7G8H9I0J",
   folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J"

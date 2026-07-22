@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { formatTherapistName } from '../utils/format';
 import { getGasUrl } from '../utils/db';
+import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from '../utils/defaultAssets';
 import { 
   Building2, 
   Tag, 
@@ -1286,59 +1287,91 @@ function createUserFolder(parentFolderId, folderName) {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">รูปโลโก้คลินิก (Logo)</label>
-                    <input 
-                      type="file" 
-                      className="form-control" 
-                      accept="image/*" 
-                      style={{ fontSize: '0.85rem' }}
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setLocalClinicInfo(prev => ({ ...prev, logoUrl: reader.result }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }} 
-                    />
-                    <input 
-                      type="url" 
-                      className="form-control" 
-                      placeholder="หรือระบุ URL รูปภาพโลโก้..." 
-                      value={localClinicInfo?.logoUrl?.startsWith('data:image') ? '' : (localClinicInfo?.logoUrl || '')} 
-                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, logoUrl: e.target.value })} 
-                      style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
-                    />
+                    <label className="form-label">รูปโลโก้คลินิก (Clinic Logo)</label>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <input 
+                          type="file" 
+                          className="form-control" 
+                          accept="image/*" 
+                          style={{ fontSize: '0.85rem' }}
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setLocalClinicInfo(prev => ({ ...prev, logoUrl: reader.result }));
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }} 
+                        />
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          placeholder="หรือระบุ URL รูปภาพโลโก้..." 
+                          value={localClinicInfo?.logoUrl?.startsWith('data:image') ? '' : (localClinicInfo?.logoUrl || '')} 
+                          onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, logoUrl: e.target.value })} 
+                          style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                      <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '1px solid var(--border-light)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
+                        <img 
+                          src={localClinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+                          alt="Logo Preview" 
+                          referrerPolicy="no-referrer"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = DEFAULT_CLINIC_LOGO;
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="form-group">
                     <label className="form-label">รูปตราประทับคลินิก (Stamp สำหรับใบเสร็จ)</label>
-                    <input 
-                      type="file" 
-                      className="form-control" 
-                      accept="image/*" 
-                      style={{ fontSize: '0.85rem' }}
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setLocalClinicInfo(prev => ({ ...prev, stampUrl: reader.result }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }} 
-                    />
-                    <input 
-                      type="url" 
-                      className="form-control" 
-                      placeholder="หรือระบุ URL รูปตราประทับ..." 
-                      value={localClinicInfo?.stampUrl?.startsWith('data:image') ? '' : (localClinicInfo?.stampUrl || '')} 
-                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, stampUrl: e.target.value })} 
-                      style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
-                    />
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <input 
+                          type="file" 
+                          className="form-control" 
+                          accept="image/*" 
+                          style={{ fontSize: '0.85rem' }}
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setLocalClinicInfo(prev => ({ ...prev, stampUrl: reader.result }));
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }} 
+                        />
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          placeholder="หรือระบุ URL รูปตราประทับ..." 
+                          value={localClinicInfo?.stampUrl?.startsWith('data:image') ? '' : (localClinicInfo?.stampUrl || '')} 
+                          onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, stampUrl: e.target.value })} 
+                          style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                      <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '1px solid var(--border-light)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
+                        <img 
+                          src={localClinicInfo?.stampUrl || DEFAULT_CLINIC_STAMP} 
+                          alt="Stamp Preview" 
+                          referrerPolicy="no-referrer"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = DEFAULT_CLINIC_STAMP;
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 

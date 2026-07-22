@@ -23,6 +23,7 @@ import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw } from 'lucide-react';
+import { DEFAULT_CLINIC_LOGO } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
 const isObjectEqual = (a, b) => {
   if (a === b) return true;
@@ -1624,11 +1625,16 @@ export default function App() {
       <div className="login-container" style={{ position: 'relative' }}>
         <div className="card-3xl login-card">
           <div className="login-logo" style={{ overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF8F1', border: '1px solid var(--border-light)' }}>
-            {clinicInfo?.logoUrl ? (
-              <img src={clinicInfo.logoUrl} alt="Clinic Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--secondary)' }}>ฮดี</span>
-            )}
+            <img 
+              src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+              alt="Clinic Logo" 
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }} 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = DEFAULT_CLINIC_LOGO;
+              }} 
+            />
           </div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem', color: 'var(--dark)' }}>
             {clinicInfo?.name || 'ฮักดีโฮม (Hug Dee Home)'}
