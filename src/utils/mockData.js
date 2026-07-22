@@ -15,7 +15,40 @@ export const INITIAL_CLINIC_INFO = {
   folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J"
 };
 
-export const INITIAL_USERS = [];
+export const INITIAL_USERS = [
+  {
+    username: "admin",
+    password: "admin0100",
+    fullname: "แอดมินระบบ (Admin)",
+    role: "ผู้ดูแลระบบ (Admin)",
+    employeeId: "HDH001",
+    employeeType: "พนักงานประจำ",
+    title: "นาย",
+    nickname: "แอดมิน",
+    position: "ผู้ดูแลระบบ",
+    status: "Active",
+    avatarUrl: ""
+  },
+  {
+    username: "pawidtra",
+    password: "123456",
+    fullname: "ปวิตรา ผ่องสวัสดิ์กุล",
+    role: "OT (นักกิจกรรมบำบัด)",
+    employeeId: "HDH002",
+    employeeType: "พนักงานชั่วคราว",
+    title: "นางสาว",
+    nickname: "แนน",
+    citizenId: "1560101536414",
+    gender: "หญิง",
+    dob: "2021-11-05",
+    position: "นักกิจกรรมบำบัด",
+    startDate: "2025-07-15",
+    phone: "096-123948",
+    email: "jinyoungbla4bana@gmail.com",
+    status: "Active",
+    avatarUrl: ""
+  }
+];
 
 export const INITIAL_THERAPISTS = [];
 

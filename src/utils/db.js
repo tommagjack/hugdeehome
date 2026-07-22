@@ -46,6 +46,13 @@ export const initDatabase = (forceReset = false) => {
     return true;
   }
   // ตรวจสอบความปลอดภัยสำหรับคีย์ใหม่ที่อาจไม่มีในเครื่องผู้ใช้ที่มีประวัติเดิมอยู่แล้ว
+  if (!localStorage.getItem(KEYS.CLINIC_INFO)) {
+    localStorage.setItem(KEYS.CLINIC_INFO, JSON.stringify(mock.INITIAL_CLINIC_INFO));
+  }
+  const currentUsers = localStorage.getItem(KEYS.USERS);
+  if (!currentUsers || JSON.parse(currentUsers || '[]').length === 0) {
+    localStorage.setItem(KEYS.USERS, JSON.stringify(mock.INITIAL_USERS));
+  }
   if (!localStorage.getItem(KEYS.ASSESSMENT_TEMPLATES)) {
     localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
   }
@@ -490,15 +497,47 @@ export const syncFromSupabase = async () => {
         }
       }
       
-      // บันทึกลง LocalStorage
+      // บันทึกลง LocalStorage (พร้อมระบบป้องกันการเขียนทับด้วยข้อมูลว่างเปล่า 0 รายการ)
       if (key === KEYS.CLINIC_INFO) {
-        const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0] || mock.INITIAL_CLINIC_INFO;
-        localStorage.setItem(key, JSON.stringify(infoObj));
+        const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
+        if (infoObj && Object.keys(infoObj).length > 0) {
+          localStorage.setItem(key, JSON.stringify(infoObj));
+        } else {
+          const currentLocal = localStorage.getItem(key);
+          if (!currentLocal) {
+            localStorage.setItem(key, JSON.stringify(mock.INITIAL_CLINIC_INFO));
+          }
+        }
+      } else if (key === KEYS.USERS) {
+        if (finalData && finalData.length > 0) {
+          localStorage.setItem(key, JSON.stringify(finalData));
+        } else {
+          const currentUsersRaw = localStorage.getItem(key);
+          const currentUsers = currentUsersRaw ? JSON.parse(currentUsersRaw) : [];
+          if (currentUsers.length === 0) {
+            localStorage.setItem(key, JSON.stringify(mock.INITIAL_USERS));
+          }
+        }
       } else if (key === KEYS.SALARY_RULES) {
-        const rulesObj = finalData.find(r => r && Number(r.id) === 1) || finalData[finalData.length - 1] || mock.INITIAL_SALARY_RULES;
-        localStorage.setItem(key, JSON.stringify(rulesObj));
+        const rulesObj = finalData.find(r => r && Number(r.id) === 1) || finalData[finalData.length - 1];
+        if (rulesObj) {
+          localStorage.setItem(key, JSON.stringify(rulesObj));
+        } else {
+          const currentRules = localStorage.getItem(key);
+          if (!currentRules) {
+            localStorage.setItem(key, JSON.stringify(mock.INITIAL_SALARY_RULES));
+          }
+        }
       } else {
-        localStorage.setItem(key, JSON.stringify(finalData));
+        if (finalData && finalData.length > 0) {
+          localStorage.setItem(key, JSON.stringify(finalData));
+        } else {
+          const currentItemRaw = localStorage.getItem(key);
+          const currentItems = currentItemRaw ? JSON.parse(currentItemRaw) : [];
+          if (currentItems.length === 0 && mappedData.length > 0) {
+            localStorage.setItem(key, JSON.stringify(mappedData));
+          }
+        }
       }
     });
     
