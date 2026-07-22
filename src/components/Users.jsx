@@ -501,7 +501,7 @@ export default function Users({ users, setUsers, setPrintView }) {
       status: uStatus,
       bankName: uBankName,
       bankAccountNo: uBankAccountNo,
-      avatarUrl: uAvatarFile?.data ? uAvatarFile.data : uAvatarUrl,
+      avatarUrl: uAvatarUrl || uAvatarFile?.data || '',
       avatarFile: uAvatarFile,
       citizenIdDoc: uCitizenIdDoc,
       houseRegDoc: uHouseRegDoc,
@@ -1178,20 +1178,40 @@ export default function Users({ users, setUsers, setPrintView }) {
                       className="form-control" 
                       placeholder="หรือระบุ URL รูปภาพ (เช่น https://...)" 
                       value={uAvatarUrl} 
-                      onChange={(e) => setUAvatarUrl(e.target.value)}
+                      onChange={(e) => {
+                        let val = e.target.value.trim();
+                        if (val && !val.startsWith('http://') && !val.startsWith('https://') && !val.startsWith('data:image')) {
+                          val = 'https://' + val;
+                        }
+                        setUAvatarUrl(val);
+                      }}
                       style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}
                     />
                   </div>
                   <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <label className="form-label" style={{ marginBottom: '0.25rem' }}>ตัวอย่าง</label>
-                    <div style={{ width: '45px', height: '45px', borderRadius: '50%', border: '1px solid var(--border-light)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9' }}>
-                      {uAvatarFile?.data ? (
-                        <img src={uAvatarFile.data} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : uAvatarUrl ? (
-                        <img src={uAvatarUrl} alt="preview" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
-                      ) : (
-                        <span style={{ fontSize: '0.65rem', color: 'var(--dark-light)' }}>ไม่มีรูป</span>
-                      )}
+                    <div style={{ width: '45px', height: '45px', borderRadius: '50%', border: '1px solid var(--border-light)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9', position: 'relative' }}>
+                      {(() => {
+                        const displayAvatar = uAvatarUrl || uAvatarFile?.data;
+                        if (displayAvatar) {
+                          return (
+                            <img 
+                              src={displayAvatar} 
+                              alt="" 
+                              referrerPolicy="no-referrer" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                              onError={(e) => { 
+                                e.target.style.display = 'none'; 
+                                if (e.target.nextSibling) e.target.nextSibling.style.display = 'inline';
+                              }} 
+                            />
+                          );
+                        }
+                        return <span style={{ fontSize: '0.65rem', color: 'var(--dark-light)' }}>ไม่มีรูป</span>;
+                      })()}
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--secondary)', display: 'none' }}>
+                        {getInitials(uFullname || 'User')}
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -1269,12 +1269,31 @@ export default function App() {
             const old = prev.find(p => p.username === n.username);
             return old && JSON.stringify(old) !== JSON.stringify(n);
           });
-          if (edited) logActivity(`แก้ไขรายละเอียดผู้ใช้งาน Username: ${edited.username}`);
+          if (edited) {
+            logActivity(`แก้ไขรายละเอียดผู้ใช้งาน Username: ${edited.username}`);
+            // ถ้าข้อมูลผู้ใช้ที่ถูกแก้ไขตรงกับ currentUser ให้ทำการอัปเดตสเตทและ LocalStorage ของ currentUser ทันที
+            if (currentUser && (currentUser.username === edited.username || (currentUser.employeeId && currentUser.employeeId === edited.employeeId))) {
+              const updatedCurrent = { ...currentUser, ...edited };
+              setCurrentUser(updatedCurrent);
+              localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedCurrent));
+              if (updatedCurrent.username === 'admin') {
+                localStorage.setItem('hdh_admin_override', JSON.stringify(updatedCurrent));
+              }
+            }
+          }
         }
         return next;
       });
     } else {
       setUsers(val);
+      if (Array.isArray(val) && currentUser) {
+        const updated = val.find(u => u.username === currentUser.username || (u.employeeId && u.employeeId === currentUser.employeeId));
+        if (updated) {
+          const updatedCurrent = { ...currentUser, ...updated };
+          setCurrentUser(updatedCurrent);
+          localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedCurrent));
+        }
+      }
     }
   };
 

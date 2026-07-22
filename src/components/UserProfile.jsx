@@ -7,6 +7,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
   const [password, setPassword] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarFile, setAvatarFile] = useState(null);
+  const [imgError, setImgError] = useState(false);
 
   // โหลดข้อมูลปัจจุบัน
   useEffect(() => {
@@ -15,8 +16,22 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
       setPassword(currentUser.password || '');
       setAvatarUrl(currentUser.avatarUrl || '');
       setAvatarFile(null);
+      setImgError(false);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [avatarUrl]);
+
+  const handleUrlChange = (val) => {
+    let formatted = val.trim();
+    if (formatted && !formatted.startsWith('http://') && !formatted.startsWith('https://') && !formatted.startsWith('data:image')) {
+      formatted = 'https://' + formatted;
+    }
+    setAvatarUrl(formatted);
+    setImgError(false);
+  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -32,6 +47,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
     reader.onload = () => {
       const base64Data = reader.result;
       setAvatarUrl(base64Data);
+      setImgError(false);
       setAvatarFile({
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
@@ -40,8 +56,8 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
 
       Swal.fire({
         icon: 'success',
-        title: 'เลือกรูปโปรไฟล์สำเร็จ',
-        text: 'กรุณากด "บันทึกการเปลี่ยนแปลง" ด้านล่างเพื่อยืนยันการบันทึก',
+        title: 'แนบรูปโปรไฟล์สำเร็จ',
+        text: 'แสดงผลรูปภาพเรียบร้อย กรุณากด "บันทึกการเปลี่ยนแปลง" เพื่อยืนยัน',
         timer: 1500,
         showConfirmButton: false
       });
@@ -106,13 +122,13 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
         {/* คาร์ดด้านซ้าย: ข้อมูลส่วนตัว (Read-only) */}
         <div className="card-3xl" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', backgroundColor: '#FEF8F1', border: '1.5px dashed var(--secondary-light)' }}>
           <div style={{ width: '130px', height: '130px', borderRadius: '50%', border: '4px solid white', boxShadow: 'var(--shadow-md)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--secondary-light)', marginBottom: '1.5rem', flexShrink: 0 }}>
-            {avatarUrl ? (
+            {!imgError && avatarUrl ? (
               <img 
                 src={avatarUrl} 
-                alt="" 
+                alt="Avatar" 
                 referrerPolicy="no-referrer"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                onError={(e) => { e.target.style.display = 'none'; }} 
+                onError={() => setImgError(true)} 
               />
             ) : (
               <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--secondary)' }}>
@@ -186,7 +202,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
                     className="form-control" 
                     placeholder="หรือระบุลิงก์ URL รูปภาพ (เช่น https://...)" 
                     value={avatarUrl.startsWith('data:image') ? '' : avatarUrl} 
-                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    onChange={(e) => handleUrlChange(e.target.value)}
                     style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}
                   />
                 </div>
