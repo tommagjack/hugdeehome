@@ -181,9 +181,30 @@ export default function Users({ users, setUsers, setPrintView }) {
         parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
       }
 
+      const base64Data = reader.result;
+
+      // ตั้งค่า Base64 Data URL ทันทีเพื่อให้แสดงผลรูปภาพโปรไฟล์บนเบราว์เซอร์ได้อย่างสดใส 100%
+      setDocState({
+        name: origName,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        path: base64Data,
+        data: base64Data,
+        uploadedAt: new Date().toISOString()
+      });
+      if (docType === 'รูปถ่ายโปรไฟล์') {
+        setUAvatarUrl(base64Data);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'แนบไฟล์สำเร็จ',
+        text: `แนบไฟล์ ${origName} เรียบร้อย`,
+        timer: 1200,
+        showConfirmButton: false
+      });
+
+      // หากมี Google Apps Script URL ให้ส่งไฟล์ขึ้น Google Drive ในเบื้องหลัง (สำรองไฟล์)
       if (gasUrl) {
-        // Direct browser upload to Google Apps Script Web App to bypass Vercel's 4.5MB payload limit.
-        // Use Content-Type: 'text/plain' to avoid CORS preflight OPTIONS request.
         fetch(gasUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
@@ -192,57 +213,19 @@ export default function Users({ users, setUsers, setPrintView }) {
             parentFolderId: parentFolderId,
             folder: folderNameParam,
             filename: fileName,
-            base64Data: reader.result
+            base64Data: base64Data
           })
         })
         .then(async res => {
-          if (!res.ok) {
-            throw new Error(`Google Apps Script returned status ${res.status}`);
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.status === 'success' && data.url && docType !== 'รูปถ่ายโปรไฟล์') {
+              setDocState(prev => ({ ...prev, path: data.url, data: data.url }));
+            }
           }
-          const data = await res.json();
-          if (data.status !== 'success') {
-            throw new Error(data.message || 'อัปโหลดไปยัง Google Drive ล้มเหลว');
-          }
-          return data;
-        })
-        .then(data => {
-          setDocState({
-            name: origName,
-            size: `${(file.size / 1024).toFixed(1)} KB`,
-            path: data.url,
-            data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
-            uploadedAt: new Date().toISOString()
-          });
-          Swal.fire({
-            icon: 'success',
-            title: 'อัปโหลดสำเร็จ',
-            text: `บันทึกไฟล์ ${origName} เรียบร้อย`,
-            timer: 1200,
-            showConfirmButton: false
-          });
         })
         .catch(err => {
-          console.error(err);
-          Swal.fire('อัปโหลดล้มเหลว', err.message || 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
-        });
-      } else {
-        const base64Data = reader.result;
-        setDocState({
-          name: origName,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          path: base64Data,
-          data: base64Data,
-          uploadedAt: new Date().toISOString()
-        });
-        if (docType === 'รูปถ่ายโปรไฟล์') {
-          setUAvatarUrl(base64Data);
-        }
-        Swal.fire({
-          icon: 'success',
-          title: 'แนบไฟล์สำเร็จ',
-          text: `แนบไฟล์ ${origName} เรียบร้อย`,
-          timer: 1200,
-          showConfirmButton: false
+          console.warn('Google Drive background backup warning:', err);
         });
       }
     };
