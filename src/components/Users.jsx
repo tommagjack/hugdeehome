@@ -1209,7 +1209,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                       {uAvatarFile?.data ? (
                         <img src={uAvatarFile.data} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : uAvatarUrl ? (
-                        <img src={uAvatarUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                        <img src={uAvatarUrl} alt="preview" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
                       ) : (
                         <span style={{ fontSize: '0.65rem', color: 'var(--dark-light)' }}>ไม่มีรูป</span>
                       )}

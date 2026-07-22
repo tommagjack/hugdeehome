@@ -185,12 +185,18 @@ export default function App() {
   // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
   const logActivity = (details, userObj = currentUser) => {
     if (!userObj) return;
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayFormatted = `${yyyy}-${mm}-${dd}`;
+
     const newLog = {
       code: `LOG-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       name: userObj.fullname || userObj.username || 'ผู้ใช้ระบบ',
       description: details,
-      startDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
-      endDate: new Date().toISOString(), // ISO Timestamp
+      startDate: todayFormatted, // Standard YYYY-MM-DD
+      endDate: now.toISOString(), // ISO Timestamp
       maxUses: 0,
       type: 'activity_log',
       value: 0
@@ -620,8 +626,21 @@ export default function App() {
       'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
     ];
     if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {
-      ref.current = newValue;
-      return;
+      if (key === 'hdh_promotions') {
+        const oldValue = ref.current || [];
+        const toUpsert = newValue.filter(newItem => {
+          const oldItem = oldValue.find(o => o && o[pk] === newItem[pk]);
+          return !oldItem || !isObjectEqual(oldItem, newItem);
+        });
+        const hasOnlyActivityLogs = toUpsert.length > 0 && toUpsert.every(item => item && item.type === 'activity_log');
+        if (!hasOnlyActivityLogs) {
+          ref.current = newValue;
+          return;
+        }
+      } else {
+        ref.current = newValue;
+        return;
+      }
     }
 
     const oldValue = ref.current || [];

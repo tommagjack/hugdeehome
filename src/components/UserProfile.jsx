@@ -133,7 +133,13 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
         <div className="card-3xl" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', backgroundColor: '#FEF8F1', border: '1.5px dashed var(--secondary-light)' }}>
           <div style={{ width: '130px', height: '130px', borderRadius: '50%', border: '4px solid white', boxShadow: 'var(--shadow-md)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--secondary-light)', marginBottom: '1.5rem', flexShrink: 0 }}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img 
+                src={avatarUrl} 
+                alt="" 
+                referrerPolicy="no-referrer"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                onError={(e) => { e.target.style.display = 'none'; }} 
+              />
             ) : (
               <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--secondary)' }}>
                 {getInitials(currentUser?.fullname || 'ผู้ใช้งาน')}

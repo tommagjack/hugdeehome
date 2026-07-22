@@ -491,10 +491,10 @@ export const syncFromSupabase = async () => {
       
       // บันทึกลง LocalStorage
       if (key === KEYS.CLINIC_INFO) {
-        const infoObj = finalData[0] || mock.INITIAL_CLINIC_INFO;
+        const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0] || mock.INITIAL_CLINIC_INFO;
         localStorage.setItem(key, JSON.stringify(infoObj));
       } else if (key === KEYS.SALARY_RULES) {
-        const rulesObj = finalData[0] || mock.INITIAL_SALARY_RULES;
+        const rulesObj = finalData.find(r => r && Number(r.id) === 1) || finalData[finalData.length - 1] || mock.INITIAL_SALARY_RULES;
         localStorage.setItem(key, JSON.stringify(rulesObj));
       } else {
         localStorage.setItem(key, JSON.stringify(finalData));

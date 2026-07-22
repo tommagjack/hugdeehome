@@ -58,7 +58,12 @@ export default function Settings({
     let list = promotions.filter(p => p && p.type === 'activity_log');
 
     if (logSearchDate) {
-      list = list.filter(l => l.startDate === logSearchDate);
+      list = list.filter(l => {
+        const sd = l.startDate;
+        const ed = l.endDate ? String(l.endDate).substring(0, 10) : '';
+        const ca = l.created_at ? String(l.created_at).substring(0, 10) : '';
+        return sd === logSearchDate || ed === logSearchDate || ca === logSearchDate;
+      });
     }
     if (logSearchUser.trim()) {
       const q = logSearchUser.trim().toLowerCase();
@@ -1281,12 +1286,59 @@ function createUserFolder(parentFolderId, folderName) {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">URL รูปโลโก้คลินิก</label>
-                    <input type="url" className="form-control" value={localClinicInfo?.logoUrl || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, logoUrl: e.target.value })} />
+                    <label className="form-label">รูปโลโก้คลินิก (Logo)</label>
+                    <input 
+                      type="file" 
+                      className="form-control" 
+                      accept="image/*" 
+                      style={{ fontSize: '0.85rem' }}
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setLocalClinicInfo(prev => ({ ...prev, logoUrl: reader.result }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }} 
+                    />
+                    <input 
+                      type="url" 
+                      className="form-control" 
+                      placeholder="หรือระบุ URL รูปภาพโลโก้..." 
+                      value={localClinicInfo?.logoUrl?.startsWith('data:image') ? '' : (localClinicInfo?.logoUrl || '')} 
+                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, logoUrl: e.target.value })} 
+                      style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
+                    />
                   </div>
+
                   <div className="form-group">
-                    <label className="form-label">URL ตราประทับคลินิก (สำหรับใบเสร็จ)</label>
-                    <input type="url" className="form-control" value={localClinicInfo?.stampUrl || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, stampUrl: e.target.value })} />
+                    <label className="form-label">รูปตราประทับคลินิก (Stamp สำหรับใบเสร็จ)</label>
+                    <input 
+                      type="file" 
+                      className="form-control" 
+                      accept="image/*" 
+                      style={{ fontSize: '0.85rem' }}
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setLocalClinicInfo(prev => ({ ...prev, stampUrl: reader.result }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }} 
+                    />
+                    <input 
+                      type="url" 
+                      className="form-control" 
+                      placeholder="หรือระบุ URL รูปตราประทับ..." 
+                      value={localClinicInfo?.stampUrl?.startsWith('data:image') ? '' : (localClinicInfo?.stampUrl || '')} 
+                      onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, stampUrl: e.target.value })} 
+                      style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}
+                    />
                   </div>
                 </div>
 

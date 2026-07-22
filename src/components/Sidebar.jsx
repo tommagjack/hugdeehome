@@ -124,7 +124,13 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
         <a href="#" className="brand" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>
           <div className="brand-icon" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {clinicInfo?.logoUrl ? (
-              <img src={clinicInfo.logoUrl} alt="Clinic Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img 
+                src={clinicInfo.logoUrl} 
+                alt="Clinic Logo" 
+                referrerPolicy="no-referrer"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                onError={(e) => { e.target.style.display = 'none'; }} 
+              />
             ) : (
               'ฮดี'
             )}
@@ -229,7 +235,13 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
         <div className="user-info">
           <div className="user-avatar" title={user.fullname} style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.fullname} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img 
+                src={user.avatarUrl} 
+                alt={user.fullname} 
+                referrerPolicy="no-referrer"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                onError={(e) => { e.target.style.display = 'none'; }} 
+              />
             ) : (
               getInitials(user.fullname)
             )}
