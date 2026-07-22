@@ -411,7 +411,8 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUStatus(u.status || 'Active');
     setUBankName(u.bankName || 'กสิกรไทย');
     setUBankAccountNo(u.bankAccountNo || '');
-    setUAvatarUrl(u.avatarUrl || '');
+    const cleanAvatar = (u.avatarUrl && !u.avatarUrl.includes('pic.in.th')) ? u.avatarUrl : '';
+    setUAvatarUrl(cleanAvatar);
     setUAvatarFile(u.avatarFile || null);
     setUCitizenIdDoc(u.citizenIdDoc || null);
     setUHouseRegDoc(u.houseRegDoc || null);

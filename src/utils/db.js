@@ -495,6 +495,37 @@ export const syncFromSupabase = async () => {
           }
           finalData = merged;
         }
+
+        // สำหรับข้อมูลผู้ใช้ (USERS) ให้รักษารูปโปรไฟล์และรหัสผ่านที่บันทึกไว้ในเครื่องเสมอ และคัดกรองลิงก์ pic.in.th ที่เสียแล้วออก
+        if (key === KEYS.USERS && Array.isArray(finalData)) {
+          const localRaw = localStorage.getItem(key);
+          const localUsers = localRaw ? JSON.parse(localRaw) : [];
+          const localUserMap = new Map(localUsers.map(u => [u.username, u]));
+
+          finalData = finalData.map(dbUser => {
+            const localUser = localUserMap.get(dbUser.username);
+            if (localUser) {
+              let bestAvatar = localUser.avatarUrl || dbUser.avatarUrl || '';
+              if (bestAvatar.includes('pic.in.th')) {
+                bestAvatar = (localUser.avatarUrl && !localUser.avatarUrl.includes('pic.in.th')) ? localUser.avatarUrl : '';
+              }
+              return {
+                ...dbUser,
+                ...localUser,
+                avatarUrl: bestAvatar,
+                password: localUser.password || dbUser.password || (dbUser.username === 'admin' ? 'admin0100' : '123456')
+              };
+            }
+            return dbUser;
+          });
+
+          const existingNames = new Set(finalData.map(u => u.username));
+          localUsers.forEach(lu => {
+            if (!existingNames.has(lu.username)) {
+              finalData.push(lu);
+            }
+          });
+        }
       }
       
       // บันทึกลง LocalStorage (พร้อมระบบป้องกันการเขียนทับด้วยข้อมูลว่างเปล่า 0 รายการ)
