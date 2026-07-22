@@ -85,6 +85,48 @@ const getInitials = (name) => {
   return String(name).slice(0, 2).toUpperCase();
 };
 
+const SmartAvatar = ({ src, name, fontSize = '0.75rem' }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [hasError, setHasError] = useState(false);
+  const [triedProxy, setTriedProxy] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(src);
+    setHasError(false);
+    setTriedProxy(false);
+  }, [src]);
+
+  const handleError = () => {
+    if (!triedProxy && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('data:image')) {
+      setTriedProxy(true);
+      const cleanUrl = imgSrc.replace(/^https?:\/\//, '');
+      setImgSrc(`https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`);
+    } else {
+      setHasError(true);
+    }
+  };
+
+  const initials = getInitials(name || 'User');
+
+  if (!hasError && imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt={name || ''}
+        referrerPolicy="no-referrer"
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        onError={handleError}
+      />
+    );
+  }
+
+  return (
+    <span style={{ fontSize, fontWeight: 700, color: 'var(--secondary)' }}>
+      {initials}
+    </span>
+  );
+};
+
 export default function Users({ users, setUsers, setPrintView }) {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUsername, setEditingUsername] = useState(null);
@@ -475,7 +517,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     
     const newUser = {
       username: uUsername,
-      password: '', // ไม่เก็บรหัสผ่านเป็นข้อความธรรมดา (Plaintext) อีกต่อไป เพื่อความปลอดภัย PDPA
+      password: uPassword || '',
       fullname: uFullname,
       role: uRole,
       employeeId: uEmployeeId,
@@ -1183,27 +1225,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                   <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <label className="form-label" style={{ marginBottom: '0.25rem' }}>ตัวอย่าง</label>
                     <div style={{ width: '45px', height: '45px', borderRadius: '50%', border: '1px solid var(--border-light)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9', position: 'relative' }}>
-                      {(() => {
-                        const displayAvatar = uAvatarUrl || uAvatarFile?.data;
-                        if (displayAvatar) {
-                          return (
-                            <img 
-                              src={displayAvatar} 
-                              alt="" 
-                              referrerPolicy="no-referrer" 
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                              onError={(e) => { 
-                                e.target.style.display = 'none'; 
-                                if (e.target.nextSibling) e.target.nextSibling.style.display = 'inline';
-                              }} 
-                            />
-                          );
-                        }
-                        return <span style={{ fontSize: '0.65rem', color: 'var(--dark-light)' }}>ไม่มีรูป</span>;
-                      })()}
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--secondary)', display: 'none' }}>
-                        {getInitials(uFullname || 'User')}
-                      </span>
+                      <SmartAvatar src={uAvatarUrl || uAvatarFile?.data} name={uFullname || 'User'} fontSize="0.75rem" />
                     </div>
                   </div>
                 </div>

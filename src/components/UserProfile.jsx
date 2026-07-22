@@ -20,9 +20,22 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
     }
   }, [currentUser]);
 
+  const [triedProxy, setTriedProxy] = useState(false);
+
   useEffect(() => {
     setImgError(false);
+    setTriedProxy(false);
   }, [avatarUrl]);
+
+  const handleImageError = () => {
+    if (!triedProxy && avatarUrl && typeof avatarUrl === 'string' && !avatarUrl.startsWith('data:image')) {
+      setTriedProxy(true);
+      const cleanUrl = avatarUrl.replace(/^https?:\/\//, '');
+      setAvatarUrl(`https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`);
+    } else {
+      setImgError(true);
+    }
+  };
 
   const handleUrlChange = (val) => {
     let formatted = val.trim();
@@ -128,7 +141,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
                 alt="Avatar" 
                 referrerPolicy="no-referrer"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                onError={() => setImgError(true)} 
+                onError={handleImageError} 
               />
             ) : (
               <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--secondary)' }}>
