@@ -11,6 +11,7 @@ import {
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
 import { getGasUrl } from '../utils/db';
+import { SmartAvatar } from '../utils/defaultAssets';
 
 const formatDateToInputDate = (dateStr) => {
   if (!dateStr) return '';
@@ -85,47 +86,7 @@ const getInitials = (name) => {
   return String(name).slice(0, 2).toUpperCase();
 };
 
-const SmartAvatar = ({ src, name, fontSize = '0.75rem' }) => {
-  const [imgSrc, setImgSrc] = useState(src);
-  const [hasError, setHasError] = useState(false);
-  const [triedProxy, setTriedProxy] = useState(false);
 
-  useEffect(() => {
-    setImgSrc(src);
-    setHasError(false);
-    setTriedProxy(false);
-  }, [src]);
-
-  const handleError = () => {
-    if (!triedProxy && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('data:image')) {
-      setTriedProxy(true);
-      const cleanUrl = imgSrc.replace(/^https?:\/\//, '');
-      setImgSrc(`https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`);
-    } else {
-      setHasError(true);
-    }
-  };
-
-  const initials = getInitials(name || 'User');
-
-  if (!hasError && imgSrc) {
-    return (
-      <img
-        src={imgSrc}
-        alt={name || ''}
-        referrerPolicy="no-referrer"
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        onError={handleError}
-      />
-    );
-  }
-
-  return (
-    <span style={{ fontSize, fontWeight: 700, color: 'var(--secondary)' }}>
-      {initials}
-    </span>
-  );
-};
 
 export default function Users({ users, setUsers, setPrintView }) {
   const [showUserModal, setShowUserModal] = useState(false);

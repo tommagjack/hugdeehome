@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Image, Lock, Shield, Phone, Mail, Award, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { SmartAvatar } from '../utils/defaultAssets';
 
 export default function UserProfile({ currentUser, onUpdateProfile, users }) {
   const [username, setUsername] = useState('');
@@ -135,19 +136,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
         {/* คาร์ดด้านซ้าย: ข้อมูลส่วนตัว (Read-only) */}
         <div className="card-3xl" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', backgroundColor: '#FEF8F1', border: '1.5px dashed var(--secondary-light)' }}>
           <div style={{ width: '130px', height: '130px', borderRadius: '50%', border: '4px solid white', boxShadow: 'var(--shadow-md)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--secondary-light)', marginBottom: '1.5rem', flexShrink: 0 }}>
-            {!imgError && avatarUrl ? (
-              <img 
-                src={avatarUrl} 
-                alt="Avatar" 
-                referrerPolicy="no-referrer"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                onError={handleImageError} 
-              />
-            ) : (
-              <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--secondary)' }}>
-                {getInitials(currentUser?.fullname || 'ผู้ใช้งาน')}
-              </span>
-            )}
+            <SmartAvatar src={avatarUrl} name={currentUser?.fullname || 'ผู้ใช้งาน'} fontSize="2.5rem" />
           </div>
 
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--dark)' }}>

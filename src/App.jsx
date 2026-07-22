@@ -210,12 +210,20 @@ export default function App() {
     const runInitialSync = async () => {
       initDatabase();
       
+      // ดึงข้อมูลการตั้งค่าสาธารณะของคลินิก (เช่น ชื่อคลินิก โลโก้) ขึ้นมาจาก Supabase/LocalStorage ก่อนเสมอ
+      try {
+        await syncFromSupabase();
+        refreshAllLocalStates();
+      } catch (err) {
+        console.warn("Initial public sync warning:", err);
+      }
+      
       // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth
       const { data: { session } } = await supabase.auth.getSession();
       
-      // หากยังไม่ได้ล็อกอิน ให้ข้ามการซิงค์ข้อมูลเริ่มต้น (เนื่องจาก RLS จะบล็อกการดึงข้อมูลตารางส่วนตัว)
+      // หากยังไม่ได้ล็อกอิน ให้ข้ามการซิงค์ตารางส่วนตัวอื่น
       if (!session) {
-        console.log("No active Supabase Auth session found. Skipping initial sync.");
+        console.log("No active Supabase Auth session found. Skipping private tables sync.");
         setIsSyncing(false);
         hasLoadedRef.current = true;
         return;

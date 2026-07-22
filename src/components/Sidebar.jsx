@@ -20,56 +20,7 @@ import {
   CircleDollarSign,
   FileSymlink
 } from 'lucide-react';
-import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
-
-const SmartAvatar = ({ src, name, fontSize = '0.75rem' }) => {
-  const [imgSrc, setImgSrc] = useState(src);
-  const [hasError, setHasError] = useState(false);
-  const [triedProxy, setTriedProxy] = useState(false);
-
-  React.useEffect(() => {
-    setImgSrc(src);
-    setHasError(false);
-    setTriedProxy(false);
-  }, [src]);
-
-  const handleError = () => {
-    if (!triedProxy && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('data:image')) {
-      setTriedProxy(true);
-      const cleanUrl = imgSrc.replace(/^https?:\/\//, '');
-      setImgSrc(`https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}`);
-    } else {
-      setHasError(true);
-    }
-  };
-
-  const getInitials = (n) => {
-    if (!n) return 'U';
-    const parts = String(n).trim().split(/\s+/);
-    if (parts.length > 1 && parts[0] && parts[1]) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return String(n).slice(0, 2).toUpperCase();
-  };
-
-  if (!hasError && imgSrc) {
-    return (
-      <img
-        src={imgSrc}
-        alt={name || ''}
-        referrerPolicy="no-referrer"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: '100%', maxHeight: '100%' }}
-        onError={handleError}
-      />
-    );
-  }
-
-  return (
-    <span style={{ fontSize, fontWeight: 700, color: 'var(--secondary)' }}>
-      {getInitials(name || 'User')}
-    </span>
-  );
-};
+import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
 export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo }) {
   
