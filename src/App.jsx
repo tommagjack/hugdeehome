@@ -645,40 +645,33 @@ export default function App() {
     // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase (ป้องกันความปลอดภัย RLS)
     const adminOnlyKeys = [
       'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
-      'hdh_promotions', 'hdh_bank_accounts', 'hdh_holidays', 
+      'hdh_bank_accounts', 'hdh_holidays', 
       'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
     ];
     if (adminOnlyKeys.includes(key) && currentUser?.role !== 'Admin') {
-      if (key === 'hdh_promotions') {
-        const oldValue = ref.current || [];
-        const toUpsert = newValue.filter(newItem => {
-          const oldItem = oldValue.find(o => o && o[pk] === newItem[pk]);
-          return !oldItem || !isObjectEqual(oldItem, newItem);
-        });
-        const hasOnlyActivityLogs = toUpsert.length > 0 && toUpsert.every(item => item && item.type === 'activity_log');
-        if (!hasOnlyActivityLogs) {
-          ref.current = newValue;
-          return;
-        }
-      } else {
-        ref.current = newValue;
-        return;
-      }
+      ref.current = newValue;
+      return;
     }
 
     const oldValue = ref.current || [];
     ref.current = newValue;
 
     // หาตัวที่เพิ่มหรืออัปเดต
-    const toUpsert = newValue.filter(newItem => {
+    let toUpsert = newValue.filter(newItem => {
       const oldItem = oldValue.find(o => o && o[pk] === newItem[pk]);
       return !oldItem || !isObjectEqual(oldItem, newItem);
     });
 
     // หาตัวที่ถูกลบ
-    const toDelete = oldValue.filter(oldItem => {
+    let toDelete = oldValue.filter(oldItem => {
       return oldItem && !newValue.some(n => n && n[pk] === oldItem[pk]);
     });
+
+    // สำหรับพนักงานที่ไม่ใช่ Admin ให้กรองเฉพาะแถวประเภท activity_log เท่านั้นในการซิงค์ promotions
+    if (key === 'hdh_promotions' && currentUser?.role !== 'Admin') {
+      toUpsert = toUpsert.filter(item => item && item.type === 'activity_log');
+      toDelete = toDelete.filter(item => item && item.type === 'activity_log');
+    }
 
     if (toUpsert.length > 0 || toDelete.length > 0) {
       const delta = { toUpsert, toDelete };
