@@ -22,6 +22,46 @@ const KEYS = {
   ASSESSMENT_TEMPLATES: 'hdh_assessment_templates',
 };
 
+// ฟังก์ชันคัดกรองข้อมูลไฟล์เอกสารขนาดใหญ่ (เช่น เอกสารบัตรประชาชน, ทะเบียนบ้าน, ใบประกอบวิชาชีพ) ออกจาก LocalStorage เพื่อแก้ปัญหา QuotaExceededError
+export const cleanUsersData = (usersList) => {
+  if (!Array.isArray(usersList)) return usersList;
+  return usersList.map(u => {
+    if (!u) return u;
+    const cleaned = { ...u };
+    const docFields = ['citizenIdDoc', 'houseRegDoc', 'bankBookDoc', 'licenseDoc', 'contractDoc', 'otherDoc'];
+    docFields.forEach(field => {
+      if (cleaned[field]) {
+        let doc = cleaned[field];
+        if (typeof doc === 'string') {
+          try { doc = JSON.parse(doc); } catch(e) {}
+        }
+        if (doc && typeof doc === 'object') {
+          const docCopy = { ...doc };
+          if (docCopy.path && (docCopy.path.startsWith('http://') || docCopy.path.startsWith('https://'))) {
+            docCopy.data = '';
+          } else if (docCopy.path && docCopy.path.startsWith('data:')) {
+            docCopy.data = '';
+          } else if (docCopy.data && docCopy.data.startsWith('data:')) {
+            docCopy.path = docCopy.data;
+            docCopy.data = '';
+          }
+          cleaned[field] = docCopy;
+        }
+      }
+    });
+    if (cleaned.avatarFile) {
+      let avFile = cleaned.avatarFile;
+      if (typeof avFile === 'string') {
+        try { avFile = JSON.parse(avFile); } catch(e) {}
+      }
+      if (avFile && typeof avFile === 'object') {
+        cleaned.avatarFile = { ...avFile, data: '' };
+      }
+    }
+    return cleaned;
+  });
+};
+
 // ตรวจสอบและสร้างข้อมูลเริ่มต้นใน localStorage หากไม่มีข้อมูล
 export const initDatabase = (forceReset = false) => {
   if (forceReset || !localStorage.getItem(KEYS.CLINIC_INFO)) {
@@ -52,6 +92,12 @@ export const initDatabase = (forceReset = false) => {
   const currentUsers = localStorage.getItem(KEYS.USERS);
   if (!currentUsers || JSON.parse(currentUsers || '[]').length === 0) {
     localStorage.setItem(KEYS.USERS, JSON.stringify(mock.INITIAL_USERS));
+  } else {
+    try {
+      const parsed = JSON.parse(currentUsers);
+      const cleaned = cleanUsersData(parsed);
+      localStorage.setItem(KEYS.USERS, JSON.stringify(cleaned));
+    } catch(e) {}
   }
   if (!localStorage.getItem(KEYS.ASSESSMENT_TEMPLATES)) {
     localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
@@ -112,7 +158,10 @@ export const db = {
     }
     return data;
   },
-  setUsers: (data) => set(KEYS.USERS, data),
+  setUsers: (data) => {
+    const cleaned = cleanUsersData(data);
+    set(KEYS.USERS, cleaned);
+  },
 
   getTherapists: () => {
     const data = get(KEYS.THERAPISTS, mock.INITIAL_THERAPISTS);
@@ -541,7 +590,8 @@ export const syncFromSupabase = async () => {
         }
       } else if (key === KEYS.USERS) {
         if (finalData && finalData.length > 0) {
-          localStorage.setItem(key, JSON.stringify(finalData));
+          const cleaned = cleanUsersData(finalData);
+          localStorage.setItem(key, JSON.stringify(cleaned));
         } else {
           const currentUsersRaw = localStorage.getItem(key);
           const currentUsers = currentUsersRaw ? JSON.parse(currentUsersRaw) : [];

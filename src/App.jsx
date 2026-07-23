@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl, cleanUsersData } from './utils/db';
 import { supabase } from './utils/supabaseClient';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -1282,7 +1282,8 @@ export default function App() {
   const handleSetUsers = (val) => {
     if (typeof val === 'function') {
       setUsers(prev => {
-        const next = val(prev);
+        const rawNext = val(prev);
+        const next = cleanUsersData(rawNext);
         if (next.length > prev.length) {
           const added = next.find(n => !prev.some(p => p.username === n.username));
           if (added) logActivity(`เพิ่มผู้ใช้งานระบบใหม่ Username: ${added.username} (${added.fullname || ''})`);
@@ -1311,9 +1312,10 @@ export default function App() {
         return next;
       });
     } else {
-      setUsers(val);
-      if (Array.isArray(val) && currentUser) {
-        const updated = val.find(u => u.username === currentUser.username || (u.employeeId && u.employeeId === currentUser.employeeId));
+      const cleanedVal = cleanUsersData(val);
+      setUsers(cleanedVal);
+      if (Array.isArray(cleanedVal) && currentUser) {
+        const updated = cleanedVal.find(u => u.username === currentUser.username || (u.employeeId && u.employeeId === currentUser.employeeId));
         if (updated) {
           const updatedCurrent = { ...currentUser, ...updated };
           const sessionProfile = cleanUserSessionProfile(updatedCurrent);
