@@ -442,7 +442,11 @@ export const syncFromSupabase = async () => {
     // โหลดข้อมูลทุกตารางพร้อมกัน
     const promises = tableKeys.map(async (key) => {
       const tableName = TABLE_MAP[key];
-      const { data, error } = await supabase.from(tableName).select('*');
+      let query = supabase.from(tableName).select('*');
+      if (key === KEYS.CLINIC_INFO) {
+        query = supabase.from(tableName).select('id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id');
+      }
+      const { data, error } = await query;
       if (error) {
         throw new Error(`Error fetching ${tableName}: ${error.message}`);
       }
