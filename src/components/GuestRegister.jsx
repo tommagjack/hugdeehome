@@ -12,6 +12,8 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { getGasUrl } from '../utils/db';
+import { compressImage } from '../utils/defaultAssets';
 
 export default function GuestRegister({ clinicInfo, users, onRegister }) {
   // ฟิลด์ข้อมูลสมัครงาน
@@ -54,68 +56,98 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
     return `HDH${String(maxId + 1).padStart(3, '0')}`;
   }, [users]);
 
-  // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง
-  const handleFileUpload = (e, setDocState, docType) => {
+  // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง (เปลี่ยนเป็นระบบ Local Base64 + Google Drive สำรองตามหลังเหมือนกับ Users.jsx)
+  const handleFileUpload = async (e, setDocState, docType) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       Swal.fire({
         icon: 'error',
         title: 'ไฟล์ขนาดใหญ่เกินไป',
-        text: 'กรุณาอัปโหลดไฟล์ที่มีขนาดไม่เกิน 2MB เพื่อรักษาสุขภาพระบบฐานข้อมูล',
+        text: 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB',
         confirmButtonColor: 'var(--secondary)'
       });
       e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const origName = file.name;
+    let compressedBase64 = null;
+    if (docType === 'รูปถ่ายโปรไฟล์' || (file.type && file.type.startsWith('image/'))) {
+      try {
+        compressedBase64 = await compressImage(file, 300, 300, 0.85);
+      } catch (err) {
+        console.warn('Image compression warning in application form:', err);
+      }
+    }
+
+    const origName = file.name;
+    const processUpload = (dataStr) => {
       const ext = origName.substring(origName.lastIndexOf('.'));
       
-      const parts = fullname.trim().split(/\s+/);
+      const parts = (fullname || '').trim().split(/\s+/);
       const fname = parts[0] || 'Unknown';
       const lname = parts[1] || 'Unknown';
       const folderName = `${nextEmployeeId}-${fname}-${lname}`;
       const fileName = `${nextEmployeeId}-${fname}-${lname}-${docType}${ext}`;
-      
-      fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folder: folderName,
-          filename: fileName,
-          base64Data: reader.result
-        })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error('อัปโหลดไฟล์ล้มเหลว');
-        return res.json();
-      })
-      .then(data => {
-        setDocState({
-          name: origName,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          path: data.url,
-          data: data.url, // เก็บเป็นลิงก์แทน Base64 เพื่อป้องกัน LocalStorage เต็ม
-          uploadedAt: new Date().toISOString()
-        });
-        Swal.fire({
-          icon: 'success',
-          title: 'อัปโหลดสำเร็จ',
-          text: `แนบไฟล์ ${origName} เรียบร้อย`,
-          timer: 1200,
-          showConfirmButton: false
-        });
-      })
-      .catch(err => {
-        console.error(err);
-        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+
+      const gasUrl = getGasUrl();
+      const parentFolderId = clinicInfo?.folderId || '1A2B3C4D5E6F7G8H9I0J';
+
+      // บันทึกและแสดงผล Base64 ทันทีเพื่อความลื่นไหลของหน้าเว็บพรีวิว 100%
+      setDocState({
+        name: origName,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        path: dataStr,
+        data: dataStr,
+        uploadedAt: new Date().toISOString()
       });
+      if (docType === 'รูปถ่ายโปรไฟล์') {
+        setAvatarUrl(dataStr);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'แนบไฟล์สำเร็จ',
+        text: `แนบไฟล์ ${origName} เรียบร้อย`,
+        timer: 1200,
+        showConfirmButton: false
+      });
+
+      // ดึง Google Apps Script เพื่อส่งไฟล์เก็บไว้บนคลาวด์ในเบื้องหลัง
+      if (gasUrl) {
+        fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'upload_file',
+            parentFolderId: parentFolderId,
+            folder: folderName,
+            filename: fileName,
+            base64Data: dataStr
+          })
+        })
+        .then(async res => {
+          if (res.ok) {
+            const resData = await res.json().catch(() => ({}));
+            if (resData.status === 'success' && resData.url && docType !== 'รูปถ่ายโปรไฟล์') {
+              setDocState(prev => ({ ...prev, path: resData.url, data: resData.url }));
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('Google Drive application file upload warning:', err);
+        });
+      }
     };
-    reader.readAsDataURL(file);
+
+    if (compressedBase64) {
+      processUpload(compressedBase64);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => processUpload(reader.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = (e) => {
