@@ -43,6 +43,20 @@ const isObjectEqual = (a, b) => {
   return true;
 };
 
+const cleanUserSessionProfile = (userObj) => {
+  if (!userObj) return null;
+  const {
+    username, fullname, role, employeeId, employeeType, title, nickname,
+    citizenId, gender, dob, position, startDate, phone, email, basicSalary,
+    status, bankName, bankAccountNo, avatarUrl
+  } = userObj;
+  return {
+    username, fullname, role, employeeId, employeeType, title, nickname,
+    citizenId, gender, dob, position, startDate, phone, email, basicSalary,
+    status, bankName, bankAccountNo, avatarUrl
+  };
+};
+
 export default function App() {
   const [isSyncing, setIsSyncing] = useState(true);
   const hasLoadedRef = useRef(false);
@@ -909,9 +923,10 @@ export default function App() {
         if (freshProfile) finalProfile = freshProfile;
       }
 
-      setCurrentUser(finalProfile);
-      localStorage.setItem('hdh_logged_in_user', JSON.stringify(finalProfile));
-      logActivity('เข้าสู่ระบบสำเร็จ', finalProfile);
+      const sessionProfile = cleanUserSessionProfile(finalProfile);
+      setCurrentUser(sessionProfile);
+      localStorage.setItem('hdh_logged_in_user', JSON.stringify(sessionProfile));
+      logActivity('เข้าสู่ระบบสำเร็จ', sessionProfile);
       setIsSyncing(false);
       
       Swal.fire({
@@ -1035,8 +1050,9 @@ export default function App() {
       return [...list, updatedUser];
     });
 
-    setCurrentUser(updatedUser);
-    localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedUser));
+    const sessionProfile = cleanUserSessionProfile(updatedUser);
+    setCurrentUser(sessionProfile);
+    localStorage.setItem('hdh_logged_in_user', JSON.stringify(sessionProfile));
     if (updatedUser.username === 'admin') {
       localStorage.setItem('hdh_admin_override', JSON.stringify(updatedUser));
     }
@@ -1283,8 +1299,9 @@ export default function App() {
             // ถ้าข้อมูลผู้ใช้ที่ถูกแก้ไขตรงกับ currentUser ให้ทำการอัปเดตสเตทและ LocalStorage ของ currentUser ทันที
             if (currentUser && (currentUser.username === edited.username || (currentUser.employeeId && currentUser.employeeId === edited.employeeId))) {
               const updatedCurrent = { ...currentUser, ...edited };
-              setCurrentUser(updatedCurrent);
-              localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedCurrent));
+              const sessionProfile = cleanUserSessionProfile(updatedCurrent);
+              setCurrentUser(sessionProfile);
+              localStorage.setItem('hdh_logged_in_user', JSON.stringify(sessionProfile));
               if (updatedCurrent.username === 'admin') {
                 localStorage.setItem('hdh_admin_override', JSON.stringify(updatedCurrent));
               }
@@ -1299,8 +1316,9 @@ export default function App() {
         const updated = val.find(u => u.username === currentUser.username || (u.employeeId && u.employeeId === currentUser.employeeId));
         if (updated) {
           const updatedCurrent = { ...currentUser, ...updated };
-          setCurrentUser(updatedCurrent);
-          localStorage.setItem('hdh_logged_in_user', JSON.stringify(updatedCurrent));
+          const sessionProfile = cleanUserSessionProfile(updatedCurrent);
+          setCurrentUser(sessionProfile);
+          localStorage.setItem('hdh_logged_in_user', JSON.stringify(sessionProfile));
         }
       }
     }

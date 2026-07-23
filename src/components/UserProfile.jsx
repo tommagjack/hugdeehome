@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Image, Lock, Shield, Phone, Mail, Award, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { SmartAvatar } from '../utils/defaultAssets';
+import { SmartAvatar, compressImage } from '../utils/defaultAssets';
 
 export default function UserProfile({ currentUser, onUpdateProfile, users }) {
   const [username, setUsername] = useState('');
@@ -47,7 +47,7 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
     setImgError(false);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -57,26 +57,40 @@ export default function UserProfile({ currentUser, onUpdateProfile, users }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Data = reader.result;
-      setAvatarUrl(base64Data);
-      setImgError(false);
-      setAvatarFile({
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        data: base64Data
-      });
+    try {
+      const compressedBase64 = await compressImage(file, 300, 300, 0.85);
+      if (compressedBase64) {
+        setAvatarUrl(compressedBase64);
+        setImgError(false);
+        setAvatarFile({
+          name: file.name,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          data: compressedBase64
+        });
 
-      Swal.fire({
-        icon: 'success',
-        title: 'แนบรูปโปรไฟล์สำเร็จ',
-        text: 'แสดงผลรูปภาพเรียบร้อย กรุณากด "บันทึกการเปลี่ยนแปลง" เพื่อยืนยัน',
-        timer: 1500,
-        showConfirmButton: false
-      });
-    };
-    reader.readAsDataURL(file);
+        Swal.fire({
+          icon: 'success',
+          title: 'แนบรูปโปรไฟล์สำเร็จ',
+          text: 'แสดงผลรูปภาพเรียบร้อย กรุณากด "บันทึกการเปลี่ยนแปลง" เพื่อยืนยัน',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      }
+    } catch (err) {
+      console.warn('Image compression warning in profile:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result;
+        setAvatarUrl(base64Data);
+        setImgError(false);
+        setAvatarFile({
+          name: file.name,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          data: base64Data
+        });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSave = (e) => {
