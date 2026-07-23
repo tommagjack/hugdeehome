@@ -637,7 +637,7 @@ export default function App() {
     // 1. บันทึกลง LocalStorage เสมอเพื่อความเสถียรของระบบออฟไลน์
     setDbFunc(newValue);
 
-    if (isSyncing || !hasLoadedRef.current) {
+    if (isSyncing || !hasLoadedRef.current || !currentUser) {
       ref.current = newValue;
       return;
     }
@@ -699,7 +699,7 @@ export default function App() {
   const handleSyncSingleConfig = async (key, newValue, ref, setDbFunc) => {
     setDbFunc(newValue);
 
-    if (isSyncing || !hasLoadedRef.current) {
+    if (isSyncing || !hasLoadedRef.current || !currentUser) {
       ref.current = newValue;
       return;
     }
