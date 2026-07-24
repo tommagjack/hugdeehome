@@ -1840,5 +1840,192 @@ button, input, select, textarea {
   }
 }
 
+/* ==========================================================================
+   Responsive Design (Mobile & Tablet Responsiveness)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Layout Wrapper */
+  .app-container {
+    flex-direction: column !important;
+    min-height: 100vh;
+  }
+
+  /* Fixed Mobile Top Navigation Bar */
+  .mobile-navbar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background-color: var(--white);
+    border-bottom: 1px solid var(--border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    z-index: 1100;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mobile-navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .mobile-brand-title {
+    font-weight: 700;
+    color: var(--dark);
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+  }
+
+  .mobile-brand-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .hamburger-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+  }
+
+  /* Shift Main Content down below mobile navbar */
+  .main-content {
+    padding: 1rem !important;
+    padding-top: calc(60px + 1rem) !important;
+    height: auto !important;
+    min-height: calc(100vh - 60px);
+    overflow-y: visible !important;
+    gap: 1.25rem !important;
+  }
+
+  /* Off-canvas Sidebar Drawer */
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    width: 280px !important;
+    z-index: 1200 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: var(--shadow-lg) !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .sidebar.collapsed {
+    width: 280px !important;
+  }
+
+  /* Hide toggle collapse button on mobile */
+  .sidebar .toggle-sidebar-btn {
+    display: none !important;
+  }
+
+  /* Ensure text is always expanded and readable on mobile drawer */
+  .sidebar.collapsed .brand-text,
+  .sidebar.collapsed .sidebar-section-title,
+  .sidebar.collapsed .sidebar-section-chevron,
+  .sidebar.collapsed .menu-text,
+  .sidebar.collapsed .user-details,
+  .sidebar.collapsed .logout-btn span {
+    display: inline-block !important;
+  }
+
+  /* Backdrop Overlay */
+  .sidebar-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1150;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Stack layouts into a single column */
+  .grid-2, .grid-3, .grid-4, .form-grid, .pos-layout, .dashboard-sections,
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns: 2fr 1fr"],
+  [style*="grid-template-columns: 1.5fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* Page Header Adjustments */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .page-header .btn, 
+  .page-header .button-group, 
+  .page-header .search-filter-bar {
+    width: 100% !important;
+  }
+
+  /* Table responsiveness wrapper */
+  .table-container, .table-responsive, [class*="table-"] {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+  }
+
+  /* Modals Fullscreen on mobile */
+  .modal-overlay {
+    padding: 0 !important;
+  }
+
+  .modal-content-wrapper {
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  /* Form row elements stack */
+  .form-row {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+
+  .form-group {
+    width: 100% !important;
+  }
+
+  /* Dashboard Cards stack */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .card {
+    padding: 1rem !important;
+  }
+}
+
 
 

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo }) {
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile }) {
   
   const toggleCollapse = () => {
     const newVal = !collapsed;
@@ -120,9 +120,9 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
   };
 
   return (
-    <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <div className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header">
-        <a href="#" className="brand" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>
+        <a href="#" className="brand" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); if (onCloseMobile) onCloseMobile(); }}>
           <div className="brand-icon" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img 
               src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
@@ -156,7 +156,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
           <li key={dashboardItem.id} className={`menu-item ${activeTab === dashboardItem.id ? 'active' : ''}`}>
             <a 
               className="menu-link" 
-              onClick={() => setActiveTab(dashboardItem.id)}
+              onClick={() => { setActiveTab(dashboardItem.id); if (onCloseMobile) onCloseMobile(); }}
               title={collapsed ? dashboardItem.label : ''}
             >
               <LayoutDashboard size={20} className="menu-icon" />
@@ -182,7 +182,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                     <li key={item.id} className={`menu-item ${activeTab === item.id ? 'active' : ''}`}>
                       <a 
                         className="menu-link" 
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => { setActiveTab(item.id); if (onCloseMobile) onCloseMobile(); }}
                         title={item.label}
                       >
                         <IconComponent size={20} className="menu-icon" />
@@ -216,7 +216,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                       <li key={item.id} className={`menu-item ${activeTab === item.id ? 'active' : ''}`}>
                         <a 
                           className="menu-link" 
-                          onClick={() => setActiveTab(item.id)}
+                          onClick={() => { setActiveTab(item.id); if (onCloseMobile) onCloseMobile(); }}
                         >
                           <IconComponent size={20} className="menu-icon" />
                           <span className="menu-text">{item.label}</span>
@@ -241,7 +241,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
             <span className="user-role">สิทธิ์: {user.role === 'Admin' ? 'ผู้ดูแลระบบ (Admin)' : user.role === 'OT' ? 'นักบำบัด (OT)' : 'พนักงาน (Staff)'}</span>
           </div>
         </div>
-        <button className="logout-btn" onClick={onLogout} title="ออกจากระบบ">
+        <button className="logout-btn" onClick={() => { onLogout(); if (onCloseMobile) onCloseMobile(); }} title="ออกจากระบบ">
           <LogOut size={16} />
           <span>ออกจากระบบ</span>
         </button>

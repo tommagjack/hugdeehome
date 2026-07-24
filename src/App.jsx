@@ -22,8 +22,8 @@ import GuestRegister from './components/GuestRegister';
 import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
-import { RefreshCw } from 'lucide-react';
-import { DEFAULT_CLINIC_LOGO } from './utils/defaultAssets';
+import { RefreshCw, Menu } from 'lucide-react';
+import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
 const isObjectEqual = (a, b) => {
   if (a === b) return true;
@@ -1070,6 +1070,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
+  // สถานะการเปิด Sidebar บนหน้าจอมือถือ
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   // สถานะเปิดหน้าสมัครงานออนไลน์สาธารณะ
   const [isApplyPage, setIsApplyPage] = useState(() => window.location.hash === '#/apply');
 
@@ -1898,9 +1901,48 @@ export default function App() {
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
         clinicInfo={clinicInfo}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
+      {/* ม่านฉากหลังเมื่อสไลด์เมนูมือถือเปิด */}
+      {mobileSidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
 
+      {/* แถบนำทางด้านบนเฉพาะมือถือ (แสดงผลผ่าน CSS @media) */}
+      <div className="mobile-navbar" style={{ display: 'none' }}>
+        <div className="mobile-navbar-left">
+          <button className="hamburger-btn" onClick={() => setMobileSidebarOpen(true)} title="เปิดเมนู">
+            <Menu size={24} />
+          </button>
+          <div className="mobile-brand-logo">
+            <img 
+              src={clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO} 
+              alt="Clinic Logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = DEFAULT_CLINIC_LOGO;
+              }}
+            />
+          </div>
+          <span className="mobile-brand-title">
+            {clinicInfo?.name ? (
+              clinicInfo.name.includes(" คลินิก") 
+                ? clinicInfo.name.split(" คลินิก")[0] 
+                : clinicInfo.name
+            ) : (
+              'Hug Dee Home'
+            )}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="user-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setActiveTab('profile')}>
+            <SmartAvatar src={currentUser?.avatarUrl} name={currentUser?.fullname} fontSize="0.65rem" />
+          </div>
+        </div>
+      </div>
 
       {/* 7. ส่วนแสดงเนื้อหา SPA ตามเมนูย่อย */}
       <div className="main-content" style={{ position: 'relative' }}>
