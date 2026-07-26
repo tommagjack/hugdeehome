@@ -439,24 +439,31 @@ export const syncFromSupabase = async () => {
   try {
     const tableKeys = Object.keys(TABLE_MAP);
     
-    // โหลดข้อมูลทุกตารางพร้อมกัน
+    // โหลดข้อมูลทุกตารางพร้อมกันโดยดักจับ Error รายตาราง ป้องกัน RLS / Permission Denied บล็อกซิงค์พังทั้งหมด
     const promises = tableKeys.map(async (key) => {
       const tableName = TABLE_MAP[key];
       let query = supabase.from(tableName).select('*');
       if (key === KEYS.CLINIC_INFO) {
         query = supabase.from(tableName).select('id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id');
       }
-      const { data, error } = await query;
-      if (error) {
-        throw new Error(`Error fetching ${tableName}: ${error.message}`);
+      try {
+        const { data, error } = await query;
+        if (error) {
+          console.warn(`[Sync Warning] Failed to fetch ${tableName} (likely RLS / Auth):`, error.message);
+          return { key, data: null }; // คืนค่า null เพื่อระบุว่าซิงค์ตารางนี้ไม่ได้เนื่องจากไม่มีสิทธิ์ RLS/Auth
+        }
+        return { key, data: data || [] };
+      } catch (err) {
+        console.warn(`[Sync Warning] Failed to fetch ${tableName}:`, err);
+        return { key, data: null };
       }
-      return { key, data: data || [] };
     });
     
     const results = await Promise.all(promises);
     
-    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (วัดจากตารางสำคัญๆ เช่น patients, appointments, receipts)
+    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (วัดจากตารางสำคัญๆ เช่น patients, appointments, receipts ที่ดึงสำเร็จ)
     const isCloudEmpty = results.every(({ key, data }) => {
+      if (data === null) return true; // ข้ามตารางที่ดึงไม่สำเร็จเนื่องจากสิทธิ์ RLS
       if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
         return true; // ข้ามตารางข้อมูลตั้งต้น
       }
@@ -477,6 +484,8 @@ export const syncFromSupabase = async () => {
     const pendingSyncs = pendingSyncsRaw ? JSON.parse(pendingSyncsRaw) : [];
 
     results.forEach(({ key, data }) => {
+      if (data === null) return; // ข้ามการเขียนทับหากดึงข้อมูลจาก Supabase ไม่สำเร็จ (ไม่มีสิทธิ์ RLS / Offline)
+      
       // แปลงข้อมูลจาก snake_case กลับมาเป็น camelCase
       const mappedData = data.map(row => {
         const mapped = {};

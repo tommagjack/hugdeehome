@@ -62,7 +62,12 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
 
   // รายชื่อพนักงานที่เป็น Active เท่านั้นสำหรับคำนวณเงินเดือน
   const activeEmployees = useMemo(() => {
-    return safeUsers.filter(u => u && u.status === 'Active' && u.username && u.username.toLowerCase() !== 'admin');
+    const list = safeUsers.filter(u => u && u.status === 'Active' && u.username && u.username.toLowerCase() !== 'admin');
+    return [...list].sort((a, b) => {
+      const idA = String(a.employeeId || '').trim();
+      const idB = String(b.employeeId || '').trim();
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [safeUsers]);
 
   // พนักงานที่เลือกอยู่ในขณะคำนวณ
