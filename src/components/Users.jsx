@@ -114,6 +114,7 @@ export default function Users({ users, setUsers, setPrintView }) {
   const [uBankAccountNo, setUBankAccountNo] = useState('');
   const [uAvatarUrl, setUAvatarUrl] = useState('');
   const [uUserFolderUrl, setUUserFolderUrl] = useState('');
+  const [uResignationDate, setUResignationDate] = useState('');
   const [uIsConnectingFolder, setUIsConnectingFolder] = useState(false);
 
   // ฟิลด์ไฟล์แนบจำลองเอกสาร
@@ -403,6 +404,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUContractDoc(null);
     setUOtherDoc(null);
     setUUserFolderUrl('');
+    setUResignationDate('');
   };
 
   const handleEditUser = (u) => {
@@ -436,6 +438,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUContractDoc(u.contractDoc || null);
     setUOtherDoc(u.otherDoc || null);
     setUUserFolderUrl(u.userFolderUrl || '');
+    setUResignationDate(formatDateToInputDate(u.resignationDate));
     setShowUserModal(true);
   };
 
@@ -520,7 +523,8 @@ export default function Users({ users, setUsers, setPrintView }) {
       licenseDoc: uLicenseDoc,
       contractDoc: uContractDoc,
       otherDoc: uOtherDoc,
-      userFolderUrl: uUserFolderUrl
+      userFolderUrl: uUserFolderUrl,
+      resignationDate: uResignationDate || ''
     };
 
     if (editingUsername) {
@@ -961,13 +965,20 @@ export default function Users({ users, setUsers, setPrintView }) {
                     </td>
                     <td style={{ fontWeight: 600 }}>{u.basicSalary ? `฿${u.basicSalary.toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : '฿0.00'}</td>
                     <td>
-                      <span className="badge" style={
-                        u.status === 'Pending' ? { backgroundColor: '#f59e0b', color: 'white' } : 
-                        u.status === 'Active' ? { backgroundColor: '#10b981', color: 'white' } : 
-                        { backgroundColor: '#ef4444', color: 'white' }
-                      }>
-                        {u.status}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                        <span className="badge" style={
+                          u.status === 'Pending' ? { backgroundColor: '#f59e0b', color: 'white' } : 
+                          u.status === 'Active' ? { backgroundColor: '#10b981', color: 'white' } : 
+                          { backgroundColor: '#ef4444', color: 'white' }
+                        }>
+                          {u.status}
+                        </span>
+                        {u.status === 'Inactive' && u.resignationDate && (
+                          <small style={{ fontSize: '0.7rem', color: '#dc3545', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                            พ้นสภาพ: {new Date(u.resignationDate).toLocaleDateString('th-TH')}
+                          </small>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
@@ -1171,6 +1182,14 @@ export default function Users({ users, setUsers, setPrintView }) {
                       {uStatus === 'Pending' && <option value="Pending">Pending</option>}
                     </select>
                   </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">วันที่พ้นสภาพพนักงาน (ถ้ามี)</label>
+                    <input type="date" className="form-control" value={uResignationDate} onChange={(e) => setUResignationDate(e.target.value)} />
+                  </div>
+                  <div className="form-group"></div>
                 </div>
 
                 <div className="form-row" style={{ alignItems: 'center' }}>

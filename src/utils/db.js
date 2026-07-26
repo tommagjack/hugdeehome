@@ -329,7 +329,7 @@ const TABLE_COLUMNS = {
     'employee_type', 'title', 'nickname', 'citizen_id', 'gender', 'dob', 
     'position', 'start_date', 'phone', 'email', 'basic_salary', 'bank_name', 
     'bank_account_no', 'avatar_url', 'contract_doc', 'user_folder_url',
-    'avatar_file', 'citizen_id_doc', 'house_reg_doc', 'bank_book_doc', 'license_doc', 'other_doc'
+    'avatar_file', 'citizen_id_doc', 'house_reg_doc', 'bank_book_doc', 'license_doc', 'other_doc', 'resignation_date'
   ],
   therapists: [
     'id', 'fullname', 'nickname', 'license_no', 'status',

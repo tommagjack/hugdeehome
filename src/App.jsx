@@ -48,12 +48,12 @@ const cleanUserSessionProfile = (userObj) => {
   const {
     username, fullname, role, employeeId, employeeType, title, nickname,
     citizenId, gender, dob, position, startDate, phone, email, basicSalary,
-    status, bankName, bankAccountNo, avatarUrl
+    status, bankName, bankAccountNo, avatarUrl, resignationDate
   } = userObj;
   return {
     username, fullname, role, employeeId, employeeType, title, nickname,
     citizenId, gender, dob, position, startDate, phone, email, basicSalary,
-    status, bankName, bankAccountNo, avatarUrl
+    status, bankName, bankAccountNo, avatarUrl, resignationDate
   };
 };
 
@@ -329,6 +329,30 @@ export default function App() {
         } else if (success) {
           // โหลดสเตทใหม่จาก LocalStorage ทันที
           refreshAllLocalStates();
+
+          const savedUser = localStorage.getItem('hdh_logged_in_user');
+          if (savedUser) {
+            const parsed = JSON.parse(savedUser);
+            const freshUsers = db.getUsers();
+            const freshProfile = (freshUsers || []).find(u => u.username === parsed.username);
+            if (freshProfile) {
+              if (freshProfile.status === 'Inactive') {
+                handleLogout();
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'สิทธิ์การเข้าใช้งานถูกระงับ',
+                  text: 'บัญชีผู้ใช้งานนี้พ้นสภาพการทำงาน (Inactive) แล้ว ระบบจะนำออกจากระบบโดยอัตโนมัติ',
+                  confirmButtonColor: 'var(--secondary)'
+                });
+                setIsSyncing(false);
+                hasLoadedRef.current = true;
+                return;
+              }
+              const sessionProfile = cleanUserSessionProfile(freshProfile);
+              setCurrentUser(sessionProfile);
+              localStorage.setItem('hdh_logged_in_user', JSON.stringify(sessionProfile));
+            }
+          }
           
           Swal.fire({
             icon: 'success',
@@ -390,6 +414,22 @@ export default function App() {
     };
     runInitialSync();
   }, []);
+
+  // ตรวจสอบสถานะบัญชีแบบเรียลไทม์ และล็อกเอาต์อัตโนมัติทันทีหากสิทธิ์ถูกปรับเป็น Inactive
+  useEffect(() => {
+    if (currentUser && currentUser.username !== 'admin') {
+      const myProfile = (users || []).find(u => u && u.username === currentUser.username);
+      if (myProfile && myProfile.status === 'Inactive') {
+        handleLogout();
+        Swal.fire({
+          icon: 'warning',
+          title: 'บัญชีถูกระงับสิทธิ์การใช้งาน',
+          text: 'บัญชีผู้ใช้งานของคุณถูกระงับการใช้งาน (Inactive) แล้ว ระบบได้ลงชื่อออกโดยอัตโนมัติ',
+          confirmButtonColor: 'var(--secondary)'
+        });
+      }
+    }
+  }, [users, currentUser]);
 
   // 1.2 ระบบสมัครติดตามอัปเดตเรียลไทม์ (Supabase Real-time Subscriptions)
   useEffect(() => {
@@ -920,6 +960,11 @@ export default function App() {
         const freshUsers = db.getUsers();
         const freshProfile = (freshUsers || []).find(u => u.username === loginUsername);
         if (freshProfile) finalProfile = freshProfile;
+      }
+
+      if (finalProfile && finalProfile.status === 'Inactive') {
+        await supabase.auth.signOut();
+        throw new Error('บัญชีผู้ใช้นี้ถูกระงับหรือพ้นสภาพการทำงาน (Inactive) แล้ว ไม่สามารถเข้าใช้งานระบบได้');
       }
 
       const sessionProfile = cleanUserSessionProfile(finalProfile);
