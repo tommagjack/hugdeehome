@@ -1484,7 +1484,7 @@ button, input, select, textarea {
   .app-container {
     display: block !important;
   }
-  .sidebar, .main-content, .pdf-preview-toolbar, .modal-overlay, #pdf-preview-overlay > *:not(.a4-document):not(#printable-a4-area) {
+  .sidebar, .main-content, .pdf-preview-toolbar, .modal-overlay, .mobile-navbar, .sidebar-backdrop, #pdf-preview-overlay > *:not(.a4-document):not(#printable-a4-area) {
     display: none !important;
   }
   #printable-a4-area {
@@ -2026,6 +2026,15 @@ button, input, select, textarea {
     padding: 1rem !important;
   }
 }
+
+/* Final overrides to ensure print layouts hide interactive components regardless of responsive style rules */
+@media print {
+  .mobile-navbar,
+  .sidebar-backdrop {
+    display: none !important;
+  }
+}
+
 
 
 

@@ -1124,7 +1124,7 @@ export default function PDFViewer({
       lastname: (patientRaw.lastname || '').replace(/\$/g, ''),
       nickname: (patientRaw.nickname || '').replace(/\$/g, '')
     } : null;
-    const history = documentData?.history || [];
+    const history = [...(documentData?.history || [])].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 
     const FIRST_PAGE_LIMIT = 16;
     const NEXT_PAGE_LIMIT = 22;
@@ -1144,36 +1144,62 @@ export default function PDFViewer({
         items: Array(NEXT_PAGE_LIMIT).fill(0).map(() => ({ isEmpty: true }))
       });
     } else {
-      let currentIndex = 0;
+      const getRecordUnits = (record) => {
+        const text = record.details || '';
+        const paragraphs = text.split('\n');
+        let lineCount = 0;
+        paragraphs.forEach(p => {
+          lineCount += Math.max(1, Math.ceil(p.length / 50));
+        });
+        const heightPx = 16 + lineCount * 16.5;
+        return Math.max(1, Math.ceil(heightPx / 40));
+      };
+
+      let currentPageItems = [];
+      let currentUnits = 0;
       let pageNum = 1;
 
-      if (history.length === 0) {
-        pages.push({
-          pageNum: 1,
-          isFirstPage: true,
-          items: Array(FIRST_PAGE_LIMIT).fill(0).map(() => ({ isEmpty: true }))
-        });
-      }
+      const getCapacity = (num) => num === 1 ? FIRST_PAGE_LIMIT : NEXT_PAGE_LIMIT;
 
-      while (currentIndex < history.length) {
-        const isFirstPage = pageNum === 1;
-        const limit = isFirstPage ? FIRST_PAGE_LIMIT : NEXT_PAGE_LIMIT;
-        const chunk = history.slice(currentIndex, currentIndex + limit);
+      history.forEach((record) => {
+        const recordUnits = getRecordUnits(record);
+        const capacity = getCapacity(pageNum);
 
-        // เติมช่องว่างให้เต็มความสูงหน้า A4 พอดี
-        const filledChunk = [...chunk];
-        while (filledChunk.length < limit) {
-          filledChunk.push({ isEmpty: true });
+        if (currentUnits + recordUnits > capacity && currentPageItems.length > 0) {
+          // Push current page
+          const filledItems = [...currentPageItems];
+          while (currentUnits < capacity) {
+            filledItems.push({ isEmpty: true });
+            currentUnits += 1;
+          }
+          pages.push({
+            pageNum,
+            isFirstPage: pageNum === 1,
+            items: filledItems
+          });
+
+          // Start new page
+          pageNum++;
+          currentPageItems = [record];
+          currentUnits = recordUnits;
+        } else {
+          currentPageItems.push(record);
+          currentUnits += recordUnits;
         }
+      });
 
+      if (currentPageItems.length > 0 || pages.length === 0) {
+        const capacity = getCapacity(pageNum);
+        const filledItems = [...currentPageItems];
+        while (currentUnits < capacity) {
+          filledItems.push({ isEmpty: true });
+          currentUnits += 1;
+        }
         pages.push({
           pageNum,
-          isFirstPage,
-          items: filledChunk
+          isFirstPage: pageNum === 1,
+          items: filledItems
         });
-
-        currentIndex += limit;
-        pageNum++;
       }
     }
 
