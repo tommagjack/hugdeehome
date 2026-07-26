@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl, cleanUsersData } from './utils/db';
 import { supabase } from './utils/supabaseClient';
 import Sidebar from './components/Sidebar';
@@ -22,7 +22,7 @@ import GuestRegister from './components/GuestRegister';
 import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
-import { RefreshCw, Menu } from 'lucide-react';
+import { RefreshCw, Menu, Bell } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
 const isObjectEqual = (a, b) => {
@@ -644,7 +644,7 @@ export default function App() {
 
     // กรองและบล็อกไม่ให้บทบาททั่วไปทำการซิงค์ตารางตั้งค่า/การเงินกลับขึ้น Supabase (ป้องกันความปลอดภัย RLS)
     const adminOnlyKeys = [
-      'hdh_clinic_info', 'hdh_users', 'hdh_therapists', 'hdh_services', 
+      'hdh_clinic_info', 'hdh_therapists', 'hdh_services', 
       'hdh_bank_accounts', 'hdh_holidays', 
       'hdh_salary_rules', 'hdh_payrolls', 'hdh_transactions'
     ];
@@ -671,6 +671,12 @@ export default function App() {
     if (key === 'hdh_promotions' && currentUser?.role !== 'Admin') {
       toUpsert = toUpsert.filter(item => item && item.type === 'activity_log');
       toDelete = toDelete.filter(item => item && item.type === 'activity_log');
+    }
+
+    // สำหรับพนักงานที่ไม่ใช่ Admin ให้กรองเฉพาะข้อมูลโปรไฟล์ของตนเองเท่านั้นในการซิงค์ users
+    if (key === 'hdh_users' && currentUser?.role !== 'Admin') {
+      toUpsert = toUpsert.filter(item => item && (item.username === currentUser.username || (item.employeeId && item.employeeId === currentUser.employeeId)));
+      toDelete = []; // บล็อกห้ามพนักงานกดลบผู้ใช้ใดๆ
     }
 
     if (toUpsert.length > 0 || toDelete.length > 0) {
@@ -1118,6 +1124,72 @@ export default function App() {
       delete window.printReceiptById;
     };
   }, [receipts]);
+
+  // คำนวณและแจ้งเตือนเมื่อมีรายการนัดหมายเลยกำหนดแต่ยังไม่ได้รับการปรับปรุงสถานะ
+  const overdueAppointments = useMemo(() => {
+    if (!Array.isArray(appointments)) return [];
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    return appointments.filter(app => {
+      if (!app || !app.date) return false;
+      const appDate = app.date.trim();
+      const isPast = appDate < todayStr;
+      const isPending = app.status === 'จองแล้ว' || app.status === 'ยืนยันแล้ว';
+      return isPast && isPending;
+    });
+  }, [appointments]);
+
+  const overdueCount = overdueAppointments.length;
+
+  const handleShowOverdueAlert = () => {
+    if (overdueCount === 0) {
+      Swal.fire({
+        icon: 'success',
+        title: 'ไม่มีนัดหมายค้างสถานะ',
+        text: 'รายการนัดหมายทั้งหมดได้รับการปรับปรุงเป็นปัจจุบันเรียบร้อยแล้ว',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const listHtml = overdueAppointments.map(app => {
+      const patientName = app.patientName || `HN: ${app.hn}`;
+      return `
+        <div style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+          <div>
+            <strong>${patientName}</strong><br/>
+            <small style="color: #888;">วันที่นัด: ${app.date} | เวลา: ${app.timeSlot || '-'}</small>
+          </div>
+          <span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid #ffeeba;">
+            ${app.status}
+          </span>
+        </div>
+      `;
+    }).join('');
+
+    Swal.fire({
+      title: `พบนัดหมายค้างสถานะ (${overdueCount} รายการ)`,
+      html: `
+        <p style="font-size: 0.85rem; color: #dc3545; text-align: left; margin-bottom: 0.75rem; font-weight: 600;">
+          * ตรวจพบรายการนัดหมายที่เลยกำหนดวันนัดแล้ว แต่สถานะยังเป็น "จองแล้ว" หรือ "ยืนยันแล้ว"
+        </p>
+        <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0 0.5rem; background-color: #fdfdfd;">
+          ${listHtml}
+        </div>
+        <p style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; text-align: left;">
+          กรุณากดปุ่มด้านล่างเพื่อไปที่หน้า <strong>ตารางนัดหมาย</strong> เพื่อเปลี่ยนสถานะเป็น <strong>"รับบริการแล้ว"</strong> หรือ <strong>"ยกเลิก"</strong> ให้ถูกต้องครับ
+        </p>
+      `,
+      confirmButtonText: 'ไปหน้าตารางนัดหมาย',
+      showCancelButton: true,
+      cancelButtonText: 'ปิดหน้าต่าง',
+      confirmButtonColor: 'var(--secondary)',
+      cancelButtonColor: '#aaa'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setActiveTab('appointments');
+      }
+    });
+  };
 
   // --- ฟังก์ชันดำเนินงาน DB (สืบทอดไปให้ลูกๆ) ---
   const handleAddPatient = (data) => {
@@ -1903,6 +1975,7 @@ export default function App() {
         clinicInfo={clinicInfo}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        overdueCount={overdueCount}
       />
 
       {/* ม่านฉากหลังเมื่อสไลด์เมนูมือถือเปิด */}
@@ -1937,7 +2010,43 @@ export default function App() {
             )}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะบนมือถือ */}
+          <button
+            onClick={handleShowOverdueAlert}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              padding: '0.45rem',
+              borderRadius: '50%',
+              border: '1px solid var(--border)',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              color: overdueCount > 0 ? 'var(--danger, #dc3545)' : '#666'
+            }}
+            title={`นัดหมายค้างสถานะ ${overdueCount} รายการ`}
+          >
+            <Bell size={16} />
+            {overdueCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                backgroundColor: 'var(--danger, #dc3545)',
+                color: 'white',
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                borderRadius: '50%',
+                width: '14px',
+                height: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>{overdueCount}</span>
+            )}
+          </button>
           <div className="user-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setActiveTab('profile')}>
             <SmartAvatar src={currentUser?.avatarUrl} name={currentUser?.fullname} fontSize="0.65rem" />
           </div>
@@ -1996,6 +2105,46 @@ export default function App() {
               ค้างซิงค์ {pendingSyncs.length} รายการ (กดซิงค์ใหม่)
             </button>
           )}
+
+          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะแบบโกลบอล */}
+          <button
+            onClick={handleShowOverdueAlert}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              padding: '0.45rem',
+              borderRadius: '50%',
+              border: '1px solid var(--border)',
+              backgroundColor: 'white',
+              boxShadow: 'var(--shadow-sm)',
+              cursor: 'pointer',
+              color: overdueCount > 0 ? 'var(--danger, #dc3545)' : '#666',
+              transition: 'all 0.2s',
+              flexShrink: 0
+            }}
+            title={`นัดหมายค้างสถานะ ${overdueCount} รายการ`}
+          >
+            <Bell size={15} />
+            {overdueCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                backgroundColor: 'var(--danger, #dc3545)',
+                color: 'white',
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                borderRadius: '50%',
+                width: '15px',
+                height: '15px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>{overdueCount}</span>
+            )}
+          </button>
 
           <button 
             className="btn btn-light" 
