@@ -58,6 +58,7 @@ export default function ServiceSummary({
 
   const [startDate, setStartDate] = useState(defaultDates.start);
   const [endDate, setEndDate] = useState(defaultDates.end);
+  const [selectedTherapistId, setSelectedTherapistId] = useState('');
   
   // สถานะเปิด Modal รายละเอียด
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -113,10 +114,12 @@ export default function ServiceSummary({
       );
       const myTherapistId = myTherapist ? myTherapist.id : 'NONE';
       list = list.filter(t => t.id === myTherapistId);
+    } else if (selectedTherapistId) {
+      list = list.filter(t => t.id === selectedTherapistId);
     }
 
     return list;
-  }, [appointments, therapists, startDate, endDate, currentUser]);
+  }, [appointments, therapists, startDate, endDate, currentUser, selectedTherapistId]);
 
   // 2. จัดกลุ่มนัดหมายที่สอนสำเร็จตาม ครู + วัน (1 แถวต่อครูในวันเดียวกัน)
   const aggregatedTeachingRows = useMemo(() => {
@@ -168,11 +171,13 @@ export default function ServiceSummary({
       .filter(row => {
         if (currentUser && currentUser.role === 'OT') {
           return row.therapistId === myTherapistId;
+        } else if (selectedTherapistId) {
+          return row.therapistId === selectedTherapistId;
         }
         return true;
       })
       .sort((a, b) => b.date.localeCompare(a.date) || a.therapistNickname.localeCompare(b.therapistNickname));
-  }, [appointments, therapists, startDate, endDate, currentUser]);
+  }, [appointments, therapists, startDate, endDate, currentUser, selectedTherapistId]);
 
   // 3. คลิกดูข้อมูลเปิด Modal
   const handleViewDetailClick = (row) => {
@@ -280,7 +285,24 @@ export default function ServiceSummary({
           <span style={{ fontWeight: 600 }}>รอบเงินเดือนผู้สอน:</span>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {currentUser?.role === 'Admin' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem' }}>ครูผู้สอน:</span>
+              <select
+                className="form-control"
+                value={selectedTherapistId}
+                onChange={(e) => setSelectedTherapistId(e.target.value)}
+                style={{ width: '180px', padding: '0.4rem 0.6rem' }}
+              >
+                <option value="">ทั้งหมด (ทุกครู)</option>
+                {therapists.map(t => (
+                  <option key={t.id} value={t.id}>{t.fullname} ({t.nickname})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.85rem' }}>จากวันที่</span>
             <input 
