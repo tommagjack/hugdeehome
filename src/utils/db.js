@@ -573,7 +573,6 @@ export const syncFromSupabase = async () => {
               }
               return {
                 ...dbUser,
-                ...localUser,
                 avatarUrl: bestAvatar,
                 password: localUser.password || dbUser.password || (dbUser.username === 'admin' ? 'admin0100' : '123456')
               };
