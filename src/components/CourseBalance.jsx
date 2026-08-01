@@ -296,6 +296,7 @@ export default function CourseBalance({
             unit: 'ครั้ง',
             direction,
             docId: r.id,
+            code: item.code,
             remark: r.discountReason || '-'
           });
 
@@ -579,34 +580,39 @@ export default function CourseBalance({
     if (!editingPointsDocId || editPointsVal <= 0) return;
 
     const isAdd = editPointsAction === 'add';
-    const currentBalance = currentBalanceInfo.pointsBalance;
-    
     const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-    const origValue = origItem ? origItem.sessions : 0;
-    const origIsAdd = origItem && origItem.code === 'POINT_ADD_MANUAL';
+    const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
 
-    // คำนวณหาคะแนนสะสมที่แท้จริงหากไม่นับรายการเดิม
-    const baseBalance = currentBalance + (origIsAdd ? -origValue : origValue);
-    
-    // คำนวณคะแนนใหม่จำลอง
-    const hypoNewBalance = baseBalance + (isAdd ? editPointsVal : -editPointsVal);
+    if (!isCourseEdit) {
+      const currentBalance = currentBalanceInfo.pointsBalance;
+      const origValue = origItem ? origItem.sessions : 0;
+      const origIsAdd = origItem && origItem.code === 'POINT_ADD_MANUAL';
 
-    if (hypoNewBalance < 0) {
-      Swal.fire({
-        icon: 'error',
-        title: 'คะแนนสะสมไม่เพียงพอ',
-        text: `ไม่สามารถปรับปรุงคะแนนได้เนื่องจากจะทำให้คะแนนสะสมคงเหลือติดลบ (คะแนนคงเหลือหลังปรับปรุง: ${hypoNewBalance} คะแนน)`,
-        confirmButtonColor: 'var(--secondary)'
-      });
-      return;
+      // คำนวณหาคะแนนสะสมที่แท้จริงหากไม่นับรายการเดิม
+      const baseBalance = currentBalance + (origIsAdd ? -origValue : origValue);
+      
+      // คำนวณคะแนนใหม่จำลอง
+      const hypoNewBalance = baseBalance + (isAdd ? editPointsVal : -editPointsVal);
+
+      if (hypoNewBalance < 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'คะแนนสะสมไม่เพียงพอ',
+          text: `ไม่สามารถปรับปรุงคะแนนได้เนื่องจากจะทำให้คะแนนสะสมคงเหลือติดลบ (คะแนนคงเหลือหลังปรับปรุง: ${hypoNewBalance} คะแนน)`,
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
     }
 
     onEditManualPoints(editingPointsDocId, Number(editPointsVal), editPointsAction, editPointsRemark);
 
     Swal.fire({
       icon: 'success',
-      title: 'แก้ไขรายการปรับปรุงคะแนนสำเร็จ!',
-      text: `แก้ไขรายการปรับปรุงคะแนนของ น้อง${currentPatient.nickname} เรียบร้อยแล้ว`,
+      title: isCourseEdit ? 'แก้ไขรายการปรับปรุงคอร์สสำเร็จ!' : 'แก้ไขรายการปรับปรุงคะแนนสำเร็จ!',
+      text: isCourseEdit
+        ? `แก้ไขรายการปรับปรุงคอร์สของ น้อง${currentPatient.nickname} เรียบร้อยแล้ว`
+        : `แก้ไขรายการปรับปรุงคะแนนของ น้อง${currentPatient.nickname} เรียบร้อยแล้ว`,
       confirmButtonColor: 'var(--secondary)'
     });
 
@@ -619,22 +625,27 @@ export default function CourseBalance({
 
   // ยื่นคำขอลบรายการปรับปรุงคะแนนแมนนวล (Delete Click)
   const handleDeletePointsClick = (historyItem) => {
-    const isAdd = historyItem.code === 'POINT_ADD_MANUAL';
+    const isCourseDelete = historyItem && (historyItem.unit === 'ครั้ง' || historyItem.code === 'MANUAL_ADD');
     const val = historyItem.sessions;
     
-    if (isAdd && (currentBalanceInfo.pointsBalance - val) < 0) {
-      Swal.fire({
-        icon: 'error',
-        title: 'ไม่สามารถลบรายการได้',
-        text: `การลบรายการบวกแต้มแมนนวลนี้จะทำให้คะแนนสะสมคงเหลือของ น้อง${currentPatient.nickname} ติดลบ (คงเหลือหากลบ: ${currentBalanceInfo.pointsBalance - val} คะแนน)`,
-        confirmButtonColor: 'var(--secondary)'
-      });
-      return;
+    if (!isCourseDelete) {
+      const isAdd = historyItem.code === 'POINT_ADD_MANUAL';
+      if (isAdd && (currentBalanceInfo.pointsBalance - val) < 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'ไม่สามารถลบรายการได้',
+          text: `การลบรายการบวกแต้มแมนนวลนี้จะทำให้คะแนนสะสมคงเหลือของ น้อง${currentPatient.nickname} ติดลบ (คงเหลือหากลบ: ${currentBalanceInfo.pointsBalance - val} คะแนน)`,
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
     }
 
     Swal.fire({
       title: 'ยืนยันการลบรายการ?',
-      text: `คุณต้องการลบรายการปรับปรุงแต้มแมนนวล "${historyItem.itemName}" หรือไม่? การลบนี้จะทำให้ยอดคะแนนคงเหลือเปลี่ยนแปลงทันที`,
+      text: isCourseDelete 
+        ? `คุณต้องการลบรายการปรับปรุงคอร์สแมนนวล "${historyItem.itemName}" หรือไม่? การลบนี้จะทำให้ยอดคอร์สคงเหลือเปลี่ยนแปลงทันที`
+        : `คุณต้องการลบรายการปรับปรุงแต้มแมนนวล "${historyItem.itemName}" หรือไม่? การลบนี้จะทำให้ยอดคะแนนคงเหลือเปลี่ยนแปลงทันที`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: 'var(--danger)',
@@ -647,7 +658,9 @@ export default function CourseBalance({
         Swal.fire({
           icon: 'success',
           title: 'ลบรายการสำเร็จ!',
-          text: 'รายการปรับปรุงแต้มแมนนวลถูกลบเรียบร้อยแล้ว',
+          text: isCourseDelete 
+            ? 'รายการปรับปรุงคอร์สแมนนวลถูกลบเรียบร้อยแล้ว'
+            : 'รายการปรับปรุงแต้มแมนนวลถูกลบเรียบร้อยแล้ว',
           confirmButtonColor: 'var(--secondary)'
         });
       }
@@ -909,7 +922,7 @@ export default function CourseBalance({
                   </thead>
                   <tbody>
                     {paginatedHistory.map((h, index) => {
-                      const isManualPoints = h.code === 'POINT_ADD_MANUAL' || h.code === 'POINT_DEDUCT_MANUAL';
+                      const isEditable = h.code === 'POINT_ADD_MANUAL' || h.code === 'POINT_DEDUCT_MANUAL' || h.code === 'MANUAL_ADD';
                       return (
                         <tr key={index}>
                           <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
@@ -931,7 +944,7 @@ export default function CourseBalance({
                           </td>
                           <td style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{h.docId}</td>
                           <td style={{ textAlign: 'center' }}>
-                            {isManualPoints && isAdmin ? (
+                            {isEditable && isAdmin ? (
                               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                 <button
                                   type="button"
@@ -1455,7 +1468,13 @@ export default function CourseBalance({
         <div className="modal-overlay">
           <div className="modal-content-wrapper" style={{ maxWidth: '450px' }}>
             <div className="modal-header">
-              <h3 style={{ fontWeight: 700 }}>แก้ไขรายการปรับปรุงคะแนน</h3>
+              <h3 style={{ fontWeight: 700 }}>
+                {(() => {
+                  const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
+                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                  return isCourseEdit ? 'แก้ไขรายการปรับปรุงคอร์ส' : 'แก้ไขรายการปรับปรุงคะแนน';
+                })()}
+              </h3>
               <button className="close-modal-btn" onClick={() => setShowPointsEditModal(false)}>×</button>
             </div>
             <form onSubmit={handleEditPointsSubmit}>
@@ -1464,35 +1483,48 @@ export default function CourseBalance({
                   <strong>ผู้รับบริการ:</strong> {formatPatientNickname(currentPatient.nickname)} (HN: {currentPatient.hn})
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">การดำเนินการ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
-                      <input 
-                        type="radio" 
-                        name="editPointsAction" 
-                        value="add" 
-                        checked={editPointsAction === 'add'} 
-                        onChange={() => setEditPointsAction('add')} 
-                      />
-                      <span style={{ color: 'var(--success)' }}>บวกเพิ่มคะแนน (+)</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
-                      <input 
-                        type="radio" 
-                        name="editPointsAction" 
-                        value="deduct" 
-                        checked={editPointsAction === 'deduct'} 
-                        onChange={() => setEditPointsAction('deduct')} 
-                      />
-                      <span style={{ color: 'var(--danger)' }}>หักลดคะแนน (-)</span>
-                    </label>
-                  </div>
-                </div>
+                {(() => {
+                  const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
+                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                  if (isCourseEdit) return null; // ซ่อนวิทยุสำหรับการปรับปรุงคอร์สแมนนวล เนื่องจากปกติเป็นบวกเสมอ
+                  
+                  return (
+                    <div className="form-group">
+                      <label className="form-label">การดำเนินการ <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                          <input 
+                            type="radio" 
+                            name="editPointsAction" 
+                            value="add" 
+                            checked={editPointsAction === 'add'} 
+                            onChange={() => setEditPointsAction('add')} 
+                          />
+                          <span style={{ color: 'var(--success)' }}>บวกเพิ่มคะแนน (+)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                          <input 
+                            type="radio" 
+                            name="editPointsAction" 
+                            value="deduct" 
+                            checked={editPointsAction === 'deduct'} 
+                            onChange={() => setEditPointsAction('deduct')} 
+                          />
+                          <span style={{ color: 'var(--danger)' }}>หักลดคะแนน (-)</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })()}
                 
                 <div className="form-group">
                   <label className="form-label">
-                    {editPointsAction === 'add' ? 'จำนวนคะแนนที่ต้องการเพิ่ม (คะแนน)' : 'จำนวนคะแนนที่ต้องการลด (คะแนน)'} <span style={{ color: 'var(--danger)' }}>*</span>
+                    {(() => {
+                      const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
+                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                      if (isCourseEdit) return 'จำนวนครั้งที่ต้องการปรับปรุง (ครั้ง)';
+                      return editPointsAction === 'add' ? 'จำนวนคะแนนที่ต้องการเพิ่ม (คะแนน)' : 'จำนวนคะแนนที่ต้องการลด (คะแนน)';
+                    })()} <span style={{ color: 'var(--danger)' }}>*</span>
                   </label>
                   <input 
                     type="number" 
@@ -1505,7 +1537,13 @@ export default function CourseBalance({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">เหตุผลประกอบการปรับปรุงคะแนน <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <label className="form-label">
+                    {(() => {
+                      const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
+                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                      return isCourseEdit ? 'เหตุผลประกอบการปรับปรุงคอร์ส' : 'เหตุผลประกอบการปรับปรุงคะแนน';
+                    })()} <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
                   <textarea 
                     className="form-control" 
                     rows="3" 

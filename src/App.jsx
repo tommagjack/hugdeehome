@@ -1633,19 +1633,38 @@ export default function App() {
     const isAdd = action === 'add';
     setReceipts(receipts.map(r => {
       if (r.id === id) {
-        return {
-          ...r,
-          items: [
-            { 
-              code: isAdd ? 'POINT_ADD_MANUAL' : 'POINT_DEDUCT_MANUAL', 
-              name: `ปรับปรุงแต้มแมนนวล (${isAdd ? 'เพิ่ม' : 'ลด'}) (${remark})`, 
-              price: 0, 
-              quantity: points, 
-              type: 'คะแนน' 
-            }
-          ],
-          discountReason: remark
-        };
+        const firstItem = r.items && r.items[0];
+        const isCourse = firstItem && (firstItem.code === 'MANUAL_ADD' || firstItem.type === 'บริการ');
+        
+        if (isCourse) {
+          return {
+            ...r,
+            items: [
+              { 
+                code: 'MANUAL_ADD', 
+                name: `ปรับปรุงเพิ่มคอร์สแมนนวล (${remark})`, 
+                price: 0, 
+                quantity: points, 
+                type: 'บริการ' 
+              }
+            ],
+            discountReason: remark
+          };
+        } else {
+          return {
+            ...r,
+            items: [
+              { 
+                code: isAdd ? 'POINT_ADD_MANUAL' : 'POINT_DEDUCT_MANUAL', 
+                name: `ปรับปรุงแต้มแมนนวล (${isAdd ? 'เพิ่ม' : 'ลด'}) (${remark})`, 
+                price: 0, 
+                quantity: points, 
+                type: 'คะแนน' 
+              }
+            ],
+            discountReason: remark
+          };
+        }
       }
       return r;
     }));
