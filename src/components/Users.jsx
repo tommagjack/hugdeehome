@@ -475,10 +475,12 @@ export default function Users({ users, setUsers, setPrintView }) {
           }
         });
         
+        const redirectUrl = window.location.origin;
         const { data, error } = await authClient.auth.signUp({
           email: uEmail,
           password: uPassword,
           options: {
+            emailRedirectTo: redirectUrl,
             data: {
               username: uUsername,
               role: uRole
