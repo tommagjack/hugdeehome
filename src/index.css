@@ -1545,7 +1545,8 @@ button, input, select, textarea {
   .opd-doc {
     page: opd_page;
     width: 210mm !important;
-    height: 297mm !important;
+    height: auto !important;
+    min-height: 297mm !important;
     padding: 30px 40px 20px 40px !important;
     margin: 0 !important;
     box-sizing: border-box !important;
@@ -2030,7 +2031,15 @@ button, input, select, textarea {
 /* Final overrides to ensure print layouts hide interactive components regardless of responsive style rules */
 @media print {
   .mobile-navbar,
-  .sidebar-backdrop {
+  .sidebar-backdrop,
+  .user-avatar,
+  .sidebar-user,
+  .sidebar-footer,
+  .user-profile,
+  .profile-section,
+  .avatar-container,
+  [class*="avatar"],
+  [class*="profile"] img {
     display: none !important;
   }
 }

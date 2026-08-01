@@ -1124,7 +1124,12 @@ export default function PDFViewer({
       lastname: (patientRaw.lastname || '').replace(/\$/g, ''),
       nickname: (patientRaw.nickname || '').replace(/\$/g, '')
     } : null;
-    const history = [...(documentData?.history || [])].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    const history = [...(documentData?.history || [])].sort((a, b) => {
+      const timeA = new Date(a.date).getTime() || 0;
+      const timeB = new Date(b.date).getTime() || 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || '').localeCompare(b.id || '');
+    });
 
     const FIRST_PAGE_LIMIT = 16;
     const NEXT_PAGE_LIMIT = 22;
