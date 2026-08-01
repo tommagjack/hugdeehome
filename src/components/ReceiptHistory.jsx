@@ -612,15 +612,17 @@ export default function ReceiptHistory({
           <History size={28} />
           ประวัติใบเสร็จและใบแจ้งหนี้ (Receipt History)
         </h1>
-        <div className="page-actions">
-          <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการเงินเป็นไฟล์ CSV">
-            <Download size={16} /> Export CSV
-          </button>
-          <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการเงินผ่านไฟล์ CSV">
-            <Upload size={16} /> Import CSV
-            <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-          </label>
-        </div>
+        {isAdmin && (
+          <div className="page-actions">
+            <button className="btn btn-light" onClick={handleExportCSV} title="ส่งออกประวัติการเงินเป็นไฟล์ CSV">
+              <Download size={16} /> Export CSV
+            </button>
+            <label className="btn btn-light" style={{ cursor: 'pointer', margin: 0 }} title="นำเข้าประวัติการเงินผ่านไฟล์ CSV">
+              <Upload size={16} /> Import CSV
+              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="card-3xl">
