@@ -321,8 +321,9 @@ function doPost(e) {
     } else if (action === 'create_folder') {
       const parentFolderId = payload.parentFolderId;
       const folderName = payload.folder;
+      const oldFolder = payload.oldFolder;
       
-      const folderUrl = createUserFolder(parentFolderId, folderName);
+      const folderUrl = createUserFolder(parentFolderId, folderName, oldFolder);
       return ContentService.createTextOutput(JSON.stringify({ status: "success", url: folderUrl }))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -528,7 +529,7 @@ function uploadFileToDrive(parentFolderId, folderName, filename, base64Data) {
 }
 
 // ฟังก์ชันสร้างโฟลเดอร์พนักงานและคืนค่าลิงก์
-function createUserFolder(parentFolderId, folderName) {
+function createUserFolder(parentFolderId, folderName, oldFolderName) {
   let parentFolder;
   if (parentFolderId) {
     try {
@@ -538,6 +539,26 @@ function createUserFolder(parentFolderId, folderName) {
     }
   } else {
     parentFolder = DriveApp.getRootFolder();
+  }
+  
+  // ตรวจสอบและโอนย้าย/เปลี่ยนชื่อโฟลเดอร์เก่า (ถ้ามี)
+  if (oldFolderName) {
+    const oldFolders = parentFolder.getFoldersByName(oldFolderName);
+    if (oldFolders.hasNext()) {
+      const oldFolder = oldFolders.next();
+      oldFolder.setName(folderName);
+      
+      // เปลี่ยนชื่อไฟล์ภายในโฟลเดอร์ให้ตรงกับรหัสใหม่ด้วย
+      const files = oldFolder.getFiles();
+      while (files.hasNext()) {
+        const file = files.next();
+        const name = file.getName();
+        if (name.indexOf(oldFolderName) !== -1) {
+          file.setName(name.replace(oldFolderName, folderName));
+        }
+      }
+      return oldFolder.getUrl();
+    }
   }
   
   const folders = parentFolder.getFoldersByName(folderName);

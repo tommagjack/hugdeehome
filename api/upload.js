@@ -12,6 +12,7 @@ export default async function handler(req, res) {
         if (!folder || !gasUrl) {
           return res.status(400).json({ error: 'Missing folder or gasUrl' });
         }
+        const oldFolder = req.body.oldFolder;
         try {
           const response = await fetch(gasUrl, {
             method: 'POST',
@@ -19,7 +20,8 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               action: 'create_folder',
               parentFolderId,
-              folder
+              folder,
+              oldFolder
             })
           });
           if (response.ok) {

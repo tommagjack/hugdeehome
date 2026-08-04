@@ -280,6 +280,24 @@ export default function Users({ users, setUsers, setPrintView }) {
       parentFolderId = '1A2B3C4D5E6F7G8H9I0J'; // fallback default
     }
 
+    // ดึงรหัส/ชื่อโฟลเดอร์ชั่วคราวตัวเก่าของผู้สมัคร (เช่น HDH003-ลลิตา-สุกันทอง) จากชื่อเอกสารที่ถูกบันทึกมาตอนแรก
+    let oldFolderName = null;
+    const docsToSearch = [uCitizenIdDoc, uHouseRegDoc, uBankBookDoc, uLicenseDoc, uOtherDoc];
+    for (const doc of docsToSearch) {
+      const parsed = parseDoc(doc);
+      if (parsed && parsed.name) {
+        const match = parsed.name.match(/^(HDH\d+-[^-]+-[^-]+)-/);
+        if (match) {
+          oldFolderName = match[1];
+          break;
+        }
+      }
+    }
+
+    if (oldFolderName === folderName) {
+      oldFolderName = null;
+    }
+
     setUIsConnectingFolder(true);
     
     // Direct browser fetch to Google Apps Script Web App to bypass Vercel and prevent CORS preflight OPTIONS request
@@ -289,7 +307,8 @@ export default function Users({ users, setUsers, setPrintView }) {
       body: JSON.stringify({
         action: 'create_folder',
         folder: folderName,
-        parentFolderId: parentFolderId
+        parentFolderId: parentFolderId,
+        oldFolder: oldFolderName
       })
     })
     .then(async res => {
@@ -305,10 +324,38 @@ export default function Users({ users, setUsers, setPrintView }) {
     .then(data => {
       if (data.url) {
         setUUserFolderUrl(data.url);
+        
+        // ถ้าเป็นการดึงใบสมัครออนไลน์และโอนย้ายโฟลเดอร์สำเร็จ ให้เปลี่ยนรหัสพนักงานในชื่อไฟล์ใน State ให้เป็นรหัสทางการด้วย
+        if (oldFolderName) {
+          const renameDoc = (doc) => {
+            const parsed = parseDoc(doc);
+            if (parsed && parsed.name && parsed.name.includes(oldFolderName)) {
+              const updated = {
+                ...parsed,
+                name: parsed.name.replace(oldFolderName, folderName)
+              };
+              // ถ้ามีข้อมูล base64 หรือ path ที่เป็นชื่อไฟล์เดิม ให้ปรับด้วย
+              if (typeof updated.path === 'string' && updated.path.includes(oldFolderName)) {
+                updated.path = updated.path.replace(oldFolderName, folderName);
+              }
+              return updated;
+            }
+            return doc;
+          };
+          
+          if (uCitizenIdDoc) setUCitizenIdDoc(renameDoc(uCitizenIdDoc));
+          if (uHouseRegDoc) setUHouseRegDoc(renameDoc(uHouseRegDoc));
+          if (uBankBookDoc) setUBankBookDoc(renameDoc(uBankBookDoc));
+          if (uLicenseDoc) setULicenseDoc(renameDoc(uLicenseDoc));
+          if (uOtherDoc) setUOtherDoc(renameDoc(uOtherDoc));
+        }
+
         Swal.fire({
           icon: 'success',
           title: 'เชื่อมต่อโฟลเดอร์สำเร็จ',
-          text: 'สร้างโฟลเดอร์ Google Drive เรียบร้อยแล้ว (⚠️ กรุณากดปุ่ม "บันทึก" ด้านล่างสุดเพื่อบันทึกข้อมูลพนักงานลงระบบ)',
+          text: oldFolderName 
+            ? 'โอนย้ายโฟลเดอร์และไฟล์สมัครงานเข้ามายังรหัสพนักงานทางการเรียบร้อยแล้ว (⚠️ กรุณากดปุ่ม "บันทึก" ด้านล่างสุดเพื่อบันทึกข้อมูล)'
+            : 'สร้างโฟลเดอร์ Google Drive เรียบร้อยแล้ว (⚠️ กรุณากดปุ่ม "บันทึก" ด้านล่างสุดเพื่อบันทึกข้อมูลพนักงานลงระบบ)',
           confirmButtonColor: '#b0895a'
         });
       }
