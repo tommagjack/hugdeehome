@@ -811,8 +811,15 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
       const snakeRecords = toUpsert.map(record => {
         const mapped = {};
         const validCols = TABLE_COLUMNS[tableName];
-        for (const k in record) {
-          if ((k === 'createdAt' || k === 'updatedAt') && !record[k]) {
+        
+        // บังคับให้เป็น id: 1 สำหรับข้อมูลการตั้งค่าที่มีแถวเดียว (เหมือนใน syncToSupabase)
+        let recordWithId = record;
+        if (tableName === 'clinic_info' || tableName === 'salary_rules') {
+          recordWithId = { ...record, id: 1 };
+        }
+
+        for (const k in recordWithId) {
+          if ((k === 'createdAt' || k === 'updatedAt') && !recordWithId[k]) {
             continue;
           }
           const snakeKey = toSnakeCase(k);
@@ -820,7 +827,7 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
             continue;
           }
           
-          let val = record[k];
+          let val = recordWithId[k];
           const numericKeys = [
             'total_amount', 'discount', 'received_amount', 'change_amount',
             'discount_value', 'reward_discount_amount', 'price', 'amount',
