@@ -493,16 +493,20 @@ export default function Users({ users, setUsers, setPrintView }) {
     e.preventDefault();
     
     const isNew = !editingUsername;
+    const originalUser = editingUsername ? users.find(u => u.username === editingUsername) : null;
+    const isApprovingPending = originalUser && originalUser.status === 'Pending' && uStatus !== 'Pending';
+    // เปิดให้รันการสร้าง Supabase Auth ทุกครั้งที่บันทึก (โดยข้ามหากมีบัญชีอยู่แล้ว) เผื่อกรณีพนักงานเก่าที่ระบบตกหล่น/แอดมินแก้ไขประวัติ
+    const shouldCreateAuth = true;
     
-    if (isNew) {
+    if (shouldCreateAuth) {
       if (!uEmail || !uPassword) {
         Swal.fire('ข้อมูลไม่ครบถ้วน', 'จำเป็นต้องระบุอีเมลและรหัสผ่านสำหรับลงทะเบียนบัญชี Supabase Auth', 'error');
         return;
       }
       
       Swal.fire({
-        title: 'กำลังลงทะเบียนบัญชี...',
-        text: 'กำลังบันทึกสิทธิ์บนระบบ Supabase Auth',
+        title: isApprovingPending ? 'กำลังเปิดใช้งานบัญชีผู้ใช้...' : 'กำลังลงทะเบียนบัญชี...',
+        text: 'กำลังบันทึกสิทธิ์บนระบบ Supabase Auth เพื่อให้สามารถล็อกอินได้',
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
@@ -535,11 +539,19 @@ export default function Users({ users, setUsers, setPrintView }) {
           }
         });
         
-        if (error) throw new Error(error.message);
+        if (error) {
+          // หากบัญชีมีอยู่ใน Supabase Auth แล้ว (เช่น แอดมินกดเปิดซ้ำหรือเคยสร้างไว้แล้ว) ให้ข้ามและไปต่อได้เลย
+          const errMsg = error.message.toLowerCase();
+          if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('email_exists')) {
+            console.log('Supabase Auth user already registered. Proceeding.');
+          } else {
+            throw new Error(error.message);
+          }
+        }
         
       } catch (err) {
         console.error('Auth registration error:', err);
-        Swal.fire('การลงทะเบียนบัญชีผู้ใช้ล้มเหลว', 'ไม่สามารถสร้างบัญชีในระบบความปลอดภัยได้: ' + err.message, 'error');
+        Swal.fire('การเปิดใช้งานบัญชีล้มเหลว', 'ไม่สามารถเชื่อมโยง Supabase Auth ได้: ' + err.message, 'error');
         return;
       }
     }
