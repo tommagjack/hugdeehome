@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount }) {
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount, pendingUsersCount }) {
   
   const toggleCollapse = () => {
     const newVal = !collapsed;
