@@ -1185,6 +1185,10 @@ export default function App() {
 
   const overdueCount = overdueAppointments.length;
 
+  const pendingUsersCount = useMemo(() => {
+    return users.filter(u => u && u.status === 'Pending').length;
+  }, [users]);
+
   const handleShowOverdueAlert = () => {
     if (overdueCount === 0) {
       Swal.fire({
@@ -2040,6 +2044,7 @@ export default function App() {
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         overdueCount={overdueCount}
+        pendingUsersCount={pendingUsersCount}
       />
 
       {/* ม่านฉากหลังเมื่อสไลด์เมนูมือถือเปิด */}

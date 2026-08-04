@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Briefcase, 
   User, 
@@ -14,6 +14,7 @@ import {
 import Swal from 'sweetalert2';
 import { getGasUrl } from '../utils/db';
 import { compressImage } from '../utils/defaultAssets';
+import { supabase } from '../utils/supabaseClient';
 
 export default function GuestRegister({ clinicInfo, users, onRegister }) {
   // ฟิลด์ข้อมูลสมัครงาน
@@ -39,8 +40,25 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
   const [licenseDoc, setLicenseDoc] = useState(null);
   const [otherDoc, setOtherDoc] = useState(null);
 
+  const [fetchedEmployeeId, setFetchedEmployeeId] = useState('');
+
+  useEffect(() => {
+    const fetchId = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_next_employee_id');
+        if (!error && data) {
+          setFetchedEmployeeId(data);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch sequential employee ID from Supabase:", err);
+      }
+    };
+    fetchId();
+  }, []);
+
   // คำนวณรหัสพนักงานลำดับถัดไปแบบอัตโนมัติ
   const nextEmployeeId = useMemo(() => {
+    if (fetchedEmployeeId) return fetchedEmployeeId;
     let maxId = 0;
     users.forEach(u => {
       if (u.employeeId) {
@@ -54,7 +72,7 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
       }
     });
     return `HDH${String(maxId + 1).padStart(3, '0')}`;
-  }, [users]);
+  }, [users, fetchedEmployeeId]);
 
   // ฟังก์ชันอัปโหลดไฟล์ไปยังเซิร์ฟเวอร์จำลอง (เปลี่ยนเป็นระบบ Local Base64 + Google Drive สำรองตามหลังเหมือนกับ Users.jsx)
   const handleFileUpload = async (e, setDocState, docType) => {
@@ -150,7 +168,7 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!fullname || !username || !password || !phone) {
@@ -205,7 +223,49 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
       otherDoc: otherDoc
     };
 
-    onRegister(pendingUser);
+    Swal.fire({
+      title: 'กำลังส่งคำขอสมัครงาน...',
+      text: 'กรุณารอสักครู่ ระบบกำลังจัดเตรียมและบันทึกเอกสารสมัครงานของคุณ',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    // เรียก RPC บน Supabase เพื่อบันทึกข้อมูลพนักงานสถานะ Pending อย่างปลอดภัยและโปร่งใสข้าม RLS
+    const { data: generatedId, error: rpcErr } = await supabase.rpc('apply_for_job', {
+      username_val: username.trim(),
+      password_val: password,
+      fullname_val: fullname.trim(),
+      title_val: title,
+      nickname_val: nickname.trim(),
+      citizen_id_val: citizenId.trim(),
+      gender_val: gender,
+      dob_val: dob,
+      phone_val: phone.trim(),
+      email_val: email.trim(),
+      bank_name_val: bankName,
+      bank_account_no_val: bankAccountNo.trim(),
+      avatar_url_val: finalAvatar,
+      citizen_id_doc_val: citizenIdDoc,
+      house_reg_doc_val: houseRegDoc,
+      bank_book_doc_val: bankBookDoc,
+      license_doc_val: licenseDoc,
+      other_doc_val: otherDoc
+    });
+
+    if (rpcErr) {
+      console.error('Error submitting application:', rpcErr);
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งใบสมัครได้: ' + rpcErr.message, 'error');
+      return;
+    }
+
+    const finalId = generatedId || nextEmployeeId;
+
+    onRegister({
+      ...pendingUser,
+      employeeId: finalId
+    });
 
     Swal.fire({
       icon: 'success',
@@ -213,7 +273,7 @@ export default function GuestRegister({ clinicInfo, users, onRegister }) {
       html: `
         <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.6;">
           ใบสมัครของท่านได้รับการบันทึกเข้าสู่ระบบแล้ว<br/>
-          รหัสผู้สมัครอ้างอิง: <strong>${nextEmployeeId}</strong><br/>
+          รหัสผู้สมัครอ้างอิง: <strong>${finalId}</strong><br/>
           สถานะ: <strong style="color: var(--warning)">Pending (รอตรวจทานเอกสารและอนุมัติ)</strong><br/><br/>
           กรุณารอเจ้าหน้าที่ติดต่อกลับเพื่อแจ้งผลการพิจารณาใบสมัคร
         </div>

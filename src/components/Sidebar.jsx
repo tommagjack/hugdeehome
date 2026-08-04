@@ -206,6 +206,26 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                             boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
                           }}>{overdueCount}</span>
                         )}
+                        {item.id === 'users' && pendingUsersCount > 0 && (
+                          <span className="menu-badge" style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            backgroundColor: 'var(--warning, #f59e0b)',
+                            color: 'white',
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            borderRadius: '10px',
+                            minWidth: '16px',
+                            height: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                            zIndex: 10,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }}>{pendingUsersCount}</span>
+                        )}
                       </a>
                     </li>
                   );
@@ -255,6 +275,21 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                               justifyContent: 'center',
                               lineHeight: 1
                             }}>{overdueCount}</span>
+                          )}
+                          {item.id === 'users' && pendingUsersCount > 0 && (
+                            <span className="menu-badge" style={{
+                              marginLeft: 'auto',
+                              backgroundColor: 'var(--warning, #f59e0b)',
+                              color: 'white',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              borderRadius: '10px',
+                              padding: '2px 6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1
+                            }}>{pendingUsersCount}</span>
                           )}
                         </a>
                       </li>
