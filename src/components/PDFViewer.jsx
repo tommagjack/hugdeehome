@@ -1136,8 +1136,8 @@ export default function PDFViewer({
 
     const pages = [];
 
-    if (isBlank) {
-      // สำหรับพิมพ์เปล่า ให้สร้างกระดาษจำลอง 2 หน้าแรกเป็นมาตรฐานไว้
+    if (isBlank || documentType === 'opd_form') {
+      // สำหรับพิมพ์เปล่า หรือพิมพ์ฟอร์มเปล่าของคนไข้ ให้สร้างกระดาษจำลอง 2 หน้าแรกเป็นมาตรฐานไว้
       pages.push({
         pageNum: 1,
         isFirstPage: true,
