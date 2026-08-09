@@ -800,7 +800,7 @@ export default function OPD({
                     onClick={() => onPrintOPD('opd_form', { patient: activePatient, history: [] })}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                   >
-                    <Printer size={14} /> พิมพ์การ์ดเฉพาะหัวคนไข
+                    <Printer size={14} /> พิมพ์การ์ดเฉพาะหัวคนไข้
                   </button>
                   <button 
                     className="btn btn-secondary" 
