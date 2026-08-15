@@ -1885,66 +1885,91 @@ export default function PDFViewer({
             </div>
           }
         >
-          <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden', marginBottom: '30px' }}>
-            <div style={{ backgroundColor: '#f8fafc', padding: '12px 15px', borderBottom: '1px solid #ddd', fontWeight: 700, fontSize: '14px', color: 'var(--secondary)' }}>
-              ข้อมูลทั่วไปพนักงาน (General Information)
+          <div style={{ display: 'flex', gap: '25px', marginBottom: '25px' }}>
+            {/* Details */}
+            <div style={{ flexGrow: 1 }}>
+              <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--secondary)', borderBottom: '2px solid #b0895a', paddingBottom: '6px', marginBottom: '15px', textAlign: 'left' }}>
+                ข้อมูลทั่วไปพนักงาน (General Information)
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: '12px', columnGap: '20px', fontSize: '12px' }}>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>ชื่อ-นามสกุลจริง (Full Name)</span>
+                  <span style={{ fontWeight: 600, color: '#333' }}>{u.fullname || '-'}</span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>ชื่อเล่น (Nickname)</span>
+                  <span style={{ fontWeight: 600, color: '#333' }}>{u.nickname || '-'}</span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>ชื่อบัญชีผู้ใช้งาน (Username)</span>
+                  <span style={{ fontWeight: 600, color: '#333', fontFamily: 'monospace' }}>{u.username}</span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>ตำแหน่งงาน (Position)</span>
+                  <span style={{ fontWeight: 600, color: '#333' }}>{u.position || '-'}</span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>สิทธิ์การใช้งานระบบ (System Role)</span>
+                  <span style={{ fontWeight: 600, color: '#333' }}>{u.role === 'Admin' ? 'ผู้ดูแล (Admin)' : u.role === 'OT' ? 'นักบำบัด (OT)' : 'พนักงาน (Staff)'}</span>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>เงินเดือนพื้นฐาน (Basic Salary)</span>
+                  <span style={{ fontWeight: 600, color: '#333' }}>{u.basicSalary ? `฿${u.basicSalary.toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : '฿0.00'}</span>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0px', fontSize: '13px' }}>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
-                <strong>ชื่อ-นามสกุลจริง:</strong> {u.fullname || '-'}
-              </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
-                <strong>ชื่อเล่น:</strong> {u.nickname || '-'}
-              </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
-                <strong>ชื่อบัญชีผู้ใช้งาน (Username):</strong> {u.username}
-              </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
-                <strong>ตำแหน่งงาน:</strong> {u.position || '-'}
-              </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
-                <strong>สิทธิ์การใช้งานระบบ:</strong> {u.role === 'Admin' ? 'ผู้ดูแล (Admin)' : u.role === 'OT' ? 'นักบำบัด (OT)' : 'พนักงาน (Staff)'}
-              </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
-                <strong>เงินเดือนพื้นฐาน:</strong> {u.basicSalary ? `฿${u.basicSalary.toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : '฿0.00'}
-              </div>
+            
+            {/* Photo Slot */}
+            <div style={{ width: '100px', height: '120px', border: '1px solid #ddd', borderRadius: '6px', padding: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fcfcfc', alignSelf: 'flex-start', flexShrink: 0, marginTop: '8px' }}>
+              {u.avatarUrl ? (
+                <img src={u.avatarUrl} alt="Employee Photo" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} onError={(e) => { e.target.style.display = 'none'; }} />
+              ) : (
+                <div style={{ color: '#aaa', fontSize: '9px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '24px' }}>👤</span>
+                  <span>รูปถ่ายพนักงาน</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden', marginBottom: '30px' }}>
-            <div style={{ backgroundColor: '#f8fafc', padding: '12px 15px', borderBottom: '1px solid #ddd', fontWeight: 700, fontSize: '14px', color: 'var(--secondary)' }}>
+          <div style={{ marginBottom: '25px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--secondary)', borderBottom: '2px solid #b0895a', paddingBottom: '6px', marginBottom: '15px', textAlign: 'left' }}>
               ข้อมูลการติดต่อและการรับเงิน (Contact & Payment Details)
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0px', fontSize: '13px' }}>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', borderRight: '1px solid #eee', textAlign: 'left' }}>
-                <strong>เบอร์โทรศัพท์:</strong> {u.phone || '-'}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: '12px', columnGap: '20px', fontSize: '12px' }}>
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>เบอร์โทรศัพท์ (Phone Number)</span>
+                <span style={{ fontWeight: 600, color: '#333' }}>{u.phone || '-'}</span>
               </div>
-              <div style={{ padding: '10px 15px', borderBottom: '1px solid #eee', textAlign: 'left' }}>
-                <strong>อีเมล:</strong> {u.email || '-'}
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>อีเมล (Email Address)</span>
+                <span style={{ fontWeight: 600, color: '#333' }}>{u.email || '-'}</span>
               </div>
-              <div style={{ padding: '10px 15px', borderRight: '1px solid #eee', textAlign: 'left' }}>
-                <strong>ชื่อธนาคาร:</strong> {u.bankName || '-'}
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>ชื่อธนาคาร (Bank Name)</span>
+                <span style={{ fontWeight: 600, color: '#333' }}>{u.bankName || '-'}</span>
               </div>
-              <div style={{ padding: '10px 15px', textAlign: 'left' }}>
-                <strong>เลขที่บัญชีธนาคาร:</strong> {u.bankAccountNo || '-'}
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ color: '#888', display: 'block', fontSize: '10px', marginBottom: '2px' }}>เลขที่บัญชีธนาคาร (Account Number)</span>
+                <span style={{ fontWeight: 600, color: '#333' }}>{u.bankAccountNo || '-'}</span>
               </div>
             </div>
           </div>
 
-          <div style={{ marginTop: '80px', fontSize: '11px', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '15px' }}>
+          <div style={{ marginTop: '40px', fontSize: '11px', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '15px', textAlign: 'left', fontStyle: 'italic' }}>
             ข้าพเจ้าขอรับรองว่าข้อมูลรายละเอียดประวัติพนักงานดังกล่าวข้างต้นเป็นความจริงทุกประการ
           </div>
 
-          <div className="print-avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', textAlign: 'center', fontSize: '11.5px', marginTop: '40px' }}>
+          <div className="print-avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', textAlign: 'center', fontSize: '11px', marginTop: '35px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ width: '180px', borderBottom: '1px solid #333', height: '40px', marginBottom: '6px' }}></div>
-              <div>ลงชื่อพนักงาน / Employee</div>
-              <div style={{ color: '#666', fontSize: '10px', marginTop: '2px' }}>วันที่: ______/______/______</div>
+              <div style={{ width: '180px', borderBottom: '1px solid #333', height: '35px', marginBottom: '6px' }}></div>
+              <div style={{ fontWeight: 'bold' }}>ลงชื่อพนักงาน / Employee</div>
+              <div style={{ color: '#666', fontSize: '9.5px', marginTop: '2px' }}>วันที่: ______/______/______</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ width: '180px', borderBottom: '1px solid #333', height: '40px', marginBottom: '6px' }}></div>
-              <div>ผู้รับรองประวัติ / HR Officer</div>
-              <div style={{ color: '#333', fontSize: '10px', marginTop: '2px' }}>วันที่: ______/______/______</div>
+              <div style={{ width: '180px', borderBottom: '1px solid #333', height: '35px', marginBottom: '6px' }}></div>
+              <div style={{ fontWeight: 'bold' }}>ผู้รับรองประวัติ / HR Officer</div>
+              <div style={{ color: '#333', fontSize: '9.5px', marginTop: '2px' }}>วันที่: ______/______/______</div>
             </div>
           </div>
         </PrintLayout>
