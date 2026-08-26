@@ -25,6 +25,7 @@ export default function ReceiptHistory({
   bankAccounts = [],
   onVoidReceipt, 
   onEditDraftReceipt, 
+  onEditReceiptInPos,
   onPrintReceipt,
   onDeleteReceipt,
   currentUser
@@ -849,11 +850,11 @@ export default function ReceiptHistory({
                             </button>
                           )}
 
-                          {/* แก้ไขบิลโดยตรงผ่าน Modal */}
+                          {/* แก้ไขบิลโดยตรงผ่านหน้าจอ POS */}
                           <button 
                             className="btn btn-light btn-icon-only" 
                             title="แก้ไขเอกสารการเงิน"
-                            onClick={() => handleEditClick(r)}
+                            onClick={() => onEditReceiptInPos(r)}
                           >
                             <Edit size={16} color="var(--secondary)" />
                           </button>

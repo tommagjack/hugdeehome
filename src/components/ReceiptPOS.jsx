@@ -43,7 +43,10 @@ export default function ReceiptPOS({
   slipName,
   setSlipName,
   currentUser,
-  rewards = []
+  rewards = [],
+  editingReceiptId = null,
+  editingReceiptDate = null,
+  onCancelEdit = null
 }) {
 
   // กรองผู้ป่วยที่ Active
@@ -61,6 +64,25 @@ export default function ReceiptPOS({
     const dd = String(today.getDate()).padStart(2, '0');
     return `${today.getFullYear()}-${mm}-${dd}`;
   });
+
+  useEffect(() => {
+    if (editingReceiptId) {
+      setCustomBillId(editingReceiptId);
+    } else {
+      setCustomBillId('');
+    }
+  }, [editingReceiptId]);
+
+  useEffect(() => {
+    if (editingReceiptDate) {
+      setCustomDate(editingReceiptDate);
+    } else {
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      setCustomDate(`${today.getFullYear()}-${mm}-${dd}`);
+    }
+  }, [editingReceiptDate]);
 
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
@@ -206,6 +228,10 @@ export default function ReceiptPOS({
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     setCustomDate(`${today.getFullYear()}-${mm}-${dd}`);
+    
+    if (onCancelEdit) {
+      onCancelEdit();
+    }
     
     Swal.fire({
       icon: 'info',
@@ -571,78 +597,124 @@ export default function ReceiptPOS({
       }
     }
 
-    const today = new Date();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
+    const proceedSave = (editReason = '') => {
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
 
-    const billId = (currentUser?.role === 'Admin' && customBillId.trim()) ? customBillId.trim() : generateNextBillId();
+      const billId = (currentUser?.role === 'Admin' && customBillId.trim()) ? customBillId.trim() : generateNextBillId();
 
-    // ตรวจสอบเลขที่ใบเสร็จซ้ำในระบบ (ป้องกันการทับบิลเดิมที่ไม่ใช่บิลร่าง)
-    const isDuplicate = receipts.some(r => r.id === billId);
-    if (isDuplicate) {
-      Swal.fire({
-        icon: 'error',
-        title: 'เลขที่ใบเสร็จซ้ำในระบบ',
-        text: `หมายเลขใบเสร็จ ${billId} มีการใช้งานไปแล้ว กรุณากรอกเลขอื่น`,
-        confirmButtonColor: 'var(--secondary)'
+      // ตรวจสอบเลขที่ใบเสร็จซ้ำในระบบ (ป้องกันการทับบิลเดิมที่ไม่ใช่บิลร่าง)
+      const isDuplicate = receipts.some(r => r.id === billId && r.id !== editingReceiptId);
+      if (isDuplicate) {
+        Swal.fire({
+          icon: 'error',
+          title: 'เลขที่ใบเสร็จซ้ำในระบบ',
+          text: `หมายเลขใบเสร็จ ${billId} มีการใช้งานไปแล้ว กรุณากรอกเลขอื่น`,
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+
+      const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
+
+      const flatSub = cart
+        .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+        .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      const finalItems = cart.map(item => {
+        const isPercent = (item.description || '').includes('[price_type:percent]');
+        const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
+        const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
+        const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
+
+        return {
+          code: item.code,
+          name: displayName,
+          price: calculatedPrice,
+          quantity: item.quantity,
+          type: item.category,
+          sessionsPerUnit: item.sessionsPerUnit || 1
+        };
       });
-      return;
-    }
 
-    const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
+      if (rewardItem) {
+        finalItems.push({
+          code: 'REWARD_REDEEM',
+          name: `แลกของรางวัล ${rewardItem.name.replace('[แลกของรางวัล] ', '').replace('[แลกส่วนลด] ', '')} (${rewardItem.code})`,
+          price: 0,
+          quantity: rewardItem.pointsCost,
+          type: 'คะแนน',
+          sessionsPerUnit: 1
+        });
+      }
 
-    const flatSub = cart
-      .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
-      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      // แนบประวัติการแก้ไขบิล
+      if (editingReceiptId && editReason) {
+        const originalReceipt = receipts.find(r => r.id === editingReceiptId);
+        const existingAudit = originalReceipt && originalReceipt.items ? originalReceipt.items.find(it => it && it.isAudit) : {};
+        const auditItem = {
+          ...existingAudit,
+          isAudit: true,
+          editReason: editReason,
+          editBy: currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ',
+          editAt: new Date().toISOString()
+        };
+        
+        if (statusType === 'ยกเลิก') {
+          auditItem.voidReason = editReason;
+          auditItem.voidBy = currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ';
+          auditItem.voidAt = new Date().toISOString();
+        }
 
-    const finalItems = cart.map(item => {
-      const isPercent = (item.description || '').includes('[price_type:percent]');
-      const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
-      const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
-      const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
+        finalItems.push(auditItem);
+      }
 
-      return {
-        code: item.code,
-        name: displayName,
-        price: calculatedPrice,
-        quantity: item.quantity,
-        type: item.category,
-        sessionsPerUnit: item.sessionsPerUnit || 1
+      const newInvoice = {
+        id: billId,
+        hn: selectedHn,
+        date: invoiceDate, // วันที่ออกเอกสารจริง
+        items: finalItems,
+        discountType,
+        discountValue: Number(discountValue),
+        discountReason,
+        promotionId: selectedPromoCode,
+        rewardId: rewardItem ? rewardItem.code : '',
+        rewardDiscountAmount: rewardsDiscountAmount, // บันทึกยอดส่วนลดจากการแลกรางวัล
+        paymentMethod,
+        bankAccountId: paymentMethod === 'โอนเงิน' ? selectedBankId : '',
+        slipUrl: paymentMethod === 'โอนเงิน' && slipAttached ? slipName : '',
+        status: statusType, // 'ชำระเงินแล้ว' หรือ 'รอชำระเงิน'
+        totalAmount: cartTotal,
+        created_at: new Date().toISOString(),
+        createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
       };
-    });
 
-    if (rewardItem) {
-      finalItems.push({
-        code: 'REWARD_REDEEM',
-        name: `แลกของรางวัล ${rewardItem.name.replace('[แลกของรางวัล] ', '').replace('[แลกส่วนลด] ', '')} (${rewardItem.code})`,
-        price: 0,
-        quantity: rewardItem.pointsCost,
-        type: 'คะแนน',
-        sessionsPerUnit: 1
-      });
-    }
-
-    const newInvoice = {
-      id: billId,
-      hn: selectedHn,
-      date: invoiceDate, // วันที่ออกเอกสารจริง
-      items: finalItems,
-      discountType,
-      discountValue: Number(discountValue),
-      discountReason,
-      promotionId: selectedPromoCode,
-      rewardId: rewardItem ? rewardItem.code : '',
-      rewardDiscountAmount: rewardsDiscountAmount, // บันทึกยอดส่วนลดจากการแลกรางวัล
-      paymentMethod,
-      bankAccountId: paymentMethod === 'โอนเงิน' ? selectedBankId : '',
-      slipUrl: paymentMethod === 'โอนเงิน' && slipAttached ? slipName : '',
-      status: statusType, // 'ชำระเงินแล้ว' หรือ 'รอชำระเงิน'
-      totalAmount: cartTotal,
-      created_at: new Date().toISOString(),
-      createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
+      onSaveReceipt(newInvoice);
     };
 
-    onSaveReceipt(newInvoice);
+    if (editingReceiptId) {
+      Swal.fire({
+        title: 'ระบุเหตุผลในการแก้ไขเอกสาร',
+        input: 'text',
+        inputPlaceholder: 'กรุณาระบุเหตุผล เช่น คีย์ยอดเงินผิด, เปลี่ยนช่องชำระเงิน ฯลฯ',
+        inputValidator: (value) => {
+          if (!value || !value.trim()) {
+            return 'กรุณากรอกเหตุผลในการแก้ไขเอกสารครับ';
+          }
+        },
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกการแก้ไข',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: 'var(--secondary)'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          proceedSave(result.value.trim());
+        }
+      });
+    } else {
+      proceedSave();
+    }
 
     if (statusType === 'ชำระเงินแล้ว') {
       Swal.fire({
@@ -687,6 +759,33 @@ export default function ReceiptPOS({
           รีเซ็ตฟอร์ม (เคลียร์ตะกร้า)
         </button>
       </div>
+
+      {editingReceiptId && (
+        <div style={{ 
+          backgroundColor: '#fff3cd', 
+          color: '#856404', 
+          padding: '1rem 1.25rem', 
+          borderRadius: 'var(--radius-md)', 
+          border: '1px solid #ffeeba', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div>
+            <strong>⚠️ โหมดแก้ไขเอกสารการเงิน เลขที่: {editingReceiptId}</strong>
+            {editingReceiptDate && <span style={{ marginLeft: '0.75rem', fontSize: '0.9rem' }}>(วันที่เดิม: {new Date(editingReceiptDate).toLocaleDateString('th-TH')})</span>}
+          </div>
+          <button 
+            type="button" 
+            className="btn btn-danger" 
+            style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+            onClick={handleResetForm}
+          >
+            <RotateCcw size={14} /> ยกเลิกการแก้ไข / ล้างฟอร์ม
+          </button>
+        </div>
+      )}
 
       <div className="pos-layout">
         

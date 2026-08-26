@@ -1149,6 +1149,8 @@ export default function App() {
   const [posBankId, setPosBankId] = useState('');
   const [posSlipName, setPosSlipName] = useState('');
   const [posSlipAttached, setPosSlipAttached] = useState(false);
+  const [posEditingReceiptId, setPosEditingReceiptId] = useState(null);
+  const [posEditingReceiptDate, setPosEditingReceiptDate] = useState(null);
 
   // 5. สถานะพรีวิวและจัดทำเอกสารพิมพ์ PDF (Print View)
   const [printView, setPrintView] = useState({
@@ -1443,7 +1445,22 @@ export default function App() {
     }
   };
 
-  const handleEditDraftReceipt = (receipt) => {
+  const handleCancelPOSReceiptEdit = () => {
+    setPosSelectedHn('');
+    setPosCart([]);
+    setPosDiscountType('flat');
+    setPosDiscountValue(0);
+    setPosDiscountReason('');
+    setPosPromoCode('');
+    setPosPaymentMethod('เงินสด');
+    setPosBankId('');
+    setPosSlipName('');
+    setPosSlipAttached(false);
+    setPosEditingReceiptId(null);
+    setPosEditingReceiptDate(null);
+  };
+
+  const handleEditReceiptInPos = (receipt) => {
     // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง (กรองเอาข้อมูล Audit ออก)
     setPosSelectedHn(receipt.hn);
     setPosCart((receipt.items || []).filter(item => item && item.code !== 'REWARD_REDEEM' && !item.isAudit).map(item => {
@@ -1489,19 +1506,23 @@ export default function App() {
       setPosSlipName('');
     }
 
-    // 2. ลบบิลแจ้งหนี้ชั่วคราวฉบับร่างนี้ออกจากระบบ เพื่อให้ออกบิลเลขเดิมทับได้ไม่มีปัญหา
-    setReceipts(receipts.filter(r => r.id !== receipt.id));
+    setPosEditingReceiptId(receipt.id);
+    setPosEditingReceiptDate(receipt.date);
 
-    // 3. เปลี่ยนหน้าไปที่หน้า POS เพื่อให้พนักงานเก็บเงินต่อ
+    // 2. เปลี่ยนหน้าไปที่หน้า POS เพื่อให้พนักงานเก็บเงินต่อ
     setActiveTab('pos');
 
     Swal.fire({
-      icon: 'success',
-      title: 'ดึงข้อมูลบิลร่างกลับเข้า POS',
+      icon: 'info',
+      title: 'ดึงข้อมูลบิลเข้า POS',
       text: `ดึงผู้รับบริการและบริการจากบิล ${receipt.id} เรียบร้อยแล้ว`,
       timer: 2000,
       showConfirmButton: false
     });
+  };
+
+  const handleEditDraftReceipt = (receipt) => {
+    handleEditReceiptInPos(receipt);
   };
 
   // ปุ่มลัดเพิ่มคอร์สแบบแมนนวล (Manual)
@@ -2433,6 +2454,9 @@ export default function App() {
             setSlipAttached={setPosSlipAttached}
             currentUser={currentUser}
             rewards={rewards}
+            editingReceiptId={posEditingReceiptId}
+            editingReceiptDate={posEditingReceiptDate}
+            onCancelEdit={handleCancelPOSReceiptEdit}
           />
         )}
 
@@ -2445,6 +2469,7 @@ export default function App() {
             bankAccounts={bankAccounts}
             onVoidReceipt={handleVoidReceipt}
             onEditDraftReceipt={handleEditDraftReceipt}
+            onEditReceiptInPos={handleEditReceiptInPos}
             onDeleteReceipt={handleDeleteReceipt}
             onPrintReceipt={(id) => {
               const r = receipts.find(item => item.id === id);
