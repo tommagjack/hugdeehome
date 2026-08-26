@@ -923,12 +923,34 @@ export default function PDFViewer({
     // คำนวณยอดดิบในตารางสินค้า
     const itemsSubtotal = bill.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // ยอดลดสุทธิ
+    // ยอดลดสุทธิ - รองรับกรณีมีส่วนลดหลายรายการ
+    let discountsList = [];
+    let isMultiple = false;
+    if (bill.discountReason) {
+      try {
+        const parsed = JSON.parse(bill.discountReason);
+        if (Array.isArray(parsed)) {
+          discountsList = parsed;
+          isMultiple = true;
+        }
+      } catch (e) {}
+    }
+
     let discountAmount = 0;
-    if (bill.discountType === 'flat') {
-      discountAmount = bill.discountValue;
+    if (isMultiple) {
+      discountsList.forEach(d => {
+        if (d.type === 'flat' || d.type === 'บาท') {
+          discountAmount += Number(d.value);
+        } else {
+          discountAmount += (itemsSubtotal * Number(d.value)) / 100;
+        }
+      });
     } else {
-      discountAmount = (itemsSubtotal * bill.discountValue) / 100;
+      if (bill.discountType === 'flat') {
+        discountAmount = bill.discountValue;
+      } else {
+        discountAmount = (itemsSubtotal * bill.discountValue) / 100;
+      }
     }
 
     return (
@@ -1032,7 +1054,7 @@ export default function PDFViewer({
               {bill.slipUrl && <span><strong>ไฟล์สลิปอ้างอิง:</strong> {bill.slipUrl}<br/></span>}
               {discountAmount > 0 && (
                 <div style={{ borderTop: '1px solid #ddd', marginTop: '10px', paddingTop: '5px' }}>
-                  <strong>หมายเหตุ:</strong> {bill.discountReason || 'ส่วนลดพิเศษ'}
+                  <strong>หมายเหตุ:</strong> {isMultiple ? discountsList.map(d => d.reason).join(', ') : (bill.discountReason || 'ส่วนลดพิเศษ')}
                 </div>
               )}
             </div>
@@ -1043,11 +1065,23 @@ export default function PDFViewer({
                 <span className="a4-summary-row-val">฿{itemsSubtotal.toLocaleString()}</span>
               </div>
               
-              {discountAmount > 0 && (
-                <div className="a4-summary-row" style={{ color: 'red' }}>
-                  <span className="a4-summary-row-label">ส่วนลด (Discount):</span>
-                  <span className="a4-summary-row-val">-฿{discountAmount.toLocaleString()}</span>
-                </div>
+              {isMultiple ? (
+                discountsList.map((d, dIdx) => {
+                  const amt = (d.type === 'flat' || d.type === 'บาท') ? Number(d.value) : ((itemsSubtotal * Number(d.value)) / 100);
+                  return (
+                    <div key={dIdx} className="a4-summary-row" style={{ color: 'red' }}>
+                      <span className="a4-summary-row-label">ส่วนลด: {d.reason} {d.type === 'percentage' || d.type === 'percent' ? `(${d.value}%)` : ''}:</span>
+                      <span className="a4-summary-row-val">-฿{amt.toLocaleString()}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                discountAmount > 0 && (
+                  <div className="a4-summary-row" style={{ color: 'red' }}>
+                    <span className="a4-summary-row-label">ส่วนลด (Discount):</span>
+                    <span className="a4-summary-row-val">-฿{discountAmount.toLocaleString()}</span>
+                  </div>
+                )
               )}
 
               {bill.rewardDiscountAmount > 0 && (

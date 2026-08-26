@@ -1447,16 +1447,26 @@ export default function App() {
     // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง (กรองเอาข้อมูล Audit ออก)
     setPosSelectedHn(receipt.hn);
     setPosCart((receipt.items || []).filter(item => item && item.code !== 'REWARD_REDEEM' && !item.isAudit).map(item => {
-      // ดึงรายละเอียดราคาและหมวดหมู่อ้างอิงกลับมา
       const orig = services.find(s => s.code === item.code);
       const isReward = item.name.includes('[แลก');
       const reward = isReward ? (rewards || []).find(r => r.code === receipt.rewardId) : null;
+      
+      const match = item.name.match(/\(([\d.]+)%\)$/);
+      const isPercent = match || (orig && (orig.description || '').includes('[price_type:percent]'));
+      const restoredPrice = isPercent 
+        ? (match ? Number(match[1]) : (orig ? orig.price : item.price)) 
+        : item.price;
+      const restoredDesc = isPercent 
+        ? (orig ? orig.description : ((item.description || '') + ' [price_type:percent]')) 
+        : (orig ? orig.description : (item.description || ''));
+
       return {
         code: item.code,
-        name: item.name,
-        price: item.price,
+        name: item.name.replace(/\([\d.]+\%\)$/, '').trim(),
+        price: restoredPrice,
         quantity: item.quantity,
         category: item.type || (orig ? orig.category : 'บริการ'),
+        description: restoredDesc,
         isReward: isReward,
         rewardType: reward ? reward.type : (isReward ? (item.price > 0 ? 'สินค้า' : 'ส่วนลด') : ''),
         pointsCost: reward ? Number(reward.points) : 0,

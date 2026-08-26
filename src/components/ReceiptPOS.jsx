@@ -61,6 +61,14 @@ export default function ReceiptPOS({
     return `${today.getFullYear()}-${mm}-${dd}`;
   });
 
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+  const [customItemQty, setCustomItemQty] = useState(1);
+
+  const [newDiscountReason, setNewDiscountReason] = useState('');
+  const [newDiscountValue, setNewDiscountValue] = useState('');
+  const [newDiscountType, setNewDiscountType] = useState('flat'); // flat, percentage
+
   // Sync patientSearchText when selectedHn updates
   useEffect(() => {
     if (selectedHn) {
@@ -227,6 +235,103 @@ export default function ReceiptPOS({
     }
   };
 
+  // เพิ่มค่าบริการ/สินค้าอื่นๆ เข้าตะกร้าสินค้า
+  const handlePostCustomItem = () => {
+    if (!customItemName.trim()) {
+      Swal.fire({ icon: 'warning', title: 'ระบุชื่อรายการบริการ/สินค้า', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    const priceNum = Number(customItemPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      Swal.fire({ icon: 'warning', title: 'ราคารายการไม่ถูกต้อง', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    const qtyNum = parseInt(customItemQty, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      Swal.fire({ icon: 'warning', title: 'จำนวนรายการไม่ถูกต้อง', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+
+    const newCustomItem = {
+      code: `CUSTOM_FEE_${Date.now()}`,
+      name: customItemName.trim(),
+      price: priceNum,
+      category: 'อื่นๆ',
+      sessionsPerUnit: 1,
+      description: 'ค่าบริการ/สินค้าอื่นๆ เพิ่มเติม'
+    };
+
+    setCart([...cart, { ...newCustomItem, quantity: qtyNum }]);
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setCustomItemQty(1);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'เพิ่มรายการอื่นๆ แล้ว',
+      showConfirmButton: false,
+      timer: 1000
+    });
+  };
+
+  // จัดการเพิ่มส่วนลดเพิ่มเติม (หลายรายการ)
+  const handleAddDiscount = () => {
+    if (!newDiscountReason.trim()) {
+      Swal.fire({ icon: 'warning', title: 'ระบุเหตุผล/ชื่อส่วนลด', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    const val = Number(newDiscountValue);
+    if (isNaN(val) || val <= 0) {
+      Swal.fire({ icon: 'warning', title: 'ระบุมูลค่าส่วนลดที่ถูกต้อง', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+
+    const newDisc = {
+      id: `DISC_${Date.now()}`,
+      reason: newDiscountReason.trim(),
+      type: newDiscountType,
+      value: val
+    };
+
+    const updated = [...additionalDiscounts, newDisc];
+    setDiscountReason(JSON.stringify(updated));
+
+    let total = 0;
+    updated.forEach(d => {
+      if (d.type === 'flat' || d.type === 'บาท') {
+        total += Number(d.value);
+      } else {
+        total += (regularCartSubtotal * Number(d.value)) / 100;
+      }
+    });
+    setDiscountValue(total);
+    setDiscountType('multiple');
+
+    setNewDiscountReason('');
+    setNewDiscountValue('');
+  };
+
+  const handleDeleteDiscount = (id) => {
+    const updated = additionalDiscounts.filter(d => d.id !== id);
+    if (updated.length === 0) {
+      setDiscountReason('');
+      setDiscountValue(0);
+      setDiscountType('flat');
+    } else {
+      setDiscountReason(JSON.stringify(updated));
+      let total = 0;
+      updated.forEach(d => {
+        if (d.type === 'flat' || d.type === 'บาท') {
+          total += Number(d.value);
+        } else {
+          total += (regularCartSubtotal * Number(d.value)) / 100;
+        }
+      });
+      setDiscountValue(total);
+      setDiscountType('multiple');
+    }
+  };
+
   // เพิ่มของรางวัลเข้าตะกร้าสินค้า
   const addRewardToCart = (reward) => {
     // 1. ตรวจสอบว่าในตะกร้ามีของรางวัลแล้วหรือยัง (จำกัด 1 รายการต่อใบเสร็จ)
@@ -300,25 +405,53 @@ export default function ReceiptPOS({
     return cart.find(item => item.isReward);
   }, [cart]);
 
-  // คำนวณยอดรวมของสินค้าปกติ (ไม่รวมของรางวัล)
+  // คำนวณยอดรวมของสินค้าปกติ (ไม่รวมของรางวัล) - รองรับราคาแบบเปอร์เซ็นต์
   const regularCartSubtotal = useMemo(() => {
-    return cart.filter(item => !item.isReward).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const flatSub = cart
+      .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const percentSum = cart
+      .filter(item => !item.isReward && (item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+    return flatSub + percentSum;
   }, [cart]);
 
   // คำนวณยอดรวมทั้งหมดในตะกร้า (สินค้าปกติ + ของรางวัล)
   const cartSubtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const flatSub = cart
+      .filter(item => !(item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const percentSum = cart
+      .filter(item => (item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+    return flatSub + percentSum;
   }, [cart]);
 
-  // คำนวณจำนวนส่วนลดปกติ (โปรโมชั่น หรือ Manual)
-  const discountAmount = useMemo(() => {
-    if (discountType === 'flat') {
-      return Math.min(Number(discountValue), regularCartSubtotal);
-    } else {
-      const amt = (regularCartSubtotal * Number(discountValue)) / 100;
-      return Math.min(amt, regularCartSubtotal);
+  // พาร์สข้อมูลส่วนลดเพิ่มเติมทั้งหมดที่มีอยู่ในปัจจุบัน
+  const additionalDiscounts = useMemo(() => {
+    if (!discountReason) return [];
+    try {
+      const parsed = JSON.parse(discountReason);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+    if (Number(discountValue) > 0) {
+      return [{ id: 'legacy', reason: discountReason || 'ส่วนลดพิเศษ', type: discountType, value: Number(discountValue) }];
     }
-  }, [discountType, discountValue, regularCartSubtotal]);
+    return [];
+  }, [discountReason, discountValue, discountType]);
+
+  // คำนวณยอดรวมส่วนลดเพิ่มเติมทั้งหมดที่มีอยู่ในระบบ
+  const discountAmount = useMemo(() => {
+    let total = 0;
+    additionalDiscounts.forEach(d => {
+      if (d.type === 'flat' || d.type === 'บาท') {
+        total += Number(d.value);
+      } else {
+        total += (regularCartSubtotal * Number(d.value)) / 100;
+      }
+    });
+    return Math.min(total, regularCartSubtotal);
+  }, [additionalDiscounts, regularCartSubtotal]);
 
   // ยอดสุทธิก่อนหักของรางวัล
   const netBeforeRewards = useMemo(() => {
@@ -457,14 +590,25 @@ export default function ReceiptPOS({
 
     const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
 
-    const finalItems = cart.map(item => ({
-      code: item.code,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      type: item.category,
-      sessionsPerUnit: item.sessionsPerUnit || 1
-    }));
+    const flatSub = cart
+      .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    const finalItems = cart.map(item => {
+      const isPercent = (item.description || '').includes('[price_type:percent]');
+      const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
+      const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
+      const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
+
+      return {
+        code: item.code,
+        name: displayName,
+        price: calculatedPrice,
+        quantity: item.quantity,
+        type: item.category,
+        sessionsPerUnit: item.sessionsPerUnit || 1
+      };
+    });
 
     if (rewardItem) {
       finalItems.push({
@@ -670,16 +814,63 @@ export default function ReceiptPOS({
                     </span>
                     <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--dark)' }}>{service.name}</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '0.25rem' }}>
-                      {service.description || 'ไม่มีรายละเอียดเพิ่มเติม'}
+                      {(service.description || '').replace(/\[price_type:.*?\]/g, '').trim() || 'ไม่มีรายละเอียดเพิ่มเติม'}
                     </div>
                   </div>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.5rem' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>฿{service.price.toLocaleString()}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>
+                      {(service.description || '').includes('[price_type:percent]') ? `${service.price}%` : `฿${service.price.toLocaleString()}`}
+                    </span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>รหัส: {service.code}</span>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* เพิ่มค่าบริการ/สินค้าอื่นๆ (Custom Fee) */}
+            <div style={{ borderTop: '1px dashed var(--border-light)', marginTop: '1.5rem', paddingTop: '1.5rem' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--secondary)' }}>
+                <Plus size={16} /> เพิ่มค่าบริการ / สินค้าอื่น ๆ เพิ่มเติม (Custom Item / Fee)
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 200px' }}>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="ระบุชื่อรายการบริการ/สินค้าอื่นๆ..." 
+                    value={customItemName} 
+                    onChange={(e) => setCustomItemName(e.target.value)} 
+                  />
+                </div>
+                <div style={{ flex: '1 1 100px', maxWidth: '150px' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder="ราคาต่อหน่วย..." 
+                    value={customItemPrice} 
+                    onChange={(e) => setCustomItemPrice(e.target.value)} 
+                  />
+                </div>
+                <div style={{ flex: '1 1 100px', maxWidth: '120px' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    placeholder="จำนวน..." 
+                    min="1"
+                    value={customItemQty} 
+                    onChange={(e) => setCustomItemQty(e.target.value)} 
+                  />
+                </div>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                  onClick={handlePostCustomItem}
+                >
+                  <Plus size={16} /> เพิ่มเข้ารายการ
+                </button>
+              </div>
             </div>
           </div>
 
@@ -902,40 +1093,81 @@ export default function ReceiptPOS({
               </select>
             </div>
 
-            {/* ส่วนลดแบบแมนนวล */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.5rem' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">กำหนดส่วนลดเพิ่มเติม</label>
-                <input 
-                  type="number" 
-                  className="form-control" 
-                  min="0"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(Number(e.target.value))}
-                />
+            {/* ส่วนลดแบบแมนนวล - แบบระบุได้หลายรายการ */}
+            <div style={{ border: '1px solid var(--border-light)', padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fff' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--dark)' }}>
+                กำหนดส่วนลดเพิ่มเติม
               </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">ประเภท</label>
-                <select className="form-control" value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
-                  <option value="flat">บาท (฿)</option>
-                  <option value="percentage">เปอร์เซ็นต์ (%)</option>
-                </select>
-              </div>
-            </div>
 
-            {discountValue > 0 && (
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ color: 'var(--danger)' }}>เหตุผลการให้ส่วนลด <span style={{ color: 'var(--danger)' }}>*</span></label>
+              {/* รายการส่วนลดที่เพิ่มแล้ว */}
+              {additionalDiscounts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                  {additionalDiscounts.map((d) => {
+                    const calculatedAmt = (d.type === 'flat' || d.type === 'บาท') 
+                      ? Number(d.value) 
+                      : ((regularCartSubtotal * Number(d.value)) / 100);
+                    return (
+                      <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fdf2f2', border: '1px solid #fbd5d5', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem', fontSize: '0.8rem', color: '#c81e1e' }}>
+                        <span style={{ fontWeight: 500, textAlign: 'left' }}>
+                          {d.reason} {d.type === 'percentage' || d.type === 'percent' || d.type === 'percentage' ? `(${d.value}%)` : ''}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontWeight: 700 }}>-฿{calculatedAmt.toLocaleString()}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => handleDeleteDiscount(d.id)}
+                            style={{ background: 'none', border: 'none', color: '#c81e1e', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ช่องกรอกเพิ่มส่วนลดใหม่ */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <input 
                   type="text" 
                   className="form-control" 
-                  placeholder="ระบุเหตุผล เช่น คูปองเปิดเทอม, ส่วนลดผู้ปกครอง..." 
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                  required
+                  style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem' }} 
+                  placeholder="ระบุเหตุผล/ชื่อส่วนลด..." 
+                  value={newDiscountReason} 
+                  onChange={(e) => setNewDiscountReason(e.target.value)} 
                 />
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <input 
+                    type="number" 
+                    className="form-control" 
+                    style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem', flex: 1 }} 
+                    placeholder="มูลค่า..." 
+                    min="0.01"
+                    step="any"
+                    value={newDiscountValue} 
+                    onChange={(e) => setNewDiscountValue(e.target.value)} 
+                  />
+                  <select 
+                    className="form-control" 
+                    style={{ fontSize: '0.8rem', padding: '0.3rem 0.5rem', width: '100px' }} 
+                    value={newDiscountType} 
+                    onChange={(e) => setNewDiscountType(e.target.value)}
+                  >
+                    <option value="flat">บาท (฿)</option>
+                    <option value="percentage">เปอร์เซ็นต์ (%)</option>
+                  </select>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ padding: '0.3rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', gap: '0.2rem' }}
+                    onClick={handleAddDiscount}
+                  >
+                    <Plus size={12} /> เพิ่ม
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* ยอดเงินสะสม */}

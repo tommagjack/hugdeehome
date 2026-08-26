@@ -588,6 +588,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
   const [serviceEnd, setServiceEnd] = useState('2026-12-31');
   const [serviceCategory, setServiceCategory] = useState('บริการ');
   const [servicePrice, setServicePrice] = useState(0);
+  const [servicePriceType, setServicePriceType] = useState('Baht'); // Baht, Percent
   const [serviceSessionsPerUnit, setServiceSessionsPerUnit] = useState(1);
 
   // 2. ฟอร์มเพิ่ม/แก้ไข โปรโมชั่น
@@ -671,10 +672,13 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
   // --- จัดการบริการ/สินค้า ---
   const handleSaveService = (e) => {
     e.preventDefault();
+    const cleanDesc = serviceDesc.replace(/\[price_type:.*?\]/g, '').trim();
+    const finalDesc = servicePriceType === 'Percent' ? (cleanDesc + ' [price_type:percent]') : cleanDesc;
+    
     const newService = {
       code: serviceCode,
       name: serviceName,
-      description: serviceDesc,
+      description: finalDesc,
       startDate: serviceStart,
       endDate: serviceEnd,
       category: serviceCategory,
@@ -710,6 +714,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
     setServiceEnd('2026-12-31');
     setServiceCategory('บริการ');
     setServicePrice(0);
+    setServicePriceType('Baht');
     setServiceSessionsPerUnit(1);
   };
 
@@ -717,7 +722,12 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
     setEditingServiceCode(s.code);
     setServiceCode(s.code);
     setServiceName(s.name);
-    setServiceDesc(s.description || '');
+    
+    const rawDesc = s.description || '';
+    const isPercent = rawDesc.includes('[price_type:percent]');
+    setServicePriceType(isPercent ? 'Percent' : 'Baht');
+    setServiceDesc(rawDesc.replace(/\[price_type:.*?\]/g, '').trim());
+    
     setServiceStart(s.startDate);
     setServiceEnd(s.endDate);
     setServiceCategory(s.category);
@@ -1468,10 +1478,12 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                         <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{s.code}</td>
                         <td>
                           <div style={{ fontWeight: 600 }}>{s.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{s.description}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>{(s.description || '').replace(/\[price_type:.*?\]/g, '').trim()}</div>
                         </td>
                         <td>{s.category}</td>
-                        <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>฿{s.price.toLocaleString()}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>
+                          {(s.description || '').includes('[price_type:percent]') ? `${s.price}%` : `฿${s.price.toLocaleString()}`}
+                        </td>
                         <td>{s.category === 'บริการ' ? `${s.sessionsPerUnit || 1} ครั้ง` : '-'}</td>
                         <td style={{ fontSize: '0.8rem' }}>{s.startDate} ถึง {s.endDate}</td>
                         <td>
@@ -2263,9 +2275,16 @@ ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;`;
                 </div>
 
                 <div className="form-row">
-                  <div className="form-group" style={{ maxWidth: '200px' }}>
+                  <div className="form-group" style={{ maxWidth: '180px' }}>
                     <label className="form-label">ราคาขายต่อหน่วย <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="number" className="form-control" min="0" value={servicePrice} onChange={(e) => setServicePrice(e.target.value)} required />
+                    <input type="number" className="form-control" min="0" step="any" value={servicePrice} onChange={(e) => setServicePrice(e.target.value)} required />
+                  </div>
+                  <div className="form-group" style={{ maxWidth: '140px' }}>
+                    <label className="form-label">ประเภทราคา <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select className="form-control" value={servicePriceType} onChange={(e) => setServicePriceType(e.target.value)}>
+                      <option value="Baht">บาท (฿)</option>
+                      <option value="Percent">เปอร์เซ็นต์ (%)</option>
+                    </select>
                   </div>
                   {serviceCategory === 'บริการ' && (
                     <div className="form-group" style={{ maxWidth: '200px' }}>
