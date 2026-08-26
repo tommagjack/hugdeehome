@@ -114,7 +114,17 @@ export default function ReceiptHistory({
     setEditStatus(receipt.status || 'ชำระเงินแล้ว');
     setEditDiscountValue(receipt.discountValue || 0);
     setEditDiscountType(receipt.discountType || 'flat');
-    setEditDiscountReason(receipt.discountReason || '');
+    
+    let displayReason = receipt.discountReason || '';
+    if (displayReason) {
+      try {
+        const parsed = JSON.parse(displayReason);
+        if (Array.isArray(parsed)) {
+          displayReason = parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
+        }
+      } catch (e) {}
+    }
+    setEditDiscountReason(displayReason);
     // กรองเอา Audit Item ออกเมื่อนำเข้าตะกร้าแก้ไข
     setEditItems(receipt.items ? receipt.items.filter(it => it && !it.isAudit).map(it => ({ ...it })) : []);
     

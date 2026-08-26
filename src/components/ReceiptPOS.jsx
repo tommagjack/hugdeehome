@@ -10,7 +10,8 @@ import {
   Coins, 
   Image as ImageIcon,
   CheckCircle,
-  FileCheck2
+  FileCheck2,
+  Gift
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 

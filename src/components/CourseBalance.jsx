@@ -255,6 +255,17 @@ export default function CourseBalance({
   const courseTransactionHistory = useMemo(() => {
     if (!selectedHn) return [];
 
+    const formatDiscountReason = (reason) => {
+      if (!reason) return '-';
+      try {
+        const parsed = JSON.parse(reason);
+        if (Array.isArray(parsed)) {
+          return parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
+        }
+      } catch (e) {}
+      return reason;
+    };
+
     const list = [];
 
     // ดึงบิลซื้อ/ปรับปรุงคอร์ส ทั้งหมด
@@ -297,7 +308,7 @@ export default function CourseBalance({
             direction,
             docId: r.id,
             code: item.code,
-            remark: r.discountReason || '-'
+            remark: formatDiscountReason(r.discountReason)
           });
 
           // ได้รับคะแนนสะสมจากการซื้อคอร์ส (1 เซสชัน = 1 คะแนน)
@@ -342,7 +353,7 @@ export default function CourseBalance({
             direction,
             docId: r.id,
             code: item.code,
-            remark: r.discountReason || '-'
+            remark: formatDiscountReason(r.discountReason)
           });
         }
       });
