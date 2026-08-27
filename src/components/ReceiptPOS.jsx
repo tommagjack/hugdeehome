@@ -691,6 +691,33 @@ export default function ReceiptPOS({
       };
 
       onSaveReceipt(newInvoice);
+
+      if (statusType === 'ชำระเงินแล้ว') {
+        Swal.fire({
+          icon: 'success',
+          title: 'ออกใบเสร็จสำเร็จ!',
+          text: `หมายเลขใบเสร็จ: ${billId} | อัปเดตคอร์สเข้าระบบทันที`,
+          showConfirmButton: true,
+          confirmButtonText: 'พิมพ์ใบเสร็จ (PDF)',
+          confirmButtonColor: 'var(--secondary)',
+          showCancelButton: true,
+          cancelButtonText: 'ปิดหน้าต่าง'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.printReceiptById(billId);
+          }
+        });
+      } else {
+        Swal.fire({
+          icon: 'info',
+          title: 'บันทึกร่างใบแจ้งหนี้สำเร็จ!',
+          text: `หมายเลขร่าง: ${billId} (ยอดเงินและคอร์สจะยังไม่ถูกคำนวณเข้าระบบ)`,
+          confirmButtonColor: 'var(--secondary)'
+        });
+      }
+
+      // ล้างฟอร์ม
+      handleResetForm();
     };
 
     if (editingReceiptId) {
@@ -715,36 +742,6 @@ export default function ReceiptPOS({
     } else {
       proceedSave();
     }
-
-    if (statusType === 'ชำระเงินแล้ว') {
-      Swal.fire({
-        icon: 'success',
-        title: 'ออกใบเสร็จสำเร็จ!',
-        text: `หมายเลขใบเสร็จ: ${billId} | อัปเดตคอร์สเข้าระบบทันที`,
-        showConfirmButton: true,
-        confirmButtonText: 'พิมพ์ใบเสร็จ (PDF)',
-        confirmButtonColor: 'var(--secondary)',
-        showCancelButton: true,
-        cancelButtonText: 'ปิดหน้าต่าง'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          // สั่งพรีวิว PDF เลย
-          const savedReceipt = receipts.find(r => r.id === billId) || newInvoice;
-          // รอซักครู่แล้วเรียก print
-          window.printReceiptById(billId);
-        }
-      });
-    } else {
-      Swal.fire({
-        icon: 'info',
-        title: 'บันทึกร่างใบแจ้งหนี้สำเร็จ!',
-        text: `หมายเลขร่าง: ${billId} (ยอดเงินและคอร์สจะยังไม่ถูกคำนวณเข้าระบบ)`,
-        confirmButtonColor: 'var(--secondary)'
-      });
-    }
-
-    // ล้างฟอร์ม
-    handleResetForm();
   };
 
   return (
