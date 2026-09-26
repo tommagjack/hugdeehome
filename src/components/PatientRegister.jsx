@@ -993,6 +993,7 @@ export default function PatientRegister({
                 <tr>
                   <th>HN</th>
                   <th>ชื่อ-นามสกุล</th>
+                  <th>ประวัติการแพ้ยา / โรคประจำตัว</th>
                   <th>เบอร์โทร</th>
                   <th>สถานะ</th>
                   <th style={{ textAlign: 'center' }}>การดำเนินการ</th>
@@ -1001,7 +1002,7 @@ export default function PatientRegister({
               <tbody>
                 {paginatedPatients.length === 0 ? (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                       ไม่พบข้อมูลผู้รับบริการตามตัวกรองนี้
                     </td>
                   </tr>
@@ -1010,46 +1011,62 @@ export default function PatientRegister({
                     <tr key={p.hn}>
                       <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{p.hn}</td>
                       <td>
-                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                          <span>{p.title}{p.firstname} {p.lastname}</span>
-                          {p.allergies === 'มี' && (
-                            <span style={{ 
-                              fontSize: '0.7rem', 
-                              backgroundColor: '#fee2e2', 
-                              color: '#dc2626', 
-                              border: '1px solid #fca5a5', 
-                              padding: '1px 6px', 
-                              borderRadius: '4px',
-                              fontWeight: 600 
-                            }}>
-                              ⚠️ แพ้ยา: {p.allergiesDetails || 'มี'}
-                            </span>
-                          )}
-                          {p.conditions === 'มี' && (
-                            <span style={{ 
-                              fontSize: '0.7rem', 
-                              backgroundColor: '#fef3c7', 
-                              color: '#d97706', 
-                              border: '1px solid #fcd34d', 
-                              padding: '1px 6px', 
-                              borderRadius: '4px',
-                              fontWeight: 600 
-                            }}>
-                              🩺 โรคประจำตัว: {p.conditionsDetails || 'มี'}
-                            </span>
-                          )}
+                        <div style={{ fontWeight: 600, color: 'var(--dark)' }}>
+                          {p.title}{p.firstname} {p.lastname}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '2px' }}>
                           {p.nickname ? formatPatientNickname(p.nickname) : '-'} ({p.gender})
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '3px' }}>
-                          <span style={{ color: p.allergies === 'มี' ? '#dc2626' : 'var(--dark-light)', fontWeight: p.allergies === 'มี' ? 600 : 'normal' }}>
-                            <strong>แพ้ยา:</strong> {p.allergies === 'มี' ? (p.allergiesDetails || 'มี') : 'ปฏิเสธการแพ้ยา'}
-                          </span>
-                          <span style={{ margin: '0 6px', color: 'var(--border)' }}>|</span>
-                          <span style={{ color: p.conditions === 'มี' ? '#d97706' : 'var(--dark-light)', fontWeight: p.conditions === 'มี' ? 600 : 'normal' }}>
-                            <strong>โรคประจำตัว:</strong> {p.conditions === 'มี' ? (p.conditionsDetails || 'มี') : 'ไม่มี'}
-                          </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '170px', maxWidth: '320px' }}>
+                          {p.allergies === 'มี' ? (
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              backgroundColor: '#fee2e2', 
+                              color: '#b91c1c', 
+                              border: '1px solid #fca5a5', 
+                              padding: '2px 8px', 
+                              borderRadius: '6px', 
+                              fontWeight: 600,
+                              fontSize: '0.78rem',
+                              lineHeight: '1.3',
+                              width: 'fit-content',
+                              wordBreak: 'break-word'
+                            }}>
+                              <span>⚠️</span> <span>แพ้ยา: {p.allergiesDetails || 'มี'}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--dark-light)', fontSize: '0.75rem' }}>
+                              แพ้ยา: ปฏิเสธการแพ้ยา
+                            </span>
+                          )}
+
+                          {p.conditions === 'มี' ? (
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              backgroundColor: '#fef3c7', 
+                              color: '#b45309', 
+                              border: '1px solid #fcd34d', 
+                              padding: '2px 8px', 
+                              borderRadius: '6px', 
+                              fontWeight: 600,
+                              fontSize: '0.78rem',
+                              lineHeight: '1.3',
+                              width: 'fit-content',
+                              wordBreak: 'break-word'
+                            }}>
+                              <span>🩺</span> <span>โรคประจำตัว: {p.conditionsDetails || 'มี'}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--dark-light)', fontSize: '0.75rem' }}>
+                              โรคประจำตัว: ไม่มี
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td>{p.phone}</td>
