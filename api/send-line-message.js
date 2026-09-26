@@ -46,7 +46,10 @@ export default async function handler(req, res) {
   try {
     const env = loadEnv();
     const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
-    const { type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients } = req.body;
+    const { 
+      type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients,
+      employeeId, employeeName, checkType, mapsUrl, workHours, note 
+    } = req.body;
 
     // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info)
     let channelAccessToken = '';
@@ -115,6 +118,44 @@ export default async function handler(req, res) {
       } catch (e) {
         console.error('Error fetching patient LINE User ID in backend:', e);
       }
+    } else if (['attendance', 'attendance_reminder', 'employee_welcome'].includes(type) && !targetLineUserId && employeeId) {
+      // ค้นหา line_user_id ของพนักงานจากตาราง users หรือ attendance
+      try {
+        const userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?employee_id=eq.${employeeId}&select=line_user_id`, {
+          headers: {
+            'apikey': dbKey,
+            'Authorization': 'Bearer ' + dbKey
+          }
+        });
+        if (userRes.ok) {
+          const uData = await userRes.json();
+          if (uData && uData[0] && uData[0].line_user_id) {
+            targetLineUserId = uData[0].line_user_id;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (!targetLineUserId) {
+        try {
+          const attRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/attendance?employee_id=eq.${employeeId}&line_user_id=not.is.null&select=line_user_id&order=created_at.desc&limit=1`, {
+            headers: {
+              'apikey': dbKey,
+              'Authorization': 'Bearer ' + dbKey
+            }
+          });
+          if (attRes.ok) {
+            const attData = await attRes.json();
+            if (attData && attData[0] && attData[0].line_user_id) {
+              targetLineUserId = attData[0].line_user_id;
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
 
       if (!targetLineUserId) {
         return res.status(200).json({ 
@@ -229,6 +270,109 @@ export default async function handler(req, res) {
       messages = [{
         type: 'text',
         text: `เชื่อมต่อระบบแจ้งเตือนนัดหมาย คลินิกเด็กบ้านฮักดี สำเร็จเรียบร้อยแล้วค่ะ!\n\nข้อมูลผู้ป่วยที่เชื่อมโยง:\n- ${patientNames}\n\nเมื่อใกล้ถึงวันนัดหมาย คุณพ่อคุณแม่จะได้รับการแจ้งเตือนและบัตรยืนยันนัดส่งเข้าสู่ห้องแชทนี้โดยตรงจากทางคลินิกค่ะ 🤎`
+      }];
+    } else if (type === 'employee_welcome') {
+      messages = [{
+        type: 'text',
+        text: `✅ เชื่อมต่อระบบแจ้งเตือนการลงเวลาสำเร็จ!\n\nสวัสดีค่ะ คุณ${employeeName || ''} (${employeeId || ''})\nท่านได้ผูกบัญชี LINE กับระบบลงเวลาเข้า-ออกงาน คลินิกบ้านฮักดี เรียบร้อยแล้ว\n\nเมื่อท่านทำการลงเวลาเข้างานหรือเลิกงาน ระบบจะส่งการแจ้งเตือนสรุปมายังห้องแชทนี้โดยอัตโนมัติค่ะ 🤎`
+      }];
+    } else if (type === 'attendance_reminder') {
+      messages = [{
+        type: 'text',
+        text: `🔔 แจ้งเตือนการลงเวลา - คลินิกบ้านฮักดี\n-------------------------\nสวัสดีค่ะ คุณ${employeeName || employeeId}\nขณะนี้เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว แต่ระบบยังไม่พบบันทึกการกด "เลิกงาน" ของท่านในวันนี้\n\nกรุณาเปิดระบบลงเวลาเพื่อกดบันทึกเวลาเลิกงานนะคะ 🤎\n👉 https://hugdeehome.vercel.app/#/checkin`
+      }];
+    } else if (type === 'attendance') {
+      const isCheckIn = checkType === 'เข้างาน';
+      const headerBg = isCheckIn ? "#2E7D32" : "#C19B6C";
+      const headerTitle = isCheckIn ? "🕒 บันทึกเวลาเข้างานสำเร็จ" : "🏁 บันทึกเวลาเลิกงานสำเร็จ";
+      
+      const bodyContents = [
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "พนักงาน", color: "#8E7F70", size: "sm", flex: 3 },
+            { type: "text", text: `${employeeName || ''} (${employeeId || ''})`, weight: "bold", color: "#4A4036", size: "sm", flex: 6, wrap: true }
+          ]
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "สถานะ", color: "#8E7F70", size: "sm", flex: 3 },
+            { type: "text", text: checkType || "-", weight: "bold", color: isCheckIn ? "#2E7D32" : "#B0895A", size: "sm", flex: 6 }
+          ]
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "วันที่", color: "#8E7F70", size: "sm", flex: 3 },
+            { type: "text", text: date || "-", color: "#4A4036", size: "sm", flex: 6 }
+          ]
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "เวลา", color: "#8E7F70", size: "sm", flex: 3 },
+            { type: "text", text: `${time || "-"} น.`, weight: "bold", color: "#4A4036", size: "sm", flex: 6 }
+          ]
+        }
+      ];
+
+      if (workHours) {
+        bodyContents.push({
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: "ชั่วโมงทำงาน", color: "#8E7F70", size: "sm", flex: 3 },
+            { type: "text", text: `${workHours} ชั่วโมง`, weight: "bold", color: "#2E7D32", size: "sm", flex: 6 }
+          ]
+        });
+      }
+
+      const bubble = {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: headerBg,
+          paddingAll: "16px",
+          contents: [
+            { type: "text", text: headerTitle, color: "#ffffff", weight: "bold", size: "md" },
+            { type: "text", text: "ระบบลงเวลา คลินิกบ้านฮักดี", color: "#ffffff", size: "xs", margin: "xs", opacity: 0.85 }
+          ]
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          paddingAll: "16px",
+          contents: bodyContents
+        }
+      };
+
+      if (mapsUrl) {
+        bubble.footer = {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              height: "sm",
+              action: { type: "uri", label: "📍 ดูพิกัดบน Google Maps", uri: mapsUrl }
+            }
+          ]
+        };
+      }
+
+      messages = [{
+        type: "flex",
+        altText: `ลงเวลา${checkType}: ${employeeName || employeeId} (${time || ''} น.)`,
+        contents: bubble
       }];
     } else {
       return res.status(400).json({ error: 'Invalid message type' });

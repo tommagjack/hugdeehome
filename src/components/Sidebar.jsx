@@ -18,7 +18,8 @@ import {
   Coins as CoinsIcon,
   Sliders as SlidersIcon,
   CircleDollarSign,
-  FileSymlink
+  FileSymlink,
+  Clock
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
@@ -43,6 +44,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'summaries', label: 'สรุปชั่วโมงงานครู', icon: BarChart3, roles: ['Admin', 'OT'] },
 
     { id: 'transactions', label: 'ข้อมูลรายรับ-รายจ่าย', icon: CircleDollarSign, roles: ['Admin'] },
+    { id: 'checkin', label: 'ลงเวลา (Check-in)', icon: Clock, roles: ['Admin', 'OT', 'Staff'], url: '#/checkin' },
     { id: 'users', label: 'บัญชีผู้ใช้งานระบบ', icon: UsersIcon, roles: ['Admin'] },
     { id: 'salary', label: 'เงินเดือน', icon: CoinsIcon, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, roles: ['Admin', 'OT', 'Staff'] },
@@ -70,7 +72,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'hr',
       title: 'การบริหารจัดการบุคคล',
-      items: ['users', 'salary', 'profile']
+      items: ['checkin', 'users', 'salary', 'profile']
     },
     {
       id: 'admin',
@@ -182,7 +184,14 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                     <li key={item.id} className={`menu-item ${activeTab === item.id ? 'active' : ''}`} style={{ position: 'relative' }}>
                       <a 
                         className="menu-link" 
-                        onClick={() => { setActiveTab(item.id); if (onCloseMobile) onCloseMobile(); }}
+                        onClick={() => { 
+                          if (item.url) {
+                            window.location.hash = item.url;
+                          } else {
+                            setActiveTab(item.id); 
+                          }
+                          if (onCloseMobile) onCloseMobile(); 
+                        }}
                         title={item.label}
                       >
                         <IconComponent size={20} className="menu-icon" />
@@ -256,7 +265,14 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                       <li key={item.id} className={`menu-item ${activeTab === item.id ? 'active' : ''}`}>
                         <a 
                           className="menu-link" 
-                          onClick={() => { setActiveTab(item.id); if (onCloseMobile) onCloseMobile(); }}
+                          onClick={() => { 
+                            if (item.url) {
+                              window.location.hash = item.url;
+                            } else {
+                              setActiveTab(item.id); 
+                            }
+                            if (onCloseMobile) onCloseMobile(); 
+                          }}
                           style={{ display: 'flex', alignItems: 'center', width: '100%' }}
                         >
                           <IconComponent size={20} className="menu-icon" />

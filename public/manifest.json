@@ -1,0 +1,19 @@
+{
+  "name": "ระบบลงเวลาเข้า-ออกงาน | คลินิกบ้านฮักดี",
+  "short_name": "ลงเวลาฮักดี",
+  "description": "ระบบลงเวลาเข้า-ออกงานพนักงาน คลินิกบ้านฮักดี (Time Attendance)",
+  "start_url": "/#/checkin",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FEF8F1",
+  "theme_color": "#C19B6C",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ const KEYS = {
   REWARDS: 'hdh_rewards',
   REFERRALS: 'hdh_referrals',
   ASSESSMENT_TEMPLATES: 'hdh_assessment_templates',
+  ATTENDANCE: 'hdh_attendance',
 };
 
 // ฟังก์ชันคัดกรองข้อมูลไฟล์เอกสารขนาดใหญ่ (เช่น เอกสารบัตรประชาชน, ทะเบียนบ้าน, ใบประกอบวิชาชีพ) ออกจาก LocalStorage เพื่อแก้ปัญหา QuotaExceededError
@@ -83,6 +84,7 @@ export const initDatabase = (forceReset = false) => {
     localStorage.setItem(KEYS.REWARDS, JSON.stringify([]));
     localStorage.setItem(KEYS.REFERRALS, JSON.stringify([]));
     localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
+    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify([]));
     return true;
   }
   // ตรวจสอบความปลอดภัยสำหรับคีย์ใหม่ที่อาจไม่มีในเครื่องผู้ใช้ที่มีประวัติเดิมอยู่แล้ว
@@ -101,6 +103,9 @@ export const initDatabase = (forceReset = false) => {
   }
   if (!localStorage.getItem(KEYS.ASSESSMENT_TEMPLATES)) {
     localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
+  }
+  if (!localStorage.getItem(KEYS.ATTENDANCE)) {
+    localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify([]));
   }
   return false;
 };
@@ -280,6 +285,9 @@ export const db = {
     return data;
   },
   setAssessmentTemplates: (data) => set(KEYS.ASSESSMENT_TEMPLATES, data),
+
+  getAttendance: () => get(KEYS.ATTENDANCE, []),
+  setAttendance: (data) => set(KEYS.ATTENDANCE, data),
 };
 
 // --- ฟังก์ชันดึง Google Apps Script URL ที่ถูกต้อง ---
@@ -293,6 +301,23 @@ export const getGasUrl = () => {
     return envUrl.trim();
   }
   return 'https://script.google.com/macros/s/AKfycbw9t-DSskCxgPWNkR8bkOWabLgpSGuF6EqBRrM46rE-T2I9krkV1hz5Ao-d_WVQQ15Ueg/exec';
+};
+
+// --- ส่งข้อความแจ้งเตือนการลงเวลาเข้า LINE OA ---
+export const sendAttendanceLineNotification = async (payload) => {
+  try {
+    const res = await fetch('/api/send-line-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to send attendance LINE notification:', err);
+    return { success: false, error: err.message };
+  }
 };
 
 // --- ตารางแปลงชื่อคีย์เป็นชื่อตารางใน Supabase ---
@@ -315,6 +340,7 @@ const TABLE_MAP = {
   'hdh_rewards': 'rewards',
   'hdh_referrals': 'referrals',
   'hdh_assessment_templates': 'assessment_templates',
+  'hdh_attendance': 'attendance',
 };
 
 // --- คอลัมน์ที่รองรับในแต่ละตารางฐานข้อมูล Supabase เพื่อป้องกันปัญหาส่งฟิลด์ส่วนเกิน ---
@@ -395,6 +421,11 @@ const TABLE_COLUMNS = {
     'gender', 'guardian', 'phone', 'status', 'allergies',
     'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries',
     'allergies_details', 'created_by', 'line_user_id'
+  ],
+  attendance: [
+    'id', 'employee_id', 'employee_name', 'date', 'time', 'type',
+    'latitude', 'longitude', 'accuracy', 'maps_url', 'work_hours',
+    'line_user_id', 'notes', 'created_at'
   ]
 };
 

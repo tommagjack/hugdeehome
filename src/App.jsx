@@ -19,10 +19,11 @@ import Transactions from './components/Transactions';
 import OPD from './components/OPD';
 import ReferralLetter from './components/ReferralLetter';
 import GuestRegister from './components/GuestRegister';
+import CheckIn from './components/CheckIn';
 import UserProfile from './components/UserProfile';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
-import { RefreshCw, Menu, Bell } from 'lucide-react';
+import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
 const isObjectEqual = (a, b) => {
@@ -1126,13 +1127,28 @@ export default function App() {
 
   // สถานะเปิดหน้าสมัครงานออนไลน์สาธารณะ
   const [isApplyPage, setIsApplyPage] = useState(() => window.location.hash === '#/apply');
+  // สถานะเปิดหน้าระบบลงเวลาเข้า-ออกงาน (Check-in) สาธารณะ
+  const [isCheckInPage, setIsCheckInPage] = useState(() => 
+    window.location.hash === '#/checkin' || 
+    window.location.pathname === '/checkin' ||
+    window.location.search.includes('checkin')
+  );
 
   useEffect(() => {
     const handleHash = () => {
       setIsApplyPage(window.location.hash === '#/apply');
+      setIsCheckInPage(
+        window.location.hash === '#/checkin' || 
+        window.location.pathname === '/checkin' ||
+        window.location.search.includes('checkin')
+      );
     };
     window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
+    window.addEventListener('popstate', handleHash);
+    return () => {
+      window.removeEventListener('hashchange', handleHash);
+      window.removeEventListener('popstate', handleHash);
+    };
   }, []);
 
   // แท็บหน้าจอหลักที่แสดง (SPA Router)
@@ -1814,6 +1830,16 @@ export default function App() {
     );
   }
 
+  // 11. รันหน้าระบบลงเวลาเข้า-ออกงาน (Check-in) เข้าได้เลยไม่ต้องผ่านเมนูSidebar และ Login
+  if (isCheckInPage) {
+    return (
+      <CheckIn 
+        clinicInfo={clinicInfo}
+        users={users}
+      />
+    );
+  }
+
   // รันวิวล็อกอินถ้าผู้ใช้งานยังไม่ได้ลงชื่อเข้าใช้ระบบ
   if (!currentUser) {
     return (
@@ -1879,6 +1905,34 @@ export default function App() {
               </a>
             </div>
           </form>
+
+          {/* ปุ่มทางลัดไประบบลงเวลาเข้า-ออกงาน (Check-in) */}
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
+            <a 
+              href="#/checkin" 
+              className="btn btn-light"
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                fontSize: '0.92rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                color: '#4A4036',
+                border: '1px solid #C19B6C',
+                backgroundColor: '#FAF5EE',
+                borderRadius: '12px',
+                textDecoration: 'none',
+                boxSizing: 'border-box',
+                boxShadow: '0 2px 6px rgba(193, 155, 108, 0.15)'
+              }}
+            >
+              <Clock size={18} color="#C19B6C" />
+              <span>ระบบลงเวลาเข้า-ออกงาน (Check-in)</span>
+            </a>
+          </div>
         </div>
 
         {/* MODAL POPUPS FOR FORGOT PASSWORD */}
