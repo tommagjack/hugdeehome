@@ -502,11 +502,13 @@ export default function DevelopmentalAssessment({
     const beYear = new Date(evalDate).getFullYear() + 543;
     const year2Digits = beYear.toString().slice(-2);
     const docId = isEditing && editingId ? editingId : `HDA${year2Digits}-${selectedHn}-${Date.now().toString().slice(-4)}`;
+    const existing = isEditing && editingId ? assessments.find(a => a.id === editingId) : null;
 
     let newAssessment = {};
 
     if (selectedTemplateIds.includes('legacy')) {
       newAssessment = {
+        ...(existing || {}),
         id: docId,
         hn: selectedHn,
         therapistId,
@@ -539,7 +541,8 @@ export default function DevelopmentalAssessment({
         hasDevelopmental,
         hasSensory,
         hasSnap,
-        created_at: new Date().toISOString()
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
     } else {
       // Calculate scores for all selected templates
@@ -632,6 +635,7 @@ export default function DevelopmentalAssessment({
       });
 
       newAssessment = {
+        ...(existing || {}),
         id: docId,
         hn: selectedHn,
         therapistId,
@@ -641,7 +645,8 @@ export default function DevelopmentalAssessment({
         templateIds: selectedTemplateIds,
         scores,
         details,
-        created_at: new Date().toISOString()
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
     }
 
@@ -993,7 +998,6 @@ export default function DevelopmentalAssessment({
                           type="checkbox"
                           checked={selectedTemplateIds.includes('legacy')}
                           onChange={(e) => handleTemplateCheckboxChange('legacy', e.target.checked)}
-                          disabled={isEditing}
                         />
                         แบบประเมินรวม (แบบฟอร์มเดิม)
                       </label>
@@ -1005,7 +1009,6 @@ export default function DevelopmentalAssessment({
                           type="checkbox"
                           checked={selectedTemplateIds.includes(t.id)}
                           onChange={(e) => handleTemplateCheckboxChange(t.id, e.target.checked)}
-                          disabled={isEditing}
                         />
                         {t.name}
                       </label>
