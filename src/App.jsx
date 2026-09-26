@@ -2342,6 +2342,7 @@ export default function App() {
             }}
             appointments={appointments}
             therapists={therapists}
+            receipts={receipts}
           />
         )}
 

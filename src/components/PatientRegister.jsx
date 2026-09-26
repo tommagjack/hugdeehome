@@ -46,12 +46,121 @@ export default function PatientRegister({
   onPrintPatient,
   currentUser,
   appointments = [],
-  therapists = []
+  therapists = [],
+  receipts = []
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All'); // All, Active, Pending, Inactive
   const [currentPage, setCurrentPage] = useState(1);
+
+  // ระบบตรวจสอบและปรับสถานะเป็น Inactive อัตโนมัติ: ผู้ป่วย Active ที่คอร์ส = 0 และไม่มีการนัดหมาย >= 30 วัน
+  useEffect(() => {
+    if (!patients || patients.length === 0 || !receipts || !appointments) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const patientsToInactivate = [];
+
+    patients.forEach(p => {
+      if (p.status !== 'Active') return;
+
+      // 1. คำนวณคอร์สฝึกระตุ้นพัฒนาการคงเหลือ
+      const pReceipts = (receipts || []).filter(r => r.hn === p.hn && r.status === 'ชำระเงินแล้ว');
+      let purchased = 0;
+      pReceipts.forEach(r => {
+        (r.items || []).forEach(item => {
+          if (item && item.type === 'บริการ') {
+            if (item.code === 'TRANSFER_OUT') {
+              purchased -= Number(item.quantity) || 0;
+            } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
+              purchased += Number(item.quantity) || 0;
+            } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+              // ไม่รวมประเมินพัฒนาการครั้งแรก
+            } else {
+              const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
+              purchased += (Number(item.quantity) || 0) * sessionsPerUnit;
+            }
+          }
+        });
+      });
+
+      const used = (appointments || []).filter(app => String(app.hn) === String(p.hn) && app.status === 'รับบริการแล้ว' && app.type === 'ฝึกกระตุ้นพัฒนาการ').length;
+      const balance = purchased - used;
+
+      // ต้องมีจำนวนคอร์สคงเหลือ = 0 (หรือ <= 0)
+      if (balance > 0) return;
+
+      // 2. ตรวจสอบประวัติการนัดหมาย
+      const pApps = (appointments || []).filter(app => String(app.hn) === String(p.hn) && app.status !== 'ยกเลิก' && app.date);
+      
+      // ถ้ามีการนัดหมายในอนาคต (วันนี้หรือหลังจากนี้) ไม่ปรับเป็น Inactive
+      const hasUpcoming = pApps.some(app => {
+        const d = new Date(app.date);
+        d.setHours(0, 0, 0, 0);
+        return d >= today;
+      });
+
+      if (hasUpcoming) return;
+
+      // หาวันที่นัดหมายล่าสุด
+      let lastDate = null;
+      if (pApps.length > 0) {
+        const ts = pApps.map(a => {
+          const d = new Date(a.date);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        }).filter(t => !isNaN(t));
+        if (ts.length > 0) {
+          lastDate = Math.max(...ts);
+        }
+      }
+
+      // ถ้าไม่เคยมีนัดหมายเลย ให้ใช้วันที่ลงทะเบียน (created_at)
+      if (!lastDate && p.created_at) {
+        const d = new Date(p.created_at);
+        d.setHours(0, 0, 0, 0);
+        if (!isNaN(d.getTime())) {
+          lastDate = d.getTime();
+        }
+      }
+
+      let diffDays = null;
+      if (lastDate) {
+        diffDays = Math.floor((today.getTime() - lastDate) / (1000 * 60 * 60 * 24));
+      }
+
+      // กรณีไม่มีนัดหมาย >= 30 วัน (หรือไม่มีประวัตินัดและลงทะเบียนมานาน >= 30 วัน)
+      if (diffDays === null || diffDays >= 30) {
+        patientsToInactivate.push(p.hn);
+      }
+    });
+
+    if (patientsToInactivate.length > 0) {
+      const inactivateSet = new Set(patientsToInactivate);
+      setPatients(prev => prev.map(p => {
+        if (inactivateSet.has(p.hn)) {
+          return {
+            ...p,
+            status: 'Inactive',
+            updated_at: new Date().toISOString()
+          };
+        }
+        return p;
+      }));
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `ปรับสถานะผู้รับบริการเป็น Inactive อัตโนมัติ ${patientsToInactivate.length} ราย`,
+        text: 'เนื่องจากคอร์สหมด (=0) และไม่มีการนัดหมายติดต่อกันเกิน 30 วัน',
+        showConfirmButton: false,
+        timer: 3500
+      });
+    }
+  }, [patients, receipts, appointments, setPatients]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -192,7 +301,9 @@ export default function PatientRegister({
           String(p.firstname || '').toLowerCase().includes(query) ||
           String(p.lastname || '').toLowerCase().includes(query) ||
           String(p.phone || '').includes(query) ||
-          (p.nickname && String(p.nickname).toLowerCase().includes(query));
+          (p.nickname && String(p.nickname).toLowerCase().includes(query)) ||
+          (p.allergiesDetails && String(p.allergiesDetails).toLowerCase().includes(query)) ||
+          (p.conditionsDetails && String(p.conditionsDetails).toLowerCase().includes(query));
           
         // กรองสถานะ
         const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
@@ -899,9 +1010,46 @@ export default function PatientRegister({
                     <tr key={p.hn}>
                       <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{p.hn}</td>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{p.title}{p.firstname} {p.lastname}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                          <span>{p.title}{p.firstname} {p.lastname}</span>
+                          {p.allergies === 'มี' && (
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              backgroundColor: '#fee2e2', 
+                              color: '#dc2626', 
+                              border: '1px solid #fca5a5', 
+                              padding: '1px 6px', 
+                              borderRadius: '4px',
+                              fontWeight: 600 
+                            }}>
+                              ⚠️ แพ้ยา: {p.allergiesDetails || 'มี'}
+                            </span>
+                          )}
+                          {p.conditions === 'มี' && (
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              backgroundColor: '#fef3c7', 
+                              color: '#d97706', 
+                              border: '1px solid #fcd34d', 
+                              padding: '1px 6px', 
+                              borderRadius: '4px',
+                              fontWeight: 600 
+                            }}>
+                              🩺 โรคประจำตัว: {p.conditionsDetails || 'มี'}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '2px' }}>
                           {p.nickname ? formatPatientNickname(p.nickname) : '-'} ({p.gender})
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '3px' }}>
+                          <span style={{ color: p.allergies === 'มี' ? '#dc2626' : 'var(--dark-light)', fontWeight: p.allergies === 'มี' ? 600 : 'normal' }}>
+                            <strong>แพ้ยา:</strong> {p.allergies === 'มี' ? (p.allergiesDetails || 'มี') : 'ปฏิเสธการแพ้ยา'}
+                          </span>
+                          <span style={{ margin: '0 6px', color: 'var(--border)' }}>|</span>
+                          <span style={{ color: p.conditions === 'มี' ? '#d97706' : 'var(--dark-light)', fontWeight: p.conditions === 'มี' ? 600 : 'normal' }}>
+                            <strong>โรคประจำตัว:</strong> {p.conditions === 'มี' ? (p.conditionsDetails || 'มี') : 'ไม่มี'}
+                          </span>
                         </div>
                       </td>
                       <td>{p.phone}</td>
