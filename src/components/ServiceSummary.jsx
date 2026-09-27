@@ -738,7 +738,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
     const confirmDelete = await Swal.fire({
       icon: 'warning',
       title: 'ยืนยันการลบรายการลงเวลา?',
-      html: `ต้องการลบข้อมูลการลงเวลาของ <b>${row.employeeName}</b> (${row.employeeId})<br/>วันที่ <b>${formatThaiDate(row.date)}</b> หรือไม่?<br/><span style="color: #dc2626; font-size: 0.85rem;">*ข้อมูลการลงเวลาในวันนี้จะถูกลบออกจากระบบ</span>`,
+      html: `ต้องการลบข้อมูลการลงเวลาของ <b>${row.employeeName}</b> (${row.employeeId})<br/>วันที่ <b>${formatThaiDate(row.date)}</b> หรือไม่?<br/><span style="color: #dc2626; font-size: 0.85rem;">*ข้อมูลการลงเวลาในวันนี้จะถูกลบออกจากระบบและคลาวด์ทันที</span>`,
       showCancelButton: true,
       confirmButtonText: 'ยืนยันลบ',
       cancelButtonText: 'ยกเลิก',
@@ -747,14 +747,40 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
     });
 
     if (confirmDelete.isConfirmed) {
-      const otherLogs = attendance.filter(l => {
+      const rowEmpClean = String(row.employeeId || '').toUpperCase().trim();
+      const logsToDelete = attendance.filter(l => {
         const lEmpId = String(l.employeeId || l.employee_id || '').toUpperCase().trim();
-        return !(l.date === row.date && lEmpId === row.employeeId);
+        return (l.date === row.date && lEmpId === rowEmpClean);
       });
+      const idsToDelete = logsToDelete.map(l => l.id).filter(Boolean);
+
+      // 1. ลบออกจาก Supabase ทันที
+      if (idsToDelete.length > 0) {
+        try {
+          const { error: delErr } = await supabase
+            .from('attendance')
+            .delete()
+            .in('id', idsToDelete);
+          if (delErr) {
+            console.error('Error deleting attendance from Supabase:', delErr);
+          }
+        } catch (e) {
+          console.warn('Could not delete attendance from Supabase:', e);
+        }
+
+        try {
+          await syncDeltaToSupabase('hdh_attendance', { toDelete: logsToDelete });
+        } catch (e) {}
+      }
+
+      // 2. อัปเดต State และ LocalStorage
+      const otherLogs = attendance.filter(l => !idsToDelete.includes(l.id));
       updateAttendance(otherLogs);
+
       if (showAttendanceModal) {
         setShowAttendanceModal(false);
       }
+
       Swal.fire({
         icon: 'success',
         title: 'ลบรายการสำเร็จ',
@@ -839,6 +865,13 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
       const updatedList = [...newLogs, ...otherLogs];
       updateAttendance(updatedList);
 
+      // ซิงค์ตรงขึ้น Supabase
+      try {
+        await syncDeltaToSupabase('hdh_attendance', { toUpsert: newLogs });
+      } catch (err) {
+        console.warn('Error syncing edited attendance to Supabase:', err);
+      }
+
       setShowAddEditModal(false);
       Swal.fire({
         icon: 'success',
@@ -904,6 +937,13 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
 
       const updatedList = [...newLogs, ...otherLogs];
       updateAttendance(updatedList);
+
+      // ซิงค์ตรงขึ้น Supabase
+      try {
+        await syncDeltaToSupabase('hdh_attendance', { toUpsert: newLogs });
+      } catch (err) {
+        console.warn('Error syncing new attendance to Supabase:', err);
+      }
 
       setShowAddEditModal(false);
       Swal.fire({

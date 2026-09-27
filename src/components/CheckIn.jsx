@@ -94,7 +94,7 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
   const [isLinkingLine, setIsLinkingLine] = useState(false);
   const [showLineQr, setShowLineQr] = useState(false);
 
-  // โหลดข้อมูลล่าสุดจาก Supabase และรวมกับข้อมูลในเครื่องเพื่อป้องกันข้อมูลสูญหาย
+  // โหลดข้อมูลล่าสุดจาก Supabase (เป็นแหล่งข้อมูลหลัก เพื่อให้การลบจาก Admin ซิงค์ถึงพนักงานทันที)
   const reloadData = async () => {
     try {
       const localLogs = db.getAttendance() || [];
@@ -114,30 +114,31 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
           return mapped;
         });
 
-        // ตรวจหาเรคคอร์ดในเครื่องที่ยังไม่ได้ขึ้น Supabase (เช่น บันทึกตอนออฟไลน์ หรือตอนยังไม่มีตาราง)
         const remoteIds = new Set(remoteLogs.map(r => String(r.id)));
-        const unsyncedLocalLogs = localLogs.filter(l => l && l.id && !remoteIds.has(String(l.id)));
 
-        if (unsyncedLocalLogs.length > 0) {
-          console.log(`[CheckIn] Uploading ${unsyncedLocalLogs.length} unsynced attendance records to Supabase...`);
-          syncDeltaToSupabase('hdh_attendance', { toUpsert: unsyncedLocalLogs }).catch(err => {
-            console.warn('Auto-sync unsynced attendance failed:', err);
+        // เฉพาะเรคคอร์ดที่สร้างตอนออฟไลน์เท่านั้น (_isOffline === true) ที่จะรอส่งขึ้น Supabase
+        const offlinePendingLogs = localLogs.filter(l => l && l.id && l._isOffline === true && !remoteIds.has(String(l.id)));
+
+        if (offlinePendingLogs.length > 0) {
+          console.log(`[CheckIn] Uploading ${offlinePendingLogs.length} offline attendance records to Supabase...`);
+          syncDeltaToSupabase('hdh_attendance', { toUpsert: offlinePendingLogs }).then(() => {
+            const currentLocal = db.getAttendance() || [];
+            const cleaned = currentLocal.map(l => offlinePendingLogs.some(p => p.id === l.id) ? { ...l, _isOffline: false } : l);
+            db.setAttendance(cleaned);
+          }).catch(err => {
+            console.warn('Auto-sync offline attendance failed:', err);
           });
         }
 
-        // รวม local และ remote เข้าด้วยกันแบบไม่ซ้ำซ้อน
-        const mergedMap = new Map();
-        localLogs.forEach(l => { if (l && l.id) mergedMap.set(String(l.id), l); });
-        remoteLogs.forEach(r => { if (r && r.id) mergedMap.set(String(r.id), r); });
-
-        const mergedLogs = Array.from(mergedMap.values()).sort((a, b) => {
+        // ใช้ข้อมูลจาก Supabase เป็นหลัก (หาก Admin ลบ รายการจะหายไปด้วยทันที ไม่เกิดปัญหาฟื้นคืนชีพ)
+        const finalLogs = [...remoteLogs, ...offlinePendingLogs].sort((a, b) => {
           const dtA = `${a.date || ''} ${a.time || ''}`;
           const dtB = `${b.date || ''} ${b.time || ''}`;
           return dtB.localeCompare(dtA);
         });
 
-        db.setAttendance(mergedLogs);
-        setAttendanceLogs(mergedLogs);
+        db.setAttendance(finalLogs);
+        setAttendanceLogs(finalLogs);
       }
     } catch (e) {
       console.warn('Attendance reloadData error:', e);
@@ -153,7 +154,54 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
       setUsers(db.getUsers());
     };
     window.addEventListener('hdh_line_user_updated', handleLineUserUpdated);
-    return () => window.removeEventListener('hdh_line_user_updated', handleLineUserUpdated);
+
+    // สมัคร Realtime Subscription สำหรับตาราง attendance เพื่อให้อัปเดต/ลบแบบทันทีข้ามเครื่อง
+    const channel = supabase
+      .channel('realtime-checkin-attendance')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance' },
+        (payload) => {
+          console.log('[CheckIn Realtime Attendance]', payload.eventType, payload.old, payload.new);
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setAttendanceLogs(prev => {
+                const remaining = prev.filter(l => l && l.id !== deletedId);
+                db.setAttendance(remaining);
+                return remaining;
+              });
+            }
+          } else if (payload.eventType === 'INSERT') {
+            const mapped = {};
+            for (const k in payload.new) {
+              mapped[toCamelCase(k)] = safeJsonParse(payload.new[k]);
+            }
+            setAttendanceLogs(prev => {
+              if (prev.some(l => l && l.id === mapped.id)) return prev;
+              const updated = [mapped, ...prev];
+              db.setAttendance(updated);
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const mapped = {};
+            for (const k in payload.new) {
+              mapped[toCamelCase(k)] = safeJsonParse(payload.new[k]);
+            }
+            setAttendanceLogs(prev => {
+              const updated = prev.map(l => (l && l.id === mapped.id) ? mapped : l);
+              db.setAttendance(updated);
+              return updated;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('hdh_line_user_updated', handleLineUserUpdated);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // ตรวจจับผลลัพธ์การผูกบัญชี LINE OA อัตโนมัติ (1-Click Auto Link Return)
@@ -497,7 +545,8 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
         workHours: calculatedHours,
         lineUserId: empLineId,
         notes: hasCoords ? `GPS Accuracy: ±${coords.accuracy}m` : 'ไม่มีข้อมูลพิกัด GPS',
-        createdAt: now.toISOString()
+        createdAt: now.toISOString(),
+        _isOffline: true
       };
 
       // บันทึกลง LocalStorage
@@ -507,7 +556,13 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
 
       // ซิงค์ไปยัง Supabase
       try {
-        await syncDeltaToSupabase('hdh_attendance', { toUpsert: [newRecord] });
+        const syncRes = await syncDeltaToSupabase('hdh_attendance', { toUpsert: [newRecord] });
+        if (syncRes !== false) {
+          const confirmedRec = { ...newRecord, _isOffline: false };
+          const list = (db.getAttendance() || []).map(l => l.id === newRecord.id ? confirmedRec : l);
+          db.setAttendance(list);
+          setAttendanceLogs(list);
+        }
       } catch (err) {
         console.warn('Could not sync attendance to Supabase immediately (offline or table not ready):', err);
       }

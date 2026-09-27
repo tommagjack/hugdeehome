@@ -315,66 +315,140 @@ export default async function handler(req, res) {
         text: `🔔 แจ้งเตือนการลงเวลา - คลินิกบ้านฮักดี\n-------------------------\nสวัสดีค่ะ คุณ${employeeName || employeeId}\nขณะนี้เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว แต่ระบบยังไม่พบบันทึกการกด "เลิกงาน" ของท่านในวันนี้\n\nกรุณาเปิดระบบลงเวลาเพื่อกดบันทึกเวลาเลิกงานนะคะ 🤎\n👉 https://hugdeehome.vercel.app/#/checkin`
       }];
     } else if (type === 'attendance') {
-      const isCheckIn = checkType === 'เข้างาน';
-      const headerBg = isCheckIn ? "#2E7D32" : "#C19B6C";
-      const headerTitle = isCheckIn ? "🕒 บันทึกเวลาเข้างานสำเร็จ" : "🏁 บันทึกเวลาเลิกงานสำเร็จ";
-      
+      const isCheckIn = checkType === 'เข้างาน' || checkType === 'IN';
+      const themeColor = isCheckIn ? "#16A34A" : "#D97706";
+      const statusTitle = isCheckIn ? "บันทึกเวลาเข้างานสำเร็จ" : "บันทึกเวลาเลิกงานสำเร็จ";
+      const statusBadgeText = isCheckIn ? "🟢 เข้างาน (Check In)" : "🟠 เลิกงาน (Check Out)";
+      const statusBadgeBg = isCheckIn ? "#DCFCE7" : "#FEF3C7";
+      const statusBadgeColor = isCheckIn ? "#15803D" : "#B45309";
+
       const bodyContents = [
+        // บัตรข้อมูลพนักงาน
         {
           type: "box",
-          layout: "horizontal",
+          layout: "vertical",
+          backgroundColor: "#F8FAFC",
+          cornerRadius: "md",
+          paddingAll: "12px",
           contents: [
-            { type: "text", text: "พนักงาน", color: "#8E7F70", size: "sm", flex: 3 },
-            { type: "text", text: `${employeeName || ''} (${employeeId || ''})`, weight: "bold", color: "#4A4036", size: "sm", flex: 6, wrap: true }
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                { type: "text", text: "👤 พนักงาน", size: "xs", color: "#64748B", flex: 3 },
+                { type: "text", text: `${employeeName || ''}`, weight: "bold", size: "sm", color: "#1E293B", flex: 7, wrap: true }
+              ]
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              margin: "sm",
+              contents: [
+                { type: "text", text: "🆔 รหัสพนักงาน", size: "xs", color: "#64748B", flex: 3 },
+                { type: "text", text: `${employeeId || '-'}`, weight: "bold", size: "xs", color: "#0284C7", flex: 7 }
+              ]
+            }
           ]
         },
+        // สถานะ & เวลา
         {
           type: "box",
-          layout: "horizontal",
+          layout: "vertical",
+          spacing: "sm",
           contents: [
-            { type: "text", text: "สถานะ", color: "#8E7F70", size: "sm", flex: 3 },
-            { type: "text", text: checkType || "-", weight: "bold", color: isCheckIn ? "#2E7D32" : "#B0895A", size: "sm", flex: 6 }
-          ]
-        },
-        {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            { type: "text", text: "วันที่", color: "#8E7F70", size: "sm", flex: 3 },
-            { type: "text", text: date || "-", color: "#4A4036", size: "sm", flex: 6 }
-          ]
-        },
-        {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            { type: "text", text: "เวลา", color: "#8E7F70", size: "sm", flex: 3 },
-            { type: "text", text: `${time || "-"} น.`, weight: "bold", color: "#4A4036", size: "sm", flex: 6 }
+            {
+              type: "box",
+              layout: "horizontal",
+              alignItems: "center",
+              contents: [
+                { type: "text", text: "สถานะการลงเวลา", size: "xs", color: "#64748B", flex: 4 },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  backgroundColor: statusBadgeBg,
+                  cornerRadius: "sm",
+                  paddingStart: "8px",
+                  paddingEnd: "8px",
+                  paddingTop: "3px",
+                  paddingBottom: "3px",
+                  contents: [
+                    { type: "text", text: statusBadgeText, size: "xxs", color: statusBadgeColor, weight: "bold" }
+                  ]
+                }
+              ]
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              alignItems: "center",
+              contents: [
+                { type: "text", text: "เวลาลงบันทึก", size: "xs", color: "#64748B", flex: 4 },
+                { type: "text", text: `${time || '-'} น.`, size: "xl", weight: "bold", color: themeColor, flex: 6, align: "end" }
+              ]
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                { type: "text", text: "วันที่", size: "xs", color: "#64748B", flex: 4 },
+                { type: "text", text: `${date || '-'}`, size: "xs", color: "#334155", flex: 6, align: "end" }
+              ]
+            }
           ]
         }
       ];
 
-      if (workHours) {
+      if (workHours && Number(workHours) > 0) {
         bodyContents.push({
           type: "box",
           layout: "horizontal",
+          margin: "sm",
+          paddingAll: "10px",
+          backgroundColor: "#F0FDF4",
+          cornerRadius: "md",
+          alignItems: "center",
           contents: [
-            { type: "text", text: "ชั่วโมงทำงาน", color: "#8E7F70", size: "sm", flex: 3 },
-            { type: "text", text: `${workHours} ชั่วโมง`, weight: "bold", color: "#2E7D32", size: "sm", flex: 6 }
+            { type: "text", text: "⏱️ รวมชั่วโมงทำงานวันนี้", size: "xs", color: "#166534", flex: 6 },
+            { type: "text", text: `${workHours} ชั่วโมง`, size: "sm", weight: "bold", color: "#15803D", flex: 4, align: "end" }
           ]
+        });
+      }
+
+      const footerContents = [];
+      if (mapsUrl) {
+        footerContents.push({
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: { type: "uri", label: "📍 ดูพิกัดบน Google Maps", uri: mapsUrl }
         });
       }
 
       const bubble = {
         type: "bubble",
+        size: "mega",
         header: {
           type: "box",
           layout: "vertical",
-          backgroundColor: headerBg,
+          backgroundColor: themeColor,
           paddingAll: "16px",
           contents: [
-            { type: "text", text: headerTitle, color: "#ffffff", weight: "bold", size: "md" },
-            { type: "text", text: "ระบบลงเวลา คลินิกบ้านฮักดี", color: "#ffffff", size: "xs", margin: "xs", opacity: 0.85 }
+            {
+              type: "box",
+              layout: "horizontal",
+              alignItems: "center",
+              contents: [
+                { type: "text", text: isCheckIn ? "🕒" : "🏁", size: "lg", flex: 1 },
+                { type: "text", text: statusTitle, color: "#FFFFFF", weight: "bold", size: "md", flex: 9 }
+              ]
+            },
+            {
+              type: "text",
+              text: "คลินิกพัฒนาการเด็กบ้านฮักดี 🤎",
+              color: "#F0FDF4",
+              size: "xs",
+              margin: "xs"
+            }
           ]
         },
         body: {
@@ -383,24 +457,17 @@ export default async function handler(req, res) {
           spacing: "md",
           paddingAll: "16px",
           contents: bodyContents
-        }
+        },
+        ...(footerContents.length > 0 ? {
+          footer: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            paddingAll: "12px",
+            contents: footerContents
+          }
+        } : {})
       };
-
-      if (mapsUrl) {
-        bubble.footer = {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              height: "sm",
-              action: { type: "uri", label: "📍 ดูพิกัดบน Google Maps", uri: mapsUrl }
-            }
-          ]
-        };
-      }
 
       messages = [{
         type: "flex",
