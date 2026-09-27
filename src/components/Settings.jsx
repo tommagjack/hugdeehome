@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { formatTherapistName } from '../utils/format';
-import { getGasUrl } from '../utils/db';
+import { getGasUrl, db } from '../utils/db';
 import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from '../utils/defaultAssets';
 import { 
   Building2, 
@@ -221,6 +221,7 @@ export default function Settings({
       operatingHours: currentOperatingHours,
       operatingHoursSummary: summary
     };
+    db.setClinicInfo(updated);
     setClinicInfo(updated);
     logActivity('แก้ไขข้อมูลทั่วไปของคลินิกและเวลาเปิด-ปิดทำการ');
     Swal.fire({

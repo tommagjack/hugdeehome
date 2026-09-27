@@ -139,10 +139,33 @@ const set = (key, val) => {
 export const db = {
   getClinicInfo: () => {
     const data = get(KEYS.CLINIC_INFO, mock.INITIAL_CLINIC_INFO);
-    if (Array.isArray(data)) {
-      return data[0] || mock.INITIAL_CLINIC_INFO;
+    let info = Array.isArray(data) ? (data[0] || mock.INITIAL_CLINIC_INFO) : data;
+    if (info) {
+      let parsed = null;
+      if (typeof info.folderUrl === 'object' && info.folderUrl?.operatingHours) {
+        parsed = info.folderUrl;
+      } else if (typeof info.folderUrl === 'string' && info.folderUrl.startsWith('{')) {
+        parsed = safeJsonParse(info.folderUrl, null);
+      } else if (typeof info.folder_url === 'string' && info.folder_url.startsWith('{')) {
+        parsed = safeJsonParse(info.folder_url, null);
+      }
+      if (parsed?.operatingHours) {
+        info = {
+          ...info,
+          operatingHours: parsed.operatingHours,
+          operatingHoursSummary: parsed.operatingHoursSummary || info.operatingHoursSummary || mock.INITIAL_CLINIC_INFO.operatingHoursSummary,
+          folderUrl: parsed.original !== undefined ? parsed.original : (typeof info.folderUrl === 'string' && !info.folderUrl.startsWith('{') ? info.folderUrl : ''),
+          folder_url: parsed.original !== undefined ? parsed.original : (typeof info.folder_url === 'string' && !info.folder_url.startsWith('{') ? info.folder_url : '')
+        };
+      } else if (!info.operatingHours) {
+        info = {
+          ...info,
+          operatingHours: mock.DEFAULT_OPERATING_HOURS,
+          operatingHoursSummary: mock.INITIAL_CLINIC_INFO.operatingHoursSummary
+        };
+      }
     }
-    return data;
+    return info;
   },
   setClinicInfo: (data) => set(KEYS.CLINIC_INFO, data),
 
@@ -736,28 +759,39 @@ export const syncFromSupabase = async () => {
       if (key === KEYS.CLINIC_INFO) {
         const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
         if (infoObj && Object.keys(infoObj).length > 0) {
-          // ถอดรหัส operatingHours จาก operating_hours หรือ folder_url
-          if (!infoObj.operatingHours) {
-            if (infoObj.operating_hours) {
-              infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
-            } else if (infoObj.folder_url && typeof infoObj.folder_url === 'string' && infoObj.folder_url.startsWith('{')) {
-              try {
-                const parsed = JSON.parse(infoObj.folder_url);
-                if (parsed?.operatingHours) {
-                  infoObj.operatingHours = parsed.operatingHours;
-                }
-                if (parsed?.operatingHoursSummary) {
-                  infoObj.operatingHoursSummary = parsed.operatingHoursSummary;
-                }
-              } catch (e) {}
-            }
+          // ถอดรหัส operatingHours จาก folderUrl หรือ folder_url หรือ operating_hours
+          let parsedFolder = null;
+          if (infoObj.folderUrl && typeof infoObj.folderUrl === 'object' && infoObj.folderUrl.operatingHours) {
+            parsedFolder = infoObj.folderUrl;
+          } else if (typeof infoObj.folderUrl === 'string' && infoObj.folderUrl.startsWith('{')) {
+            parsedFolder = safeJsonParse(infoObj.folderUrl, null);
+          } else if (typeof infoObj.folder_url === 'string' && infoObj.folder_url.startsWith('{')) {
+            parsedFolder = safeJsonParse(infoObj.folder_url, null);
           }
+
+          if (parsedFolder && parsedFolder.operatingHours) {
+            infoObj.operatingHours = parsedFolder.operatingHours;
+            if (parsedFolder.operatingHoursSummary) {
+              infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
+            }
+            // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ
+            infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
+            infoObj.folder_url = parsedFolder.original !== undefined ? parsedFolder.original : '';
+          } else if (infoObj.operating_hours) {
+            infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
+          }
+
           // หากยังไม่มี ให้ดึงจากข้อมูล Local เดิม หรือค่าเริ่มต้น
           if (!infoObj.operatingHours) {
             const currentLocal = localStorage.getItem(key);
             const parsedLocal = currentLocal ? safeJsonParse(currentLocal, null) : null;
-            infoObj.operatingHours = parsedLocal?.operatingHours || mock.DEFAULT_OPERATING_HOURS;
-            infoObj.operatingHoursSummary = parsedLocal?.operatingHoursSummary || mock.INITIAL_CLINIC_INFO.operatingHoursSummary;
+            if (parsedLocal?.operatingHours) {
+              infoObj.operatingHours = parsedLocal.operatingHours;
+              infoObj.operatingHoursSummary = parsedLocal.operatingHoursSummary;
+            } else {
+              infoObj.operatingHours = mock.DEFAULT_OPERATING_HOURS;
+              infoObj.operatingHoursSummary = mock.INITIAL_CLINIC_INFO.operatingHoursSummary;
+            }
           }
           localStorage.setItem(key, JSON.stringify(infoObj));
         } else {
@@ -832,14 +866,22 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
       const record = { ...info, id: 1 };
       if (record.operatingHours) {
         try {
-          const existingFolder = typeof record.folder_url === 'string' && record.folder_url.startsWith('{')
-            ? JSON.parse(record.folder_url)
-            : { original: record.folder_url || '' };
-          existingFolder.operatingHours = record.operatingHours;
-          if (record.operatingHoursSummary) {
-            existingFolder.operatingHoursSummary = record.operatingHoursSummary;
+          let origUrl = '';
+          if (typeof record.folderUrl === 'string' && !record.folderUrl.startsWith('{')) {
+            origUrl = record.folderUrl;
+          } else if (typeof record.folder_url === 'string' && !record.folder_url.startsWith('{')) {
+            origUrl = record.folder_url;
+          } else if (typeof record.folderUrl === 'object' && record.folderUrl?.original) {
+            origUrl = record.folderUrl.original;
           }
-          record.folder_url = JSON.stringify(existingFolder);
+          const packed = {
+            original: origUrl,
+            operatingHours: record.operatingHours,
+            operatingHoursSummary: record.operatingHoursSummary || ''
+          };
+          const jsonPacked = JSON.stringify(packed);
+          record.folder_url = jsonPacked;
+          record.folderUrl = jsonPacked;
         } catch (e) {}
       }
       records = [record];
@@ -996,14 +1038,22 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
           recordWithId = { ...record, id: 1 };
           if (recordWithId.operatingHours) {
             try {
-              const existingFolder = typeof recordWithId.folder_url === 'string' && recordWithId.folder_url.startsWith('{')
-                ? JSON.parse(recordWithId.folder_url)
-                : { original: recordWithId.folder_url || '' };
-              existingFolder.operatingHours = recordWithId.operatingHours;
-              if (recordWithId.operatingHoursSummary) {
-                existingFolder.operatingHoursSummary = recordWithId.operatingHoursSummary;
+              let origUrl = '';
+              if (typeof recordWithId.folderUrl === 'string' && !recordWithId.folderUrl.startsWith('{')) {
+                origUrl = recordWithId.folderUrl;
+              } else if (typeof recordWithId.folder_url === 'string' && !recordWithId.folder_url.startsWith('{')) {
+                origUrl = recordWithId.folder_url;
+              } else if (typeof recordWithId.folderUrl === 'object' && recordWithId.folderUrl?.original) {
+                origUrl = recordWithId.folderUrl.original;
               }
-              recordWithId.folder_url = JSON.stringify(existingFolder);
+              const packed = {
+                original: origUrl,
+                operatingHours: recordWithId.operatingHours,
+                operatingHoursSummary: recordWithId.operatingHoursSummary || ''
+              };
+              const jsonPacked = JSON.stringify(packed);
+              recordWithId.folder_url = jsonPacked;
+              recordWithId.folderUrl = jsonPacked;
             } catch (e) {}
           }
         } else if (tableName === 'salary_rules') {
