@@ -736,6 +736,29 @@ export const syncFromSupabase = async () => {
       if (key === KEYS.CLINIC_INFO) {
         const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
         if (infoObj && Object.keys(infoObj).length > 0) {
+          // ถอดรหัส operatingHours จาก operating_hours หรือ folder_url
+          if (!infoObj.operatingHours) {
+            if (infoObj.operating_hours) {
+              infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
+            } else if (infoObj.folder_url && typeof infoObj.folder_url === 'string' && infoObj.folder_url.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(infoObj.folder_url);
+                if (parsed?.operatingHours) {
+                  infoObj.operatingHours = parsed.operatingHours;
+                }
+                if (parsed?.operatingHoursSummary) {
+                  infoObj.operatingHoursSummary = parsed.operatingHoursSummary;
+                }
+              } catch (e) {}
+            }
+          }
+          // หากยังไม่มี ให้ดึงจากข้อมูล Local เดิม หรือค่าเริ่มต้น
+          if (!infoObj.operatingHours) {
+            const currentLocal = localStorage.getItem(key);
+            const parsedLocal = currentLocal ? safeJsonParse(currentLocal, null) : null;
+            infoObj.operatingHours = parsedLocal?.operatingHours || mock.DEFAULT_OPERATING_HOURS;
+            infoObj.operatingHoursSummary = parsedLocal?.operatingHoursSummary || mock.INITIAL_CLINIC_INFO.operatingHoursSummary;
+          }
           localStorage.setItem(key, JSON.stringify(infoObj));
         } else {
           const currentLocal = localStorage.getItem(key);
@@ -807,6 +830,18 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
     if (key === KEYS.CLINIC_INFO) {
       const info = Array.isArray(value) ? (value[0] || {}) : (value || {});
       const record = { ...info, id: 1 };
+      if (record.operatingHours) {
+        try {
+          const existingFolder = typeof record.folder_url === 'string' && record.folder_url.startsWith('{')
+            ? JSON.parse(record.folder_url)
+            : { original: record.folder_url || '' };
+          existingFolder.operatingHours = record.operatingHours;
+          if (record.operatingHoursSummary) {
+            existingFolder.operatingHoursSummary = record.operatingHoursSummary;
+          }
+          record.folder_url = JSON.stringify(existingFolder);
+        } catch (e) {}
+      }
       records = [record];
     } else if (key === KEYS.SALARY_RULES) {
       const rules = Array.isArray(value) ? (value[0] || {}) : (value || {});
@@ -957,7 +992,21 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
         
         // บังคับให้เป็น id: 1 สำหรับข้อมูลการตั้งค่าที่มีแถวเดียว (เหมือนใน syncToSupabase)
         let recordWithId = record;
-        if (tableName === 'clinic_info' || tableName === 'salary_rules') {
+        if (tableName === 'clinic_info') {
+          recordWithId = { ...record, id: 1 };
+          if (recordWithId.operatingHours) {
+            try {
+              const existingFolder = typeof recordWithId.folder_url === 'string' && recordWithId.folder_url.startsWith('{')
+                ? JSON.parse(recordWithId.folder_url)
+                : { original: recordWithId.folder_url || '' };
+              existingFolder.operatingHours = recordWithId.operatingHours;
+              if (recordWithId.operatingHoursSummary) {
+                existingFolder.operatingHoursSummary = recordWithId.operatingHoursSummary;
+              }
+              recordWithId.folder_url = JSON.stringify(existingFolder);
+            } catch (e) {}
+          }
+        } else if (tableName === 'salary_rules') {
           recordWithId = { ...record, id: 1 };
         }
 

@@ -71,8 +71,10 @@ export default async function handler(req, res) {
     let liffId = '';
     let heroImageUrl = 'https://bmplfuzkyyuqtlfgifvm.supabase.co/storage/v1/object/public/public_assets/hugdee_banner.png';
 
+    let closingTimeStr = '17:30 น.';
+
     try {
-      let clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url&limit=1`, {
+      let clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url,folder_url&limit=1`, {
         headers: {
           'apikey': dbKey,
           'Authorization': 'Bearer ' + dbKey
@@ -81,7 +83,7 @@ export default async function handler(req, res) {
       
       // Fallback ถ้าคอลัมน์ hero_image_url ยังไม่ได้ถูกสร้างขึ้น
       if (!clinicRes.ok) {
-        clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id&limit=1`, {
+        clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,folder_url&limit=1`, {
           headers: {
             'apikey': dbKey,
             'Authorization': 'Bearer ' + dbKey
@@ -97,6 +99,19 @@ export default async function handler(req, res) {
           clinicLineOaId = clinicData[0].line_id || clinicLineOaId;
           liffId = clinicData[0].liff_id || '';
           heroImageUrl = clinicData[0].hero_image_url || heroImageUrl;
+
+          // ดึงเวลาปิดคลินิกของวันนี้
+          try {
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const todayName = dayNames[new Date().getDay()];
+            let opHours = clinicData[0].operating_hours;
+            if (!opHours && clinicData[0].folder_url && clinicData[0].folder_url.startsWith('{')) {
+              opHours = JSON.parse(clinicData[0].folder_url)?.operatingHours;
+            }
+            if (opHours && opHours[todayName]?.closeTime) {
+              closingTimeStr = `${opHours[todayName].closeTime} น.`;
+            }
+          } catch(e) {}
         }
       }
     } catch (e) {
@@ -409,7 +424,7 @@ export default async function handler(req, res) {
                 },
                 {
                   type: "text",
-                  text: "ขณะนี้เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว แต่ระบบยังไม่พบการกดบันทึก \"เลิกงาน\" ของท่านในวันนี้",
+                  text: `ขณะนี้เลยเวลาเลิกงานมาตรฐาน (${closingTimeStr}) แล้ว แต่ระบบยังไม่พบการกดบันทึก "เลิกงาน" ของท่านในวันนี้`,
                   size: "xs",
                   color: "#78350F",
                   wrap: true,

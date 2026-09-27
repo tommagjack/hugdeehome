@@ -1,5 +1,15 @@
 import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from './defaultAssets';
 
+export const DEFAULT_OPERATING_HOURS = {
+  Monday: { isOpen: false, openTime: "08:30", closeTime: "17:30", note: "หยุดประจำสัปดาห์" },
+  Tuesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+  Wednesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+  Thursday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+  Friday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+  Saturday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+  Sunday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" }
+};
+
 export const INITIAL_CLINIC_INFO = {
   name: "บ้านฮักดี (Hug Dee Home)",
   type: "คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด",
@@ -12,7 +22,9 @@ export const INITIAL_CLINIC_INFO = {
   stampUrl: DEFAULT_CLINIC_STAMP,
   receiptFooter: "ขอบคุณที่ไว้วางใจให้ Hug Dee Home ดูแลและพัฒนาทักษะชีวิตของบุตรหลานท่าน",
   folderId: "1A2B3C4D5E6F7G8H9I0J",
-  folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J"
+  folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J",
+  operatingHours: DEFAULT_OPERATING_HOURS,
+  operatingHoursSummary: "อังคาร - อาทิตย์ 08:30 - 17:30 น. (หยุดทุกวันจันทร์)"
 };
 
 export const INITIAL_USERS = [

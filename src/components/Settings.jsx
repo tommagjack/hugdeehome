@@ -18,9 +18,56 @@ import {
   Printer,
   Database,
   Gift,
-  History
+  History,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Copy
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { DEFAULT_OPERATING_HOURS } from '../utils/mockData';
+
+export const DAYS_OF_WEEK = [
+  { key: 'Monday', label: 'วันจันทร์', short: 'จ.', color: '#EAB308' },
+  { key: 'Tuesday', label: 'วันอังคาร', short: 'อ.', color: '#EC4899' },
+  { key: 'Wednesday', label: 'วันพุธ', short: 'พ.', color: '#10B981' },
+  { key: 'Thursday', label: 'วันพฤหัสบดี', short: 'พฤ.', color: '#F97316' },
+  { key: 'Friday', label: 'วันศุกร์', short: 'ศ.', color: '#06B6D4' },
+  { key: 'Saturday', label: 'วันเสาร์', short: 'ส.', color: '#8B5CF6' },
+  { key: 'Sunday', label: 'วันอาทิตย์', short: 'อา.', color: '#EF4444' }
+];
+
+export const generateOperatingHoursSummary = (hoursObj) => {
+  if (!hoursObj || typeof hoursObj !== 'object') return 'ไม่ระบุเวลาทำการ';
+  const openDays = DAYS_OF_WEEK.filter(d => hoursObj[d.key]?.isOpen);
+  const closedDays = DAYS_OF_WEEK.filter(d => !hoursObj[d.key]?.isOpen);
+
+  if (openDays.length === 0) return 'ปิดทำการชั่วคราว';
+  if (openDays.length === 7) {
+    const first = hoursObj['Monday'];
+    const allSameTime = DAYS_OF_WEEK.every(d => hoursObj[d.key]?.openTime === first?.openTime && hoursObj[d.key]?.closeTime === first?.closeTime);
+    return allSameTime 
+      ? `เปิดทำการทุกวัน ${first?.openTime || '08:30'} - ${first?.closeTime || '17:30'} น.`
+      : 'เปิดทำการทุกวัน (เวลาตามรอบตาราง)';
+  }
+
+  const openKeys = openDays.map(d => d.key);
+  const closedTh = closedDays.map(d => `วัน${d.label.replace('วัน', '')}`).join(', ');
+  
+  const sampleOpen = hoursObj[openKeys[0]];
+  const sameTimes = openKeys.every(k => hoursObj[k]?.openTime === sampleOpen?.openTime && hoursObj[k]?.closeTime === sampleOpen?.closeTime);
+  const timeStr = sameTimes ? ` ${sampleOpen?.openTime || '08:30'} - ${sampleOpen?.closeTime || '17:30'} น.` : '';
+
+  if (closedDays.length === 1 && closedDays[0].key === 'Monday') {
+    return `เปิด อังคาร - อาทิตย์${timeStr} (หยุดทุกวันจันทร์)`;
+  }
+  if (closedDays.length === 2 && closedDays.some(d => d.key === 'Saturday') && closedDays.some(d => d.key === 'Sunday')) {
+    return `เปิด จันทร์ - ศุกร์${timeStr} (หยุดเสาร์ - อาทิตย์)`;
+  }
+
+  const openNames = openDays.map(d => d.short).join(', ');
+  return `เปิดทำการ (${openNames})${timeStr} (หยุด${closedTh})`;
+};
 
 export default function Settings({
   clinicInfo,
@@ -104,13 +151,82 @@ export default function Settings({
     }
   }, [clinicInfo]);
 
+  const currentOperatingHours = localClinicInfo?.operatingHours || DEFAULT_OPERATING_HOURS;
+
+  const handleToggleDay = (dayKey) => {
+    const prevDay = currentOperatingHours[dayKey] || { isOpen: true, openTime: '08:30', closeTime: '17:30' };
+    const updated = {
+      ...currentOperatingHours,
+      [dayKey]: {
+        ...prevDay,
+        isOpen: !prevDay.isOpen,
+        note: !prevDay.isOpen ? 'เปิดทำการปกติ' : 'หยุดประจำสัปดาห์'
+      }
+    };
+    setLocalClinicInfo(prev => ({
+      ...prev,
+      operatingHours: updated,
+      operatingHoursSummary: generateOperatingHoursSummary(updated)
+    }));
+  };
+
+  const handleUpdateDayTime = (dayKey, field, val) => {
+    const prevDay = currentOperatingHours[dayKey] || { isOpen: true, openTime: '08:30', closeTime: '17:30' };
+    const updated = {
+      ...currentOperatingHours,
+      [dayKey]: {
+        ...prevDay,
+        [field]: val
+      }
+    };
+    setLocalClinicInfo(prev => ({
+      ...prev,
+      operatingHours: updated,
+      operatingHoursSummary: generateOperatingHoursSummary(updated)
+    }));
+  };
+
+  const handleCopyFirstDayTimeToAllOpen = () => {
+    const firstOpenDay = DAYS_OF_WEEK.find(d => currentOperatingHours[d.key]?.isOpen);
+    if (!firstOpenDay) return;
+    const sample = currentOperatingHours[firstOpenDay.key];
+    const updated = { ...currentOperatingHours };
+    DAYS_OF_WEEK.forEach(d => {
+      if (updated[d.key]?.isOpen) {
+        updated[d.key] = {
+          ...updated[d.key],
+          openTime: sample.openTime,
+          closeTime: sample.closeTime
+        };
+      }
+    });
+    setLocalClinicInfo(prev => ({
+      ...prev,
+      operatingHours: updated,
+      operatingHoursSummary: generateOperatingHoursSummary(updated)
+    }));
+    Swal.fire({
+      icon: 'success',
+      title: 'คัดลอกเวลาเรียบร้อย',
+      text: `นำเวลา ${sample.openTime} - ${sample.closeTime} น. ไปใช้กับทุกวันที่เปิดทำการแล้ว`,
+      timer: 1500,
+      showConfirmButton: false
+    });
+  };
+
   const handleSaveClinicInfo = () => {
-    setClinicInfo(localClinicInfo);
-    logActivity('แก้ไขข้อมูลทั่วไปของคลินิก');
+    const summary = generateOperatingHoursSummary(currentOperatingHours);
+    const updated = {
+      ...localClinicInfo,
+      operatingHours: currentOperatingHours,
+      operatingHoursSummary: summary
+    };
+    setClinicInfo(updated);
+    logActivity('แก้ไขข้อมูลทั่วไปของคลินิกและเวลาเปิด-ปิดทำการ');
     Swal.fire({
       icon: 'success',
       title: 'บันทึกข้อมูลคลินิกเรียบร้อย',
-      text: 'ระบบได้บันทึกข้อมูลและซิงค์ไปยัง Google Sheets เรียบร้อยแล้ว',
+      text: 'ระบบได้บันทึกข้อมูลและเวลาเปิด-ปิดคลินิกเรียบร้อยแล้ว',
       timer: 1500,
       showConfirmButton: false
     });
@@ -1316,6 +1432,235 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                   <textarea className="form-control" rows="2" value={localClinicInfo?.address || ''} onChange={(e) => setLocalClinicInfo({ ...localClinicInfo, address: e.target.value })}></textarea>
                 </div>
 
+                {/* --- เวลาทำการและวันเปิด-ปิดของคลินิก (Clinic Operating Hours - แบบที่ 2) --- */}
+                <div style={{
+                  marginTop: '0.5rem',
+                  marginBottom: '1rem',
+                  padding: '1.25rem',
+                  backgroundColor: '#FAF8F5',
+                  border: '1px solid #EADBCC',
+                  borderRadius: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        backgroundColor: '#C19B6C',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Clock size={20} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#4A4036' }}>
+                          เวลาทำการและวันเปิด-ปิดของคลินิก (Operating Hours)
+                        </h3>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#7E7265' }}>
+                          กำหนดเวลาเปิด-ปิดของแต่ละวัน สำหรับใช้ในระบบลงเวลางาน แจ้งเตือน LINE OA และใบนัดหมาย
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* ปุ่มตั้งค่าด่วน (Quick presets) */}
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-light"
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        title="ตั้งค่าเปิดวันอังคารถึงอาทิตย์ หยุดวันจันทร์"
+                        onClick={() => {
+                          const updated = {
+                            Monday: { isOpen: false, openTime: "08:30", closeTime: "17:30", note: "หยุดประจำสัปดาห์" },
+                            Tuesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Wednesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Thursday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Friday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Saturday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Sunday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" }
+                          };
+                          setLocalClinicInfo(prev => ({
+                            ...prev,
+                            operatingHours: updated,
+                            operatingHoursSummary: generateOperatingHoursSummary(updated)
+                          }));
+                        }}
+                      >
+                        ⚡ อังคาร-อาทิตย์ (หยุดจันทร์)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-light"
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        title="ตั้งค่าเปิดทุกวัน 08:30 - 17:30 น."
+                        onClick={() => {
+                          const updated = {
+                            Monday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Tuesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Wednesday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Thursday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Friday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Saturday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" },
+                            Sunday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" }
+                          };
+                          setLocalClinicInfo(prev => ({
+                            ...prev,
+                            operatingHours: updated,
+                            operatingHoursSummary: generateOperatingHoursSummary(updated)
+                          }));
+                        }}
+                      >
+                        ⚡ เปิดทุกวัน
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-light"
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        title="คัดลอกเวลาของวันแรกที่เปิดไปยังทุกวันที่เปิด"
+                        onClick={handleCopyFirstDayTimeToAllOpen}
+                      >
+                        <Copy size={12} style={{ marginRight: '3px' }} /> คัดลอกเวลาทุกวัน
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ตาราง 7 วัน */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {DAYS_OF_WEEK.map(day => {
+                      const config = currentOperatingHours[day.key] || { isOpen: true, openTime: '08:30', closeTime: '17:30', note: '' };
+                      return (
+                        <div 
+                          key={day.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '0.75rem',
+                            padding: '0.65rem 1rem',
+                            backgroundColor: config.isOpen ? '#FFFFFF' : '#F8FAFC',
+                            border: `1px solid ${config.isOpen ? '#E2E8F0' : '#CBD5E1'}`,
+                            borderRadius: '12px',
+                            boxShadow: config.isOpen ? '0 1px 2px rgba(0,0,0,0.03)' : 'none'
+                          }}
+                        >
+                          {/* วันที่ และ Badge สี */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '120px', flexShrink: 0 }}>
+                            <span style={{
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              backgroundColor: day.color,
+                              flexShrink: 0,
+                              boxShadow: `0 0 0 2px #fff, 0 0 0 3px ${day.color}`
+                            }} />
+                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: config.isOpen ? '#1E293B' : '#64748B' }}>
+                              {day.label}
+                            </span>
+                          </div>
+
+                          {/* ปุ่มสลับสถานะ เปิด/ปิด */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDay(day.key)}
+                            style={{
+                              padding: '0.3rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              borderRadius: '20px',
+                              minWidth: '95px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              backgroundColor: config.isOpen ? '#DCFCE7' : '#FEE2E2',
+                              color: config.isOpen ? '#15803D' : '#B91C1C'
+                            }}
+                          >
+                            {config.isOpen ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                            {config.isOpen ? 'เปิดทำการ' : 'ปิดทำการ'}
+                          </button>
+
+                          {/* ช่องเลือกเวลาหรือข้อความปิดทำการ */}
+                          {config.isOpen ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '280px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#64748B', flexShrink: 0 }}>เปิด:</span>
+                              <input 
+                                type="time" 
+                                className="form-control" 
+                                style={{ width: '110px', padding: '0.3rem 0.5rem', fontSize: '0.85rem' }} 
+                                value={config.openTime || '08:30'} 
+                                onChange={(e) => handleUpdateDayTime(day.key, 'openTime', e.target.value)} 
+                              />
+                              <span style={{ fontSize: '0.8rem', color: '#64748B', flexShrink: 0 }}>ถึง:</span>
+                              <input 
+                                type="time" 
+                                className="form-control" 
+                                style={{ width: '110px', padding: '0.3rem 0.5rem', fontSize: '0.85rem' }} 
+                                value={config.closeTime || '17:30'} 
+                                onChange={(e) => handleUpdateDayTime(day.key, 'closeTime', e.target.value)} 
+                              />
+                              <input 
+                                type="text" 
+                                className="form-control" 
+                                placeholder="หมายเหตุ เช่น เปิดปกติ" 
+                                style={{ flex: 1, padding: '0.3rem 0.6rem', fontSize: '0.85rem' }} 
+                                value={config.note || ''} 
+                                onChange={(e) => handleUpdateDayTime(day.key, 'note', e.target.value)} 
+                              />
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '280px' }}>
+                              <span style={{ fontSize: '0.82rem', color: '#94A3B8', fontStyle: 'italic', flexShrink: 0 }}>
+                                ⛔ ปิดทำการ (วันหยุดประจำสัปดาห์)
+                              </span>
+                              <input 
+                                type="text" 
+                                className="form-control" 
+                                placeholder="หมายเหตุ เช่น หยุดประจำสัปดาห์" 
+                                style={{ flex: 1, padding: '0.3rem 0.6rem', fontSize: '0.85rem', color: '#94A3B8' }} 
+                                value={config.note || ''} 
+                                onChange={(e) => handleUpdateDayTime(day.key, 'note', e.target.value)} 
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* แถบสรุปข้อความ */}
+                  <div style={{
+                    marginTop: '0.85rem',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1px dashed #CBD5E1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    fontSize: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569' }}>
+                      <span style={{ fontWeight: 700, color: '#C19B6C' }}>📢 ข้อความสรุปเวลาทำการ:</span>
+                      <span style={{ color: '#0F172A', fontWeight: 600 }}>
+                        {generateOperatingHoursSummary(currentOperatingHours)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+                      (ระบบจะบันทึกและนำไปใช้ในการแจ้งเตือนเข้า-ออกงานอัตโนมัติ)
+                    </span>
+                  </div>
+                </div>
+
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">รูปโลโก้คลินิก (Clinic Logo)</label>
@@ -2143,7 +2488,10 @@ ALTER TABLE patients ADD COLUMN IF NOT EXISTS allergies TEXT;
 
 -- 3. เพิ่มคอลัมน์วันที่เริ่ม/สิ้นสุดบริการในตารางบริการ
 ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
-ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;`} 
+ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;
+
+-- 4. เพิ่มคอลัมน์เวลาเปิด-ปิดทำการในตารางข้อมูลคลินิก
+ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;`} 
                       style={{ 
                         fontFamily: 'monospace', 
                         fontSize: '0.8rem', 
@@ -2198,7 +2546,10 @@ ALTER TABLE patients ADD COLUMN IF NOT EXISTS allergies TEXT;
 
 -- 3. เพิ่มคอลัมน์วันที่เริ่ม/สิ้นสุดบริการในตารางบริการ
 ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
-ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;`;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;
+
+-- 4. เพิ่มคอลัมน์เวลาเปิด-ปิดทำการในตารางข้อมูลคลินิก
+ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;`;
                         navigator.clipboard.writeText(sqlText);
                         Swal.fire({
                           icon: 'success',

@@ -410,14 +410,34 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
     };
   }, [periodLogs]);
 
-  // ตรวจจับเงื่อนไขเตือนลงเวลาออกงาน (หลังเวลา 17:30 น. แล้วยังไม่ได้กดเลิกงาน)
+  // ข้อมูลเวลาปิดทำการของคลินิกในวันนี้ (จาก operatingHours ที่ตั้งค่าไว้)
+  const todayOperatingConfig = useMemo(() => {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[currentTime.getDay()];
+    const config = clinicInfo?.operatingHours?.[todayName];
+    const closeTime = config?.closeTime || '17:30';
+    const openTime = config?.openTime || '08:30';
+    const isOpen = config ? config.isOpen : true;
+    return { todayName, isOpen, openTime, closeTime };
+  }, [clinicInfo, currentTime]);
+
+  // ตรวจจับเงื่อนไขเตือนลงเวลาออกงาน (หลังเวลาเลิกงานของวันนี้แล้วยังไม่ได้กดเลิกงาน)
   const showMissingCheckOutWarning = useMemo(() => {
     if (!currentEmployee || !latestCheckInToday || latestCheckOutToday) return false;
     const currentHour = currentTime.getHours();
     const currentMin = currentTime.getMinutes();
-    // ถ้าเกิน 17:30 น.
-    return (currentHour > 17) || (currentHour === 17 && currentMin >= 30);
-  }, [currentEmployee, latestCheckInToday, latestCheckOutToday, currentTime]);
+    
+    let closeH = 17;
+    let closeM = 30;
+    if (todayOperatingConfig.closeTime) {
+      const [h, m] = todayOperatingConfig.closeTime.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        closeH = h;
+        closeM = m;
+      }
+    }
+    return (currentHour > closeH) || (currentHour === closeH && currentMin >= closeM);
+  }, [currentEmployee, latestCheckInToday, latestCheckOutToday, currentTime, todayOperatingConfig]);
 
   // ฟังก์ชันดึงพิกัดตำแหน่ง GPS
   const getCoordinates = () => {
@@ -882,7 +902,7 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
           }}>
             <AlertTriangle size={20} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <strong>เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว!</strong>
+              <strong>เลยเวลาเลิกงานมาตรฐาน ({todayOperatingConfig.closeTime} น.) แล้ว!</strong>
               <div>ท่านยังไม่ได้กดลงเวลา <b>"เลิกงาน"</b> ในวันนี้ อย่าลืมกดเพื่อบันทึกเวลาทำงานนะคะ</div>
             </div>
           </div>
