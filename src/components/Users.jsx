@@ -6,11 +6,13 @@ import {
   Trash2,
   Download,
   Upload,
-  Printer
+  Printer,
+  MessageCircle,
+  Check
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
-import { getGasUrl } from '../utils/db';
+import { getGasUrl, saveEmployeeLineUser, sendAttendanceLineNotification } from '../utils/db';
 import { SmartAvatar, compressImage } from '../utils/defaultAssets';
 
 const formatDateToInputDate = (dateStr) => {
@@ -58,7 +60,8 @@ const headersMap = {
   bankAccountNo: ['bankaccountno', 'เลขบัญชี', 'เลขบัญชีธนาคาร', 'เลขที่บัญชี'],
   avatarUrl: ['avatarurl', 'รูปโปรไฟล์', 'ลิ้งก์รูปภาพ', 'รูปภาพ', 'profile url', 'รูปโปรไฟล์ (profile url)'],
   userFolderUrl: ['userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน', 'โฟลเดอร์พนักงาน', 'folder url', 'user folder url', 'userfolderurl', 'ลิงก์โฟลเดอร์พนักงาน (userfolderurl)'],
-  contractDoc: ['contractdoc', 'สัญญาจ้าง', 'เอกสารสัญญาจ้าง', 'contract doc', 'contract_doc', 'contractdoc']
+  contractDoc: ['contractdoc', 'สัญญาจ้าง', 'เอกสารสัญญาจ้าง', 'contract doc', 'contract_doc', 'contractdoc'],
+  lineUserId: ['lineuserid', 'line_user_id', 'line user id', 'lineid', 'line id', 'line oa', 'line']
 };
 
 const getNextEmployeeId = (userList) => {
@@ -116,6 +119,7 @@ export default function Users({ users, setUsers, setPrintView }) {
   const [uUserFolderUrl, setUUserFolderUrl] = useState('');
   const [uResignationDate, setUResignationDate] = useState('');
   const [uIsConnectingFolder, setUIsConnectingFolder] = useState(false);
+  const [uLineUserId, setULineUserId] = useState('');
 
   // ฟิลด์ไฟล์แนบจำลองเอกสาร
   const [uAvatarFile, setUAvatarFile] = useState(null);
@@ -452,6 +456,7 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUOtherDoc(null);
     setUUserFolderUrl('');
     setUResignationDate('');
+    setULineUserId('');
   };
 
   const handleEditUser = (u) => {
@@ -486,6 +491,8 @@ export default function Users({ users, setUsers, setPrintView }) {
     setUOtherDoc(u.otherDoc || null);
     setUUserFolderUrl(u.userFolderUrl || '');
     setUResignationDate(formatDateToInputDate(u.resignationDate));
+    const empLineId = u.lineUserId || u.line_user_id || localStorage.getItem('hdh_line_user_' + (u.employeeId || '')) || '';
+    setULineUserId(empLineId);
     setShowUserModal(true);
   };
 
@@ -585,8 +592,14 @@ export default function Users({ users, setUsers, setPrintView }) {
       contractDoc: uContractDoc,
       otherDoc: uOtherDoc,
       userFolderUrl: uUserFolderUrl,
-      resignationDate: uResignationDate || ''
+      resignationDate: uResignationDate || '',
+      lineUserId: uLineUserId.trim(),
+      line_user_id: uLineUserId.trim()
     };
+
+    if (uEmployeeId) {
+      saveEmployeeLineUser(uEmployeeId, uLineUserId.trim()).catch(err => console.warn('Save line user error:', err));
+    }
 
     if (editingUsername) {
       if (uUsername !== editingUsername && (users.some(u => u.username === uUsername) || uUsername.toLowerCase() === 'admin')) {
@@ -605,6 +618,129 @@ export default function Users({ users, setUsers, setPrintView }) {
     }
     setShowUserModal(false);
     resetUserForm();
+  };
+
+  const handleManageLine = async (targetUser) => {
+    if (!targetUser) return;
+    const empId = targetUser.employeeId || targetUser.employee_id || targetUser.username;
+    const currentLineId = targetUser.lineUserId || targetUser.line_user_id || localStorage.getItem('hdh_line_user_' + empId) || '';
+
+    const { value: formValues } = await Swal.fire({
+      title: `<div style="font-size:1.15rem; font-weight:700; color:#1e293b; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> เชื่อมต่อ LINE OA พนักงาน</div>`,
+      html: `
+        <div style="text-align:left; font-size:0.9rem; color:#475569; margin-top:0.5rem;">
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:0.75rem 1rem; margin-bottom:1rem;">
+            <div style="font-weight:700; color:#1e293b; font-size:1rem; margin-bottom:4px;">
+              ${targetUser.fullname || targetUser.username} ${targetUser.nickname ? `(${targetUser.nickname})` : ''}
+            </div>
+            <div style="display:flex; gap:1rem; font-size:0.85rem; color:#64748b;">
+              <span>รหัส: <b style="color:#0284c7; font-family:monospace;">${empId}</b></span>
+              <span>ตำแหน่ง: <b>${targetUser.position || targetUser.role || '-'}</b></span>
+            </div>
+          </div>
+
+          <label style="display:block; font-weight:600; margin-bottom:0.35rem; color:#1e293b; font-size:0.85rem;">
+            LINE User ID ของพนักงาน:
+          </label>
+          <input 
+            id="swal-line-userid" 
+            class="swal2-input" 
+            style="margin:0 0 0.5rem 0; width:100%; box-sizing:border-box; font-size:0.85rem; height:2.5rem;" 
+            placeholder="เช่น U1a2b3c4d5e6f7g8h9i0..." 
+            value="${currentLineId}"
+          />
+
+          <div style="font-size:0.75rem; color:#64748b; line-height:1.4; margin-bottom:1rem;">
+            * เมื่อเชื่อมต่อแล้ว ระบบจะส่งการแจ้งเตือนเข้างาน-เลิกงานไปยัง LINE ส่วนตัวของพนักงานโดยตรง
+          </div>
+
+          <div style="display:flex; gap:0.5rem; justify-content:space-between;">
+            <button type="button" id="swal-test-line-btn" style="flex:1; padding:0.45rem 0.75rem; font-size:0.82rem; background:#f0fdf4; border:1px solid #86efac; color:#15803d; border-radius:8px; cursor:pointer; font-weight:600;">
+              ทดสอบส่งแจ้งเตือน LINE
+            </button>
+            ${currentLineId ? `
+              <button type="button" id="swal-unlink-line-btn" style="padding:0.45rem 0.75rem; font-size:0.82rem; background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; border-radius:8px; cursor:pointer; font-weight:600;">
+                ยกเลิกการผูก
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกข้อมูล',
+      cancelButtonText: 'ปิด',
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#94a3b8',
+      didOpen: () => {
+        const testBtn = document.getElementById('swal-test-line-btn');
+        const unlinkBtn = document.getElementById('swal-unlink-line-btn');
+        const inputEl = document.getElementById('swal-line-userid');
+
+        if (testBtn) {
+          testBtn.addEventListener('click', async () => {
+            const uid = inputEl ? inputEl.value.trim() : '';
+            if (!uid) {
+              Swal.showValidationMessage('กรุณาระบุ LINE User ID ก่อนทดสอบส่ง');
+              return;
+            }
+            testBtn.innerText = 'กำลังส่ง...';
+            testBtn.disabled = true;
+            try {
+              const res = await sendAttendanceLineNotification(uid, {
+                employeeName: targetUser.fullname || targetUser.username,
+                employeeId: empId,
+                type: 'checkin',
+                timeStr: new Date().toLocaleTimeString('th-TH'),
+                dateStr: new Date().toLocaleDateString('th-TH')
+              });
+              if (res.success) {
+                Swal.showValidationMessage('✓ ส่งข้อความทดสอบสำเร็จ! ตรวจสอบที่ LINE');
+              } else {
+                Swal.showValidationMessage('ส่งไม่สำเร็จ: ' + (res.error || 'โปรดตรวจสอบ LINE User ID'));
+              }
+            } catch(err) {
+              Swal.showValidationMessage('เกิดข้อผิดพลาด: ' + err.message);
+            } finally {
+              testBtn.innerText = 'ทดสอบส่งแจ้งเตือน LINE';
+              testBtn.disabled = false;
+            }
+          });
+        }
+
+        if (unlinkBtn) {
+          unlinkBtn.addEventListener('click', () => {
+            if (inputEl) inputEl.value = '';
+            Swal.showValidationMessage('กด "บันทึกข้อมูล" เพื่อยืนยันการยกเลิกผูก LINE');
+          });
+        }
+      },
+      preConfirm: () => {
+        const inputEl = document.getElementById('swal-line-userid');
+        return inputEl ? inputEl.value.trim() : '';
+      }
+    });
+
+    if (formValues !== undefined) {
+      const newLineId = formValues;
+      await saveEmployeeLineUser(empId, newLineId);
+
+      // อัปเดตใน state users
+      setUsers(prevUsers => prevUsers.map(u => {
+        if ((u.employeeId && u.employeeId === empId) || u.username === targetUser.username) {
+          return { ...u, lineUserId: newLineId, line_user_id: newLineId };
+        }
+        return u;
+      }));
+
+      Swal.fire({
+        icon: 'success',
+        title: newLineId ? 'ผูก LINE OA สำเร็จ' : 'ยกเลิกการผูก LINE เรียบร้อย',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    }
   };
 
   const handleDeleteUser = (username) => {
@@ -634,13 +770,13 @@ export default function Users({ users, setUsers, setPrintView }) {
       'ชื่อผู้ใช้ (Username)', 'รหัสผ่าน (Password)', 'รหัสพนักงาน', 'คำนำหน้า', 'ชื่อ-นามสกุล', 'ชื่อเล่น',
       'สิทธิ์การใช้งาน (Admin/OT/Staff)', 'ประเภทพนักงาน', 'ตำแหน่งงาน', 'เลขบัตรประชาชน', 'เพศ',
       'วันเกิด (YYYY-MM-DD)', 'วันที่เริ่มงาน (YYYY-MM-DD)', 'เบอร์โทรศัพท์', 'อีเมล', 'เงินเดือนพื้นฐาน',
-      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)', 'ลิงก์โฟลเดอร์พนักงาน (UserFolderURL)', 'สัญญาจ้าง (ContractDoc)'
+      'สถานะ (Active/Inactive)', 'ชื่อธนาคาร', 'เลขบัญชีธนาคาร', 'รูปโปรไฟล์ (Profile URL)', 'ลิงก์โฟลเดอร์พนักงาน (UserFolderURL)', 'LINE User ID', 'สัญญาจ้าง (ContractDoc)'
     ];
 
     let rows;
     if (users.length === 0) {
       rows = [
-        ['staff_example', '123456', 'HDH005', 'นางสาว', 'สมศรี รักงานดี', 'ศรี', 'Staff', 'พนักงานประจำ', 'ธุรการ', '1234567890123', 'หญิง', '1995-05-15', '2026-06-01', '0891234567', 'somsri@hugdeehome.com', '15000', 'Active', 'กสิกรไทย', '123-4-56789-0', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330']
+        ['staff_example', '123456', 'HDH005', 'นางสาว', 'สมศรี รักงานดี', 'ศรี', 'Staff', 'พนักงานประจำ', 'ธุรการ', '1234567890123', 'หญิง', '1995-05-15', '2026-06-01', '0891234567', 'somsri@hugdeehome.com', '15000', 'Active', 'กสิกรไทย', '123-4-56789-0', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330', '', '']
       ];
       Swal.fire({
         title: 'ส่งออกไฟล์เทมเพลต',
@@ -671,6 +807,7 @@ export default function Users({ users, setUsers, setPrintView }) {
         u.bankAccountNo ? (String(u.bankAccountNo).trim().match(/^\d+$/) ? "'" + String(u.bankAccountNo).trim() : u.bankAccountNo) : '',
         u.avatarUrl || '',
         u.userFolderUrl || '',
+        u.lineUserId || u.line_user_id || localStorage.getItem('hdh_line_user_' + (u.employeeId || '')) || '',
         u.contractDoc ? JSON.stringify(u.contractDoc) : ''
       ]);
     }
@@ -796,6 +933,15 @@ export default function Users({ users, setUsers, setPrintView }) {
           if (val('bankAccountNo')) updatedUserData.bankAccountNo = val('bankAccountNo');
           if (val('avatarUrl')) updatedUserData.avatarUrl = val('avatarUrl');
           if (val('userFolderUrl')) updatedUserData.userFolderUrl = val('userFolderUrl');
+          if (val('lineUserId')) {
+            const importedLineId = val('lineUserId').trim();
+            updatedUserData.lineUserId = importedLineId;
+            updatedUserData.line_user_id = importedLineId;
+            const targetEmpId = updatedUserData.employeeId || employeeId;
+            if (targetEmpId) {
+              saveEmployeeLineUser(targetEmpId, importedLineId).catch(err => console.warn('Save line user error:', err));
+            }
+          }
           if (val('contractDoc')) {
             try {
               updatedUserData.contractDoc = JSON.parse(val('contractDoc'));
@@ -844,6 +990,8 @@ export default function Users({ users, setUsers, setPrintView }) {
             empType = 'นักบำบัดอิสระ (Freelance)';
           }
 
+          const newLineUserId = val('lineUserId') ? val('lineUserId').trim() : '';
+
           const userData = {
             username,
             password,
@@ -866,6 +1014,8 @@ export default function Users({ users, setUsers, setPrintView }) {
             bankAccountNo: val('bankAccountNo'),
             avatarUrl: val('avatarUrl') || '',
             userFolderUrl: val('userFolderUrl') || '',
+            lineUserId: newLineUserId,
+            line_user_id: newLineUserId,
             contractDoc: (() => {
               try {
                 return val('contractDoc') ? JSON.parse(val('contractDoc')) : null;
@@ -874,6 +1024,10 @@ export default function Users({ users, setUsers, setPrintView }) {
               }
             })()
           };
+
+          if (empId && newLineUserId) {
+            saveEmployeeLineUser(empId, newLineUserId).catch(err => console.warn('Save line user error:', err));
+          }
 
           currentUsersList.push(userData);
           addedCount++;
@@ -998,6 +1152,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                 <th>ตำแหน่งงาน</th>
                 <th>สิทธิ์การใช้งาน</th>
                 <th>เงินเดือนพื้นฐาน</th>
+                <th style={{ textAlign: 'center' }}>LINE OA</th>
                 <th>สถานะ</th>
                 <th style={{ textAlign: 'center' }}>การดำเนินการ</th>
               </tr>
@@ -1005,7 +1160,7 @@ export default function Users({ users, setUsers, setPrintView }) {
             <tbody>
               {paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
                     ไม่พบข้อมูลผู้ใช้งานพนักงานในระบบ
                   </td>
                 </tr>
@@ -1025,6 +1180,59 @@ export default function Users({ users, setUsers, setPrintView }) {
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{u.basicSalary ? `฿${u.basicSalary.toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : '฿0.00'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {(() => {
+                        const lineId = u.lineUserId || u.line_user_id || localStorage.getItem('hdh_line_user_' + (u.employeeId || ''));
+                        if (lineId) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleManageLine(u)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                border: '1px solid #86efac',
+                                cursor: 'pointer'
+                              }}
+                              title={`ผูก LINE แล้ว: ${lineId}\nคลิกเพื่อดู/แก้ไขหรือทดสอบส่งข้อความ`}
+                            >
+                              <Check size={12} strokeWidth={3} />
+                              <span>ผูกแล้ว</span>
+                            </button>
+                          );
+                        }
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleManageLine(u)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              backgroundColor: '#f8fafc',
+                              color: '#64748b',
+                              border: '1px dashed #cbd5e1',
+                              cursor: 'pointer'
+                            }}
+                            title="คลิกเพื่อผูกบัญชี LINE OA สำหรับแจ้งเตือนเข้า-ออกงาน"
+                          >
+                            <MessageCircle size={12} />
+                            <span>+ ผูก LINE</span>
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
                         <span className="badge" style={
@@ -1251,6 +1459,54 @@ export default function Users({ users, setUsers, setPrintView }) {
                     <input type="date" className="form-control" value={uResignationDate} onChange={(e) => setUResignationDate(e.target.value)} />
                   </div>
                   <div className="form-group"></div>
+                </div>
+
+                <div className="form-row" style={{ backgroundColor: '#f0fdf4', padding: '0.75rem', borderRadius: '10px', border: '1px solid #bbf7d0', marginBottom: '0.5rem' }}>
+                  <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#166534', fontWeight: 600 }}>
+                      <MessageCircle size={16} color="#16a34a" />
+                      LINE User ID (สำหรับแจ้งเตือนเข้า-ออกงาน)
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        placeholder="เช่น U1a2b3c4d5e6f7g8h9i0..." 
+                        value={uLineUserId} 
+                        onChange={(e) => setULineUserId(e.target.value)} 
+                        style={{ fontSize: '0.85rem' }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary"
+                        style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                        onClick={async () => {
+                          if (!uLineUserId.trim()) {
+                            Swal.fire('กรุณาระบุ LINE User ID', 'โปรดระบุ LINE User ID ก่อนทดสอบส่ง', 'warning');
+                            return;
+                          }
+                          Swal.fire({ title: 'กำลังทดสอบส่ง...', didOpen: () => Swal.showLoading() });
+                          const res = await sendAttendanceLineNotification(uLineUserId.trim(), {
+                            employeeName: uFullname || uUsername,
+                            employeeId: uEmployeeId || '-',
+                            type: 'checkin',
+                            timeStr: new Date().toLocaleTimeString('th-TH'),
+                            dateStr: new Date().toLocaleDateString('th-TH')
+                          });
+                          if (res.success) {
+                            Swal.fire({ icon: 'success', title: 'ส่งข้อความทดสอบสำเร็จ!', text: 'โปรดตรวจสอบที่หน้าแชท LINE OA', timer: 2000 });
+                          } else {
+                            Swal.fire({ icon: 'error', title: 'ส่งไม่สำเร็จ', text: res.error || 'โปรดตรวจสอบ LINE User ID และ Token' });
+                          }
+                        }}
+                      >
+                        ทดสอบส่ง
+                      </button>
+                    </div>
+                    <small style={{ color: '#15803d', fontSize: '0.75rem', marginTop: '3px', display: 'block' }}>
+                      * สามารถผูกผ่านหน้าลงเวลา (Check-in) ได้เช่นกัน
+                    </small>
+                  </div>
                 </div>
 
                 <div className="form-row" style={{ alignItems: 'center' }}>

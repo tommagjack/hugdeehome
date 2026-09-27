@@ -511,7 +511,7 @@ export default function CheckIn({ clinicInfo, users = [] }) {
     }
   };
 
-  // ผูกบัญชี LINE OA อัตโนมัติทันที 1-Click (ไม่ต้องพิมพ์ LINE ID เอง)
+  // ผูกบัญชี LINE OA สำหรับพนักงาน
   const handleAutoLinkLine = async () => {
     if (!employeeId) {
       Swal.fire({
@@ -524,103 +524,67 @@ export default function CheckIn({ clinicInfo, users = [] }) {
     }
 
     const empClean = employeeId.trim().toUpperCase();
-    const liffId = clinicInfo?.liffId || clinicInfo?.liff_id || '2008270606-7bkwSGyt';
-    const isAlreadyLinked = !!(currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${empClean}`));
+    const currentLineId = currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${empClean}`) || '';
 
-    if (isAlreadyLinked) {
-      const confirmReLink = await Swal.fire({
-        icon: 'info',
-        title: 'ผูกบัญชี LINE OA แล้ว',
-        html: `รหัสพนักงาน <b>${empClean}</b> ได้ผูกกับ LINE OA เรียบร้อยแล้วค่ะ<br/><br/><span style="font-size: 0.85rem; color: #6B7280;">ต้องการเปลี่ยนหรือเชื่อมต่อใหม่อีกครั้งหรือไม่?</span>`,
-        showCancelButton: true,
-        confirmButtonText: 'เชื่อมต่อใหม่',
-        cancelButtonText: 'ปิดหน้าต่าง',
-        confirmButtonColor: '#16A34A',
-        cancelButtonColor: '#9CA3AF'
-      });
-      if (!confirmReLink.isConfirmed) return;
-    }
+    // 1. ตรวจสอบว่าเปิดผ่าน LINE LIFF In-App Browser และล็อกอินอยู่หรือไม่
+    if (window.liff && window.liff.isLoggedIn && window.liff.isLoggedIn()) {
+      try {
+        Swal.fire({
+          title: 'กำลังเชื่อมต่อ LINE OA...',
+          html: 'กำลังตรวจสอบข้อมูลบัญชี LINE ของท่านอัตโนมัติ กรุณารอสักครู่',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
 
-    // แสดงสถานะกำลังดำเนินการ
-    Swal.fire({
-      title: 'กำลังเชื่อมต่อ LINE OA...',
-      html: 'กำลังตรวจสอบข้อมูลบัญชี LINE ของท่านอัตโนมัติ กรุณารอสักครู่',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
+        const profile = await window.liff.getProfile();
+        const lineUid = profile.userId;
 
-    try {
-      // 1. ตรวจสอบว่าเปิดผ่าน LINE In-App Browser หรือมี window.liff พร้อมใช้งาน
-      if (window.liff && liffId) {
+        // บันทึกการผูกบัญชีลงในเครื่องและ Supabase
+        await saveEmployeeLineUser(empClean, lineUid);
+
+        // ส่งข้อความยืนยันเข้า LINE OA
         try {
-          if (!window.liff.id) {
-            await window.liff.init({ liffId });
-          }
-
-          if (window.liff.isLoggedIn()) {
-            const profile = await window.liff.getProfile();
-            const lineUid = profile.userId;
-
-            // บันทึกการผูกบัญชีลงในเครื่องและ Supabase
-            await saveEmployeeLineUser(empClean, lineUid);
-
-            // ส่งข้อความยืนยันเข้า LINE OA
-            try {
-              await sendAttendanceLineNotification({
-                type: 'employee_welcome',
-                lineUserId: lineUid,
-                employeeId: empClean,
-                employeeName: profile.displayName || currentEmployee?.fullname || empClean
-              });
-            } catch (err) {
-              console.warn('Welcome message error:', err);
-            }
-
-            await Swal.fire({
-              icon: 'success',
-              title: 'ผูกบัญชี LINE OA สำเร็จ! 🎉',
-              html: `
-                <div style="text-align: center; padding: 0.5rem;">
-                  ${profile.pictureUrl ? `<img src="${profile.pictureUrl}" style="width: 68px; height: 68px; border-radius: 50%; border: 3px solid #16A34A; margin-bottom: 0.5rem;" alt="Profile" />` : ''}
-                  <div style="font-size: 1.15rem; font-weight: bold; color: #166534;">${profile.displayName}</div>
-                  <div style="font-size: 0.95rem; color: #4A4036; margin: 4px 0;">รหัสพนักงาน: <b>${empClean}</b></div>
-                  <div style="font-size: 0.85rem; color: #6B7280; margin-top: 8px; line-height: 1.5;">
-                    ระบบได้ผูกบัญชีและส่งข้อความยืนยันเข้า LINE เรียบร้อยแล้วค่ะ ⏰
-                  </div>
-                </div>
-              `,
-              confirmButtonColor: '#16A34A'
-            });
-
-            window.location.reload();
-            return;
-          }
-        } catch (liffErr) {
-          console.warn('In-page LIFF profile fetch error:', liffErr);
+          await sendAttendanceLineNotification({
+            type: 'employee_welcome',
+            lineUserId: lineUid,
+            employeeId: empClean,
+            employeeName: profile.displayName || currentEmployee?.fullname || empClean
+          });
+        } catch (err) {
+          console.warn('Welcome message error:', err);
         }
+
+        await Swal.fire({
+          icon: 'success',
+          title: 'ผูกบัญชี LINE OA สำเร็จ! 🎉',
+          html: `
+            <div style="text-align: center; padding: 0.5rem;">
+              ${profile.pictureUrl ? `<img src="${profile.pictureUrl}" style="width: 68px; height: 68px; border-radius: 50%; border: 3px solid #16A34A; margin-bottom: 0.5rem;" alt="Profile" />` : ''}
+              <div style="font-size: 1.15rem; font-weight: bold; color: #166534;">${profile.displayName}</div>
+              <div style="font-size: 0.95rem; color: #4A4036; margin: 4px 0;">รหัสพนักงาน: <b>${empClean}</b></div>
+              <div style="font-size: 0.85rem; color: #6B7280; margin-top: 8px; line-height: 1.5;">
+                ระบบได้ผูกบัญชีและส่งข้อความยืนยันเข้า LINE เรียบร้อยแล้วค่ะ ⏰
+              </div>
+            </div>
+          `,
+          confirmButtonColor: '#16A34A'
+        });
+
+        window.location.reload();
+        return;
+      } catch (liffErr) {
+        console.warn('In-page LIFF profile fetch error:', liffErr);
       }
-
-      // 2. หากเปิดในเบราว์เซอร์ปกติภายนอก หรือยังไม่ได้ล็อกอินใน LIFF
-      // นำทางไปยัง LIFF Universal Link เพื่อเปิดใน LINE ทันที 1 คลิก
-      const returnUrl = window.location.href.split('?')[0].split('#')[0] + '#/checkin';
-      const liffUrl = `https://liff.line.me/${liffId}?action=employee_link&employeeId=${encodeURIComponent(empClean)}&returnUrl=${encodeURIComponent(returnUrl)}`;
-      
-      window.location.href = liffUrl;
-
-    } catch (e) {
-      console.error('Auto link line error:', e);
-      Swal.fire({
-        icon: 'error',
-        title: 'เกิดข้อผิดพลาดในการเชื่อมต่อ',
-        text: e.message || 'ไม่สามารถเชื่อมต่อ LINE OA ได้ กรุณาลองใหม่อีกครั้ง',
-        confirmButtonColor: 'var(--secondary)'
-      });
     }
+
+    // 2. หากเปิดในเบราว์เซอร์ปกติ: เปิด Modal เชื่อมต่อ LINE OA ของพนักงานคนนี้โดยตรง
+    setLineUserIdInput(currentLineId);
+    setShowLineModal(true);
   };
 
-  // เชื่อมต่อ LINE OA แบบกรอกรหัสด้วยตนเอง (Fallback)
+  // เชื่อมต่อ LINE OA แบบกรอกรหัสด้วยตนเอง
   const handleSaveLineId = async () => {
     if (!lineUserIdInput.trim()) {
       Swal.fire({
@@ -634,41 +598,40 @@ export default function CheckIn({ clinicInfo, users = [] }) {
 
     setIsLinkingLine(true);
     const trimmedId = lineUserIdInput.trim();
+    const empClean = employeeId.trim().toUpperCase();
 
     try {
-      // 1. บันทึกลงใน users
-      if (currentEmployee) {
-        await supabase
-          .from('users')
-          .update({ line_user_id: trimmedId })
-          .eq('employee_id', employeeId);
-      }
+      // 1. บันทึกเข้าข้อมูลพนักงาน
+      await saveEmployeeLineUser(empClean, trimmedId);
 
       // 2. ส่งข้อความยินดีต้อนรับทดสอบการเชื่อมต่อ
       const notifyResult = await sendAttendanceLineNotification({
         type: 'employee_welcome',
         lineUserId: trimmedId,
-        employeeId,
-        employeeName: currentEmployee?.fullname || employeeId
+        employeeId: empClean,
+        employeeName: currentEmployee?.fullname || empClean
       });
 
       setShowLineModal(false);
 
       if (notifyResult?.success) {
-        Swal.fire({
+        await Swal.fire({
           icon: 'success',
-          title: 'เชื่อมต่อ LINE OA สำเร็จ!',
-          text: 'ระบบได้ส่งข้อความยืนยันไปยัง LINE ของท่านเรียบร้อยแล้วค่ะ',
-          confirmButtonColor: 'var(--secondary)'
+          title: 'เชื่อมต่อ LINE OA สำเร็จ! 🎉',
+          text: `ระบบได้ผูก LINE กับพนักงานรหัส ${empClean} และส่งข้อความยืนยันเรียบร้อยแล้วค่ะ`,
+          confirmButtonColor: '#16A34A'
         });
       } else {
-        Swal.fire({
+        await Swal.fire({
           icon: 'success',
           title: 'บันทึก LINE User ID สำเร็จ',
-          text: 'บันทึกข้อมูลแล้ว (หากยังไม่ได้รับข้อความ กรุณาเพิ่มเพื่อน LINE OA ของคลินิกก่อนนะคะ)',
-          confirmButtonColor: 'var(--secondary)'
+          text: `ผูกข้อมูลกับพนักงานรหัส ${empClean} เรียบร้อยแล้ว (หากยังไม่ได้รับข้อความ กรุณาเพิ่มเพื่อน LINE OA ของคลินิกก่อนนะคะ)`,
+          confirmButtonColor: '#16A34A'
         });
       }
+
+      // รีเฟรชข้อมูลในหน้าจอ
+      reloadData();
     } catch (e) {
       console.error('Error linking LINE:', e);
       Swal.fire({
@@ -1400,13 +1363,13 @@ export default function CheckIn({ clinicInfo, users = [] }) {
             backgroundColor: '#fff',
             borderRadius: '20px',
             padding: '1.75rem',
-            maxWidth: '420px',
+            maxWidth: '440px',
             width: '100%',
             boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#4A4036', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <MessageCircle size={20} color="#16A34A" />
+              <h3 style={{ margin: 0, color: '#4A4036', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem' }}>
+                <MessageCircle size={22} color="#16A34A" />
                 <span>เชื่อมต่อ LINE OA พนักงาน</span>
               </h3>
               <button 
@@ -1418,52 +1381,80 @@ export default function CheckIn({ clinicInfo, users = [] }) {
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem 0', lineHeight: '1.5' }}>
-              เมื่อผูกบัญชี LINE เรียบร้อยแล้ว ระบบจะส่งการแจ้งเตือนเวลาเข้างานและเลิกงานเข้า LINE ส่วนตัวของท่านโดยอัตโนมัติ
-            </p>
-
-            {/* ปุ่ม 1-Click Auto Link อัตโนมัติ (แนะนำ) */}
-            <div style={{ marginBottom: '1.25rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLineModal(false);
-                  handleAutoLinkLine();
-                }}
-                style={{
-                  width: '100%',
-                  padding: '0.85rem 1rem',
-                  backgroundColor: '#16A34A',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)'
-                }}
-              >
-                <MessageCircle size={18} />
-                <span>ผูกบัญชี LINE อัตโนมัติ (1 คลิก)</span>
-              </button>
-              <div style={{ fontSize: '0.75rem', color: '#166534', textAlign: 'center', marginTop: '6px' }}>
-                ⭐ แนะนำ: ผูกบัญชีกับ LINE ทันทีโดยไม่ต้องพิมพ์ LINE ID เอง
+            {/* การ์ดข้อมูลพนักงานที่กำลังเชื่อมต่อ */}
+            <div style={{
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#1E293B', fontSize: '0.95rem' }}>
+                  {currentEmployee?.fullname || 'พนักงาน'} {currentEmployee?.nickname ? `(${currentEmployee.nickname})` : ''}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '2px' }}>
+                  รหัสพนักงาน: <b style={{ color: '#0284C7', fontFamily: 'monospace' }}>{(employeeId || '').toUpperCase()}</b>
+                </div>
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                backgroundColor: (currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${(employeeId || '').toUpperCase()}`)) ? '#DCFCE7' : '#FEF3C7',
+                color: (currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${(employeeId || '').toUpperCase()}`)) ? '#15803D' : '#D97706'
+              }}>
+                {(currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${(employeeId || '').toUpperCase()}`)) ? 'ผูกแล้ว ✓' : 'ยังไม่ได้ผูก'}
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '1rem 0' }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }}></div>
-              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>หรือกรอกรหัสด้วยตนเอง</span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }}></div>
+            <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem 0', lineHeight: '1.5' }}>
+              เมื่อเชื่อมต่อแล้ว ระบบจะส่งการแจ้งเตือนเวลาเข้างานและเลิกงานเข้า LINE ส่วนตัวของพนักงานรายนี้โดยตรงค่ะ
+            </p>
+
+            {/* เพิ่มเพื่อน LINE OA */}
+            <div style={{
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              padding: '10px 12px',
+              borderRadius: '12px',
+              fontSize: '0.82rem',
+              color: '#166534',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Smartphone size={16} />
+                <span>LINE Official: <b>{clinicInfo?.lineId || '@hugdeehome'}</b></span>
+              </div>
+              <a 
+                href={clinicInfo?.lineId ? `https://line.me/R/ti/p/${clinicInfo.lineId.replace('@', '')}` : 'https://line.me/R/ti/p/@hugdeehome'}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: '#16A34A',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  textDecoration: 'none',
+                  backgroundColor: '#fff',
+                  border: '1px solid #86EFAC',
+                  padding: '3px 8px',
+                  borderRadius: '6px'
+                }}
+              >
+                + เพิ่มเพื่อน LINE
+              </a>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: '#374151' }}>
-                LINE User ID ของท่าน
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem', color: '#374151' }}>
+                LINE User ID ของพนักงาน
               </label>
               <input 
                 type="text" 
@@ -1479,34 +1470,10 @@ export default function CheckIn({ clinicInfo, users = [] }) {
                   boxSizing: 'border-box'
                 }}
               />
-              <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '4px' }}>
-                * สามารถดู LINE User ID ได้จากเมนูโปรไฟล์ใน LINE หรือสอบถามแอดมิน
+              <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '4px', lineHeight: '1.4' }}>
+                * สามารถให้ Admin ตรวจสอบหรือใส่ให้ได้จากหน้า <b>"ระบบจัดการบัญชีผู้ใช้งานระบบ (พนักงาน)"</b>
               </div>
             </div>
-
-            {clinicInfo?.lineId && (
-              <div style={{
-                backgroundColor: '#F0FDF4',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                fontSize: '0.8rem',
-                color: '#166534',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <span>LINE Official: <b>{clinicInfo.lineId}</b></span>
-                <a 
-                  href={`https://line.me/R/ti/p/${clinicInfo.lineId.replace('@', '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: '#16A34A', fontWeight: 600, textDecoration: 'underline' }}
-                >
-                  เพิ่มเพื่อน LINE
-                </a>
-              </div>
-            )}
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -1523,8 +1490,38 @@ export default function CheckIn({ clinicInfo, users = [] }) {
                   cursor: 'pointer'
                 }}
               >
-                ยกเลิก
+                ปิด
               </button>
+              {lineUserIdInput && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const empClean = (employeeId || '').trim().toUpperCase();
+                    await saveEmployeeLineUser(empClean, '');
+                    setLineUserIdInput('');
+                    setShowLineModal(false);
+                    reloadData();
+                    Swal.fire({
+                      icon: 'success',
+                      title: 'ยกเลิกการผูก LINE สำเร็จ',
+                      text: `ยกเลิกการเชื่อมต่อ LINE กับพนักงานรหัส ${empClean} เรียบร้อยแล้ว`,
+                      confirmButtonColor: '#16A34A'
+                    });
+                  }}
+                  style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#FEE2E2',
+                    color: '#DC2626',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="ยกเลิกการผูก LINE"
+                >
+                  ยกเลิกผูก
+                </button>
+              )}
               <button
                 type="button"
                 disabled={isLinkingLine}
@@ -1532,16 +1529,27 @@ export default function CheckIn({ clinicInfo, users = [] }) {
                 style={{
                   flex: 2,
                   padding: '0.75rem',
-                  backgroundColor: '#2E7D32',
+                  backgroundColor: '#16A34A',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '12px',
                   fontWeight: 600,
                   cursor: isLinkingLine ? 'not-allowed' : 'pointer',
-                  opacity: isLinkingLine ? 0.7 : 1
+                  opacity: isLinkingLine ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
                 }}
               >
-                {isLinkingLine ? 'กำลังบันทึก...' : 'บันทึกและทดสอบส่ง'}
+                {isLinkingLine ? (
+                  <>
+                    <RefreshCw size={16} className="spin" />
+                    <span>กำลังบันทึก...</span>
+                  </>
+                ) : (
+                  <span>บันทึกและทดสอบส่ง</span>
+                )}
               </button>
             </div>
           </div>
