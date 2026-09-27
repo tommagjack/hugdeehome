@@ -48,8 +48,21 @@ export default async function handler(req, res) {
     const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
     const { 
       type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients,
-      employeeId, employeeName, checkType, mapsUrl, workHours, note, channelAccessToken: bodyToken
+      employeeId, employeeName, checkType, mapsUrl, workHours, note, channelAccessToken: bodyToken,
+      timeStr, dateStr
     } = req.body;
+
+    let normalizedType = type;
+    let normalizedCheckType = checkType;
+    if (type === 'checkin') {
+      normalizedType = 'attendance';
+      normalizedCheckType = 'เข้างาน';
+    } else if (type === 'checkout') {
+      normalizedType = 'attendance';
+      normalizedCheckType = 'ออกงาน';
+    }
+    const finalTime = time || timeStr || '';
+    const finalDate = date || dateStr || '';
 
     // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info) หรือจาก Parameter ที่ส่งมา
     let channelAccessToken = bodyToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
@@ -127,7 +140,7 @@ export default async function handler(req, res) {
           liffUrl: liffId ? `https://liff.line.me/${liffId}` : ''
         });
       }
-    } else if (['attendance', 'attendance_reminder', 'employee_welcome'].includes(type) && !targetLineUserId && employeeId) {
+    } else if (['attendance', 'attendance_reminder', 'employee_welcome'].includes(normalizedType) && !targetLineUserId && employeeId) {
       // ค้นหา line_user_id ของพนักงานจากตาราง users หรือ attendance
       const empClean = String(employeeId).trim().toUpperCase();
       try {
@@ -309,107 +322,263 @@ export default async function handler(req, res) {
         type: 'text',
         text: `✅ เชื่อมต่อระบบแจ้งเตือนการลงเวลาสำเร็จ!\n\nสวัสดีค่ะ คุณ${employeeName || ''} (${employeeId || ''})\nท่านได้ผูกบัญชี LINE กับระบบลงเวลาเข้า-ออกงาน คลินิกบ้านฮักดี เรียบร้อยแล้ว\n\nเมื่อท่านทำการลงเวลาเข้างานหรือเลิกงาน ระบบจะส่งการแจ้งเตือนสรุปมายังห้องแชทนี้โดยอัตโนมัติค่ะ 🤎`
       }];
-    } else if (type === 'attendance_reminder') {
-      messages = [{
-        type: 'text',
-        text: `🔔 แจ้งเตือนการลงเวลา - คลินิกบ้านฮักดี\n-------------------------\nสวัสดีค่ะ คุณ${employeeName || employeeId}\nขณะนี้เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว แต่ระบบยังไม่พบบันทึกการกด "เลิกงาน" ของท่านในวันนี้\n\nกรุณาเปิดระบบลงเวลาเพื่อกดบันทึกเวลาเลิกงานนะคะ 🤎\n👉 https://hugdeehome.vercel.app/#/checkin`
-      }];
-    } else if (type === 'attendance') {
-      const isCheckIn = checkType === 'เข้างาน' || checkType === 'IN';
-      const themeColor = isCheckIn ? "#16A34A" : "#D97706";
-      const statusTitle = isCheckIn ? "บันทึกเวลาเข้างานสำเร็จ" : "บันทึกเวลาเลิกงานสำเร็จ";
-      const statusBadgeText = isCheckIn ? "🟢 เข้างาน (Check In)" : "🟠 เลิกงาน (Check Out)";
-      const statusBadgeBg = isCheckIn ? "#DCFCE7" : "#FEF3C7";
-      const statusBadgeColor = isCheckIn ? "#15803D" : "#B45309";
-
-      const bodyContents = [
-        // บัตรข้อมูลพนักงาน
-        {
+    } else if (normalizedType === 'attendance_reminder') {
+      const reminderBubble = {
+        type: "bubble",
+        size: "mega",
+        header: {
           type: "box",
           layout: "vertical",
-          backgroundColor: "#F8FAFC",
-          cornerRadius: "md",
-          paddingAll: "12px",
-          contents: [
-            {
-              type: "box",
-              layout: "horizontal",
-              contents: [
-                { type: "text", text: "👤 พนักงาน", size: "xs", color: "#64748B", flex: 3 },
-                { type: "text", text: `${employeeName || ''}`, weight: "bold", size: "sm", color: "#1E293B", flex: 7, wrap: true }
-              ]
-            },
-            {
-              type: "box",
-              layout: "horizontal",
-              margin: "sm",
-              contents: [
-                { type: "text", text: "🆔 รหัสพนักงาน", size: "xs", color: "#64748B", flex: 3 },
-                { type: "text", text: `${employeeId || '-'}`, weight: "bold", size: "xs", color: "#0284C7", flex: 7 }
-              ]
-            }
-          ]
-        },
-        // สถานะ & เวลา
-        {
-          type: "box",
-          layout: "vertical",
-          spacing: "sm",
+          backgroundColor: "#D97706",
+          paddingAll: "16px",
           contents: [
             {
               type: "box",
               layout: "horizontal",
               alignItems: "center",
               contents: [
-                { type: "text", text: "สถานะการลงเวลา", size: "xs", color: "#64748B", flex: 4 },
+                { type: "text", text: "🔔", size: "lg", flex: 0 },
+                { type: "text", text: " แจ้งเตือนการลงเวลาทำงาน", color: "#FFFFFF", weight: "bold", size: "md", margin: "xs" }
+              ]
+            },
+            {
+              type: "text",
+              text: "คลินิกพัฒนาการเด็กบ้านฮักดี 🤎",
+              color: "#FEF3C7",
+              size: "xs",
+              margin: "sm"
+            }
+          ]
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "16px",
+          contents: [
+            // บัตรข้อมูลพนักงาน (Avatar + Name + ID)
+            {
+              type: "box",
+              layout: "horizontal",
+              backgroundColor: "#F8FAFC",
+              cornerRadius: "xl",
+              paddingAll: "14px",
+              alignItems: "center",
+              contents: [
                 {
                   type: "box",
                   layout: "vertical",
-                  backgroundColor: statusBadgeBg,
-                  cornerRadius: "sm",
-                  paddingStart: "8px",
-                  paddingEnd: "8px",
-                  paddingTop: "3px",
-                  paddingBottom: "3px",
+                  backgroundColor: "#EEF2F6",
+                  cornerRadius: "xxl",
+                  width: "42px",
+                  height: "42px",
+                  justifyContent: "center",
+                  alignItems: "center",
                   contents: [
-                    { type: "text", text: statusBadgeText, size: "xxs", color: statusBadgeColor, weight: "bold" }
+                    { type: "text", text: "👤", size: "lg", align: "center" }
+                  ]
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  margin: "md",
+                  flex: 1,
+                  contents: [
+                    { type: "text", text: employeeName || "พนักงาน", weight: "bold", size: "md", color: "#0F172A", wrap: true },
+                    { type: "text", text: `รหัสพนักงาน: ${employeeId || '-'}`, size: "xs", color: "#64748B", margin: "xs" }
                   ]
                 }
               ]
             },
+            // บัตรข้อความแจ้งเตือน
             {
               type: "box",
-              layout: "horizontal",
+              layout: "vertical",
+              backgroundColor: "#FFFBEB",
+              cornerRadius: "xl",
+              paddingAll: "16px",
+              margin: "md",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  alignItems: "center",
+                  contents: [
+                    { type: "text", text: "⚠️", size: "md", flex: 0 },
+                    { type: "text", text: " ยังไม่พบบันทึกเวลาเลิกงาน", size: "sm", weight: "bold", color: "#B45309", margin: "xs" }
+                  ]
+                },
+                {
+                  type: "text",
+                  text: "ขณะนี้เลยเวลาเลิกงานมาตรฐาน (17:30 น.) แล้ว แต่ระบบยังไม่พบการกดบันทึก \"เลิกงาน\" ของท่านในวันนี้",
+                  size: "xs",
+                  color: "#78350F",
+                  wrap: true,
+                  margin: "md"
+                },
+                {
+                  type: "text",
+                  text: "กรุณากดเปิดระบบลงเวลาเพื่อบันทึกเวลาทำงานให้เรียบร้อยนะคะ 🤎",
+                  size: "xs",
+                  color: "#92400E",
+                  wrap: true,
+                  margin: "sm"
+                }
+              ]
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "12px",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              height: "sm",
+              color: "#D97706",
+              action: {
+                type: "uri",
+                label: "📲 กดเพื่อเปิดระบบลงเวลางาน",
+                uri: "https://hugdeehome.vercel.app/#/checkin"
+              }
+            }
+          ]
+        }
+      };
+
+      messages = [{
+        type: "flex",
+        altText: `🔔 แจ้งเตือนการลงเวลาทำงาน: คุณ${employeeName || employeeId}`,
+        contents: reminderBubble
+      }];
+    } else if (normalizedType === 'attendance') {
+      const isCheckIn = normalizedCheckType === 'เข้างาน' || normalizedCheckType === 'IN' || normalizedCheckType === 'checkin';
+      const themeColor = isCheckIn ? "#059669" : "#D97706";
+      const headerSubtitleColor = isCheckIn ? "#D1FAE5" : "#FEF3C7";
+      const statusTitle = isCheckIn ? "บันทึกเวลาเข้างานสำเร็จ" : "บันทึกเวลาเลิกงานสำเร็จ";
+      const statusBadgeText = isCheckIn ? "🟢 เข้างานสำเร็จ (Check In)" : "🟠 เลิกงานสำเร็จ (Check Out)";
+      const statusBadgeBg = isCheckIn ? "#DCFCE7" : "#FEF3C7";
+      const statusBadgeColor = isCheckIn ? "#15803D" : "#B45309";
+      const timeBoxBg = isCheckIn ? "#F0FDF4" : "#FFFBEB";
+
+      const bodyContents = [
+        // บัตรข้อมูลพนักงาน (Avatar + Name + ID)
+        {
+          type: "box",
+          layout: "horizontal",
+          backgroundColor: "#F8FAFC",
+          cornerRadius: "xl",
+          paddingAll: "14px",
+          alignItems: "center",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#EEF2F6",
+              cornerRadius: "xxl",
+              width: "42px",
+              height: "42px",
+              justifyContent: "center",
               alignItems: "center",
               contents: [
-                { type: "text", text: "เวลาลงบันทึก", size: "xs", color: "#64748B", flex: 4 },
-                { type: "text", text: `${time || '-'} น.`, size: "xl", weight: "bold", color: themeColor, flex: 6, align: "end" }
+                { type: "text", text: "👤", size: "lg", align: "center" }
               ]
             },
             {
               type: "box",
-              layout: "horizontal",
+              layout: "vertical",
+              margin: "md",
+              flex: 1,
               contents: [
-                { type: "text", text: "วันที่", size: "xs", color: "#64748B", flex: 4 },
-                { type: "text", text: `${date || '-'}`, size: "xs", color: "#334155", flex: 6, align: "end" }
+                { type: "text", text: employeeName || "พนักงาน", weight: "bold", size: "md", color: "#0F172A", wrap: true },
+                { type: "text", text: `รหัสพนักงาน: ${employeeId || '-'}`, size: "xs", color: "#64748B", margin: "xs" }
               ]
+            }
+          ]
+        },
+        // บัตรแสดงเวลาเด่นชัด (Time Card)
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: timeBoxBg,
+          cornerRadius: "xl",
+          paddingAll: "16px",
+          alignItems: "center",
+          margin: "md",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: statusBadgeBg,
+              cornerRadius: "md",
+              paddingStart: "12px",
+              paddingEnd: "12px",
+              paddingTop: "4px",
+              paddingBottom: "4px",
+              contents: [
+                {
+                  type: "text",
+                  text: statusBadgeText,
+                  size: "xs",
+                  color: statusBadgeColor,
+                  weight: "bold"
+                }
+              ]
+            },
+            {
+              type: "text",
+              text: `${finalTime || '-'} น.`,
+              size: "3xl",
+              weight: "bold",
+              color: themeColor,
+              margin: "md",
+              align: "center"
+            },
+            {
+              type: "text",
+              text: `📅 ${finalDate || '-'}`,
+              size: "xs",
+              color: "#64748B",
+              margin: "xs",
+              align: "center"
             }
           ]
         }
       ];
 
-      if (workHours && Number(workHours) > 0) {
+      // ถ้าเป็นเลิกงาน และมีชั่วโมงทำงาน
+      if (!isCheckIn && workHours && Number(workHours) > 0) {
         bodyContents.push({
           type: "box",
           layout: "horizontal",
-          margin: "sm",
-          paddingAll: "10px",
-          backgroundColor: "#F0FDF4",
-          cornerRadius: "md",
+          backgroundColor: "#EFF6FF",
+          cornerRadius: "lg",
+          paddingAll: "12px",
           alignItems: "center",
+          justifyContent: "space-between",
+          margin: "md",
           contents: [
-            { type: "text", text: "⏱️ รวมชั่วโมงทำงานวันนี้", size: "xs", color: "#166534", flex: 6 },
-            { type: "text", text: `${workHours} ชั่วโมง`, size: "sm", weight: "bold", color: "#15803D", flex: 4, align: "end" }
+            {
+              type: "box",
+              layout: "horizontal",
+              alignItems: "center",
+              contents: [
+                { type: "text", text: "⏱️", size: "md", flex: 0 },
+                { type: "text", text: " ชั่วโมงทำงานวันนี้", size: "xs", color: "#1E40AF", weight: "bold", margin: "xs" }
+              ]
+            },
+            {
+              type: "text",
+              text: `${workHours} ชั่วโมง`,
+              size: "sm",
+              weight: "bold",
+              color: "#1D4ED8",
+              align: "end",
+              flex: 0
+            }
           ]
         });
       }
@@ -420,6 +589,7 @@ export default async function handler(req, res) {
           type: "button",
           style: "secondary",
           height: "sm",
+          color: "#F1F5F9",
           action: { type: "uri", label: "📍 ดูพิกัดบน Google Maps", uri: mapsUrl }
         });
       }
@@ -438,23 +608,22 @@ export default async function handler(req, res) {
               layout: "horizontal",
               alignItems: "center",
               contents: [
-                { type: "text", text: isCheckIn ? "🕒" : "🏁", size: "lg", flex: 1 },
-                { type: "text", text: statusTitle, color: "#FFFFFF", weight: "bold", size: "md", flex: 9 }
+                { type: "text", text: isCheckIn ? "🕒" : "🏁", size: "lg", flex: 0 },
+                { type: "text", text: ` ${statusTitle}`, color: "#FFFFFF", weight: "bold", size: "md", margin: "xs" }
               ]
             },
             {
               type: "text",
               text: "คลินิกพัฒนาการเด็กบ้านฮักดี 🤎",
-              color: "#F0FDF4",
+              color: headerSubtitleColor,
               size: "xs",
-              margin: "xs"
+              margin: "sm"
             }
           ]
         },
         body: {
           type: "box",
           layout: "vertical",
-          spacing: "md",
           paddingAll: "16px",
           contents: bodyContents
         },
@@ -471,7 +640,7 @@ export default async function handler(req, res) {
 
       messages = [{
         type: "flex",
-        altText: `ลงเวลา${checkType}: ${employeeName || employeeId} (${time || ''} น.)`,
+        altText: `ลงเวลา${normalizedCheckType}: ${employeeName || employeeId} (${finalTime || ''} น.)`,
         contents: bubble
       }];
     } else {
