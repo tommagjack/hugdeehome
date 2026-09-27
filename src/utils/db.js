@@ -309,7 +309,7 @@ export const db = {
 
 // --- ฟังก์ชันบันทึกการผูกบัญชี LINE OA ของพนักงาน ---
 export const saveEmployeeLineUser = async (employeeId, lineUserId) => {
-  if (!employeeId || !lineUserId) return false;
+  if (!employeeId) return false;
   const empClean = String(employeeId).trim().toUpperCase();
 
   // 1. จัดเก็บลง LocalStorage hdh_users
@@ -337,15 +337,29 @@ export const saveEmployeeLineUser = async (employeeId, lineUserId) => {
   }
 
   // 2. จัดเก็บ mapping สำรองใน LocalStorage
-  localStorage.setItem(`hdh_line_user_${empClean}`, lineUserId);
+  if (lineUserId) {
+    localStorage.setItem(`hdh_line_user_${empClean}`, lineUserId);
+  } else {
+    localStorage.removeItem(`hdh_line_user_${empClean}`);
+  }
 
   // 3. บันทึกลง Supabase users
   try {
-    const avatarPayload = JSON.stringify({ line_user_id: lineUserId });
-    await supabase.from('users').update({ avatar_file: avatarPayload }).eq('employee_id', empClean);
+    const avatarPayload = JSON.stringify({ line_user_id: lineUserId || '' });
+    // พยายามอัปเดต line_user_id ตรงๆ
+    try {
+      await supabase.from('users').update({ line_user_id: lineUserId || null }).or(`employee_id.eq.${empClean},username.eq.${empClean}`);
+    } catch (e1) {}
+    // และอัปเดต avatar_file สำรอง
+    await supabase.from('users').update({ avatar_file: avatarPayload }).or(`employee_id.eq.${empClean},username.eq.${empClean}`);
   } catch (err) {
-    console.warn('Could not update avatar_file in Supabase users:', err);
+    console.warn('Could not update line_user_id in Supabase users:', err);
   }
+
+  // ส่ง custom event แจ้งเตือนคอมโพเนนต์ต่างๆ ในหน้าจอ
+  try {
+    window.dispatchEvent(new CustomEvent('hdh_line_user_updated', { detail: { employeeId: empClean, lineUserId } }));
+  } catch (e) {}
 
   return true;
 };
@@ -370,6 +384,25 @@ export const sendAttendanceLineNotification = async (payload, extraOptions = {})
     if (typeof payload === 'string') {
       finalBody = { lineUserId: payload, ...(extraOptions || {}) };
     }
+    // หากไม่มี lineUserId ให้พยายามหาจาก localStorage สำรอง
+    if (!finalBody.lineUserId && finalBody.employeeId) {
+      const empClean = String(finalBody.employeeId).trim().toUpperCase();
+      const saved = localStorage.getItem(`hdh_line_user_${empClean}`);
+      if (saved) {
+        finalBody.lineUserId = saved;
+      }
+    }
+    // ส่ง channelAccessToken จาก clinicInfo สำรอง เผื่อ RLS ใน Supabase บล็อกฝั่ง backend
+    if (!finalBody.channelAccessToken) {
+      try {
+        const clinicRaw = localStorage.getItem(KEYS.CLINIC_INFO);
+        const clinic = clinicRaw ? JSON.parse(clinicRaw) : null;
+        if (clinic && (clinic.lineChannelAccessToken || clinic.line_channel_access_token)) {
+          finalBody.channelAccessToken = clinic.lineChannelAccessToken || clinic.line_channel_access_token;
+        }
+      } catch (e) {}
+    }
+
     const res = await fetch('/api/send-line-message', {
       method: 'POST',
       headers: {
@@ -494,16 +527,16 @@ const TABLE_COLUMNS = {
 };
 
 // --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
-const toSnakeCase = (str) => {
+export const toSnakeCase = (str) => {
   if (str === 'snapIV') return 'snap_iv';
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 };
-const toCamelCase = (str) => {
+export const toCamelCase = (str) => {
   if (str === 'snap_iv') return 'snapIV';
   return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
 };
 
-const safeJsonParse = (val) => {
+export const safeJsonParse = (val) => {
   if (typeof val === 'string') {
     let trimmed = val.trim();
     if (trimmed.startsWith('"') && trimmed.endsWith('"')) {

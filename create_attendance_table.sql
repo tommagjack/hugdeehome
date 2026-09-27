@@ -45,8 +45,20 @@ CREATE POLICY "Allow anon update attendance" ON public.attendance FOR UPDATE USI
 DROP POLICY IF EXISTS "Allow anon delete attendance" ON public.attendance;
 CREATE POLICY "Allow anon delete attendance" ON public.attendance FOR DELETE USING (true);
 
--- อนุญาตให้อัปเดต line_user_id ใน users
+-- อนุญาตให้อ่านและอัปเดต line_user_id ใน users
 DROP POLICY IF EXISTS "Allow anon update line_user_id on users" ON public.users;
 CREATE POLICY "Allow anon update line_user_id on users" ON public.users FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon select users" ON public.users;
+CREATE POLICY "Allow anon select users" ON public.users FOR SELECT USING (true);
+
+-- อนุญาตให้อ่านข้อมูล clinic_info สำหรับดึง Token ส่งข้อความ LINE
+GRANT SELECT ON public.clinic_info TO anon, authenticated;
+ALTER TABLE public.clinic_info ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon read clinic_info" ON public.clinic_info;
+CREATE POLICY "Allow anon read clinic_info" ON public.clinic_info FOR SELECT USING (true);
+
+-- ให้สิทธิ์กับตาราง attendance แก่บทบาท anon และ authenticated
+GRANT ALL ON public.attendance TO anon, authenticated;
 
 -- สิ้นสุดสคริปต์

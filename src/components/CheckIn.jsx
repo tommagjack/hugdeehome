@@ -6,7 +6,7 @@ import {
   QrCode, Copy
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { db, syncDeltaToSupabase, sendAttendanceLineNotification, saveEmployeeLineUser } from '../utils/db';
+import { db, syncDeltaToSupabase, sendAttendanceLineNotification, saveEmployeeLineUser, toCamelCase, safeJsonParse } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 
@@ -94,26 +94,66 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
   const [isLinkingLine, setIsLinkingLine] = useState(false);
   const [showLineQr, setShowLineQr] = useState(false);
 
-  // โหลดข้อมูลล่าสุดจาก Supabase
+  // โหลดข้อมูลล่าสุดจาก Supabase และรวมกับข้อมูลในเครื่องเพื่อป้องกันข้อมูลสูญหาย
   const reloadData = async () => {
     try {
+      const localLogs = db.getAttendance() || [];
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(300);
+
       if (!error && Array.isArray(data)) {
-        // อัปเดตลง localStorage และ state
-        db.setAttendance(data);
-        setAttendanceLogs(data);
+        // แปลงรูปแบบคีย์จาก snake_case เป็น camelCase
+        const remoteLogs = data.map(row => {
+          const mapped = {};
+          for (const k in row) {
+            mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+          }
+          return mapped;
+        });
+
+        // ตรวจหาเรคคอร์ดในเครื่องที่ยังไม่ได้ขึ้น Supabase (เช่น บันทึกตอนออฟไลน์ หรือตอนยังไม่มีตาราง)
+        const remoteIds = new Set(remoteLogs.map(r => String(r.id)));
+        const unsyncedLocalLogs = localLogs.filter(l => l && l.id && !remoteIds.has(String(l.id)));
+
+        if (unsyncedLocalLogs.length > 0) {
+          console.log(`[CheckIn] Uploading ${unsyncedLocalLogs.length} unsynced attendance records to Supabase...`);
+          syncDeltaToSupabase('hdh_attendance', { toUpsert: unsyncedLocalLogs }).catch(err => {
+            console.warn('Auto-sync unsynced attendance failed:', err);
+          });
+        }
+
+        // รวม local และ remote เข้าด้วยกันแบบไม่ซ้ำซ้อน
+        const mergedMap = new Map();
+        localLogs.forEach(l => { if (l && l.id) mergedMap.set(String(l.id), l); });
+        remoteLogs.forEach(r => { if (r && r.id) mergedMap.set(String(r.id), r); });
+
+        const mergedLogs = Array.from(mergedMap.values()).sort((a, b) => {
+          const dtA = `${a.date || ''} ${a.time || ''}`;
+          const dtB = `${b.date || ''} ${b.time || ''}`;
+          return dtB.localeCompare(dtA);
+        });
+
+        db.setAttendance(mergedLogs);
+        setAttendanceLogs(mergedLogs);
       }
     } catch (e) {
-      // ignore
+      console.warn('Attendance reloadData error:', e);
     }
   };
 
   useEffect(() => {
     reloadData();
+
+    // ฟัง Event เมื่อมีการผูก LINE สำเร็จจากส่วนอื่น
+    const handleLineUserUpdated = () => {
+      setLineUpdatedTick(t => t + 1);
+      setUsers(db.getUsers());
+    };
+    window.addEventListener('hdh_line_user_updated', handleLineUserUpdated);
+    return () => window.removeEventListener('hdh_line_user_updated', handleLineUserUpdated);
   }, []);
 
   // ตรวจจับผลลัพธ์การผูกบัญชี LINE OA อัตโนมัติ (1-Click Auto Link Return)
@@ -204,17 +244,38 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
     }
   };
 
-  // ค้นหาข้อมูลพนักงานปัจจุบัน
+  // ค้นหาข้อมูลพนักงานปัจจุบัน พร้อมดึงการผูก LINE OA ที่บันทึกไว้
   const currentEmployee = useMemo(() => {
     if (!employeeId) return null;
-    return users.find(u => 
+    const empClean = employeeId.trim().toUpperCase();
+    const found = users.find(u => 
       u && (
-        String(u.employeeId || '').toUpperCase() === employeeId ||
-        String(u.employee_id || '').toUpperCase() === employeeId ||
-        String(u.username || '').toUpperCase() === employeeId
+        String(u.employeeId || '').trim().toUpperCase() === empClean ||
+        String(u.employee_id || '').trim().toUpperCase() === empClean ||
+        String(u.username || '').trim().toUpperCase() === empClean
       )
     ) || null;
-  }, [employeeId, users]);
+
+    const savedLine = localStorage.getItem(`hdh_line_user_${empClean}`) || '';
+    if (!found) {
+      if (savedLine) {
+        return {
+          employeeId: empClean,
+          fullname: empClean,
+          line_user_id: savedLine,
+          lineUserId: savedLine
+        };
+      }
+      return null;
+    }
+
+    const resolvedLineId = found.line_user_id || found.lineUserId || savedLine || '';
+    return {
+      ...found,
+      line_user_id: resolvedLineId,
+      lineUserId: resolvedLineId
+    };
+  }, [employeeId, users, lineUpdatedTick]);
 
   // ตรวจสอบสถานะการผูก LINE OA ของพนักงานคนนี้
   const isEmployeeLineLinked = useMemo(() => {
@@ -414,12 +475,17 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
       }
 
       // 4. บันทึกข้อมูล
-      const empName = currentEmployee ? (currentEmployee.fullname || currentEmployee.name || '') : employeeId;
-      const empLineId = currentEmployee?.line_user_id || currentEmployee?.lineUserId || '';
+      const empClean = (employeeId || '').trim().toUpperCase();
+      const empName = currentEmployee ? (currentEmployee.fullname || currentEmployee.name || '') : empClean;
+      const empLineId = currentEmployee?.line_user_id || 
+                        currentEmployee?.lineUserId || 
+                        localStorage.getItem(`hdh_line_user_${empClean}`) || 
+                        localStorage.getItem(`hdh_line_user_${(employeeId || '').trim()}`) || 
+                        '';
 
       const newRecord = {
-        id: `att_${Date.now()}_${employeeId}`,
-        employeeId,
+        id: `att_${Date.now()}_${empClean}`,
+        employeeId: empClean,
         employeeName: empName,
         date: dateStr,
         time: timeStr,
@@ -435,7 +501,7 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
       };
 
       // บันทึกลง LocalStorage
-      const updatedList = [newRecord, ...attendanceLogs];
+      const updatedList = [newRecord, ...attendanceLogs.filter(l => l && l.id !== newRecord.id)];
       db.setAttendance(updatedList);
       setAttendanceLogs(updatedList);
 
@@ -451,14 +517,20 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
         sendAttendanceLineNotification({
           type: 'attendance',
           lineUserId: empLineId,
-          employeeId,
+          employeeId: empClean,
           employeeName: empName,
           checkType: recordType,
           date: formatThaiDate(now),
           time: timeStr,
           mapsUrl,
           workHours: calculatedHours > 0 ? calculatedHours : undefined
-        }).catch(err => console.warn('LINE push notification error:', err));
+        }).then(res => {
+          console.log('Attendance LINE notification result:', res);
+        }).catch(err => {
+          console.warn('LINE push notification error:', err);
+        });
+      } else {
+        console.log('Employee', empClean, 'has not linked LINE OA, skipping notification');
       }
 
       // 6. แสดงผลลัพธ์สำเร็จ

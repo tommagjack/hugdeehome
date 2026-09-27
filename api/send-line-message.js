@@ -48,11 +48,11 @@ export default async function handler(req, res) {
     const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
     const { 
       type, appId, patientHn, nickname, date, time, therapist, lineUserId, phone, patients,
-      employeeId, employeeName, checkType, mapsUrl, workHours, note 
+      employeeId, employeeName, checkType, mapsUrl, workHours, note, channelAccessToken: bodyToken
     } = req.body;
 
-    // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info)
-    let channelAccessToken = '';
+    // 1. ดึงข้อมูลคลินิกและ Token จาก Supabase (clinic_info) หรือจาก Parameter ที่ส่งมา
+    let channelAccessToken = bodyToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     let clinicPhone = '0946753557';
     let clinicLineOaId = '@hugdeehome';
     let liffId = '';
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       if (clinicRes.ok) {
         const clinicData = await clinicRes.json();
         if (clinicData && clinicData[0]) {
-          channelAccessToken = clinicData[0].line_channel_access_token || '';
+          channelAccessToken = clinicData[0].line_channel_access_token || channelAccessToken;
           clinicPhone = clinicData[0].phone || clinicPhone;
           clinicLineOaId = clinicData[0].line_id || clinicLineOaId;
           liffId = clinicData[0].liff_id || '';
@@ -129,13 +129,22 @@ export default async function handler(req, res) {
       }
     } else if (['attendance', 'attendance_reminder', 'employee_welcome'].includes(type) && !targetLineUserId && employeeId) {
       // ค้นหา line_user_id ของพนักงานจากตาราง users หรือ attendance
+      const empClean = String(employeeId).trim().toUpperCase();
       try {
-        const userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?employee_id=eq.${employeeId}&select=line_user_id,avatar_file`, {
+        let userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?or=(employee_id.eq.${encodeURIComponent(empClean)},username.eq.${encodeURIComponent(empClean)})&select=line_user_id,avatar_file&limit=1`, {
           headers: {
             'apikey': dbKey,
             'Authorization': 'Bearer ' + dbKey
           }
         });
+        if (!userRes.ok) {
+          userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?or=(employee_id.eq.${encodeURIComponent(empClean)},username.eq.${encodeURIComponent(empClean)})&select=avatar_file&limit=1`, {
+            headers: {
+              'apikey': dbKey,
+              'Authorization': 'Bearer ' + dbKey
+            }
+          });
+        }
         if (userRes.ok) {
           const uData = await userRes.json();
           if (uData && uData[0]) {
@@ -143,7 +152,7 @@ export default async function handler(req, res) {
               targetLineUserId = uData[0].line_user_id;
             } else if (uData[0].avatar_file) {
               try {
-                const parsed = JSON.parse(uData[0].avatar_file);
+                const parsed = typeof uData[0].avatar_file === 'string' ? JSON.parse(uData[0].avatar_file) : uData[0].avatar_file;
                 if (parsed?.line_user_id) targetLineUserId = parsed.line_user_id;
               } catch (e) {}
             }
@@ -155,7 +164,7 @@ export default async function handler(req, res) {
 
       if (!targetLineUserId) {
         try {
-          const attRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/attendance?employee_id=eq.${employeeId}&line_user_id=not.is.null&select=line_user_id&order=created_at.desc&limit=1`, {
+          const attRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/attendance?employee_id=eq.${encodeURIComponent(empClean)}&line_user_id=not.is.null&select=line_user_id&order=created_at.desc&limit=1`, {
             headers: {
               'apikey': dbKey,
               'Authorization': 'Bearer ' + dbKey
@@ -403,6 +412,14 @@ export default async function handler(req, res) {
     }
 
     // 4. ส่ง Push Message ไปยัง LINE Messaging API
+    if (!targetLineUserId) {
+      return res.status(200).json({ 
+        success: false, 
+        status: 'not_linked', 
+        message: 'ยังไม่พบ LINE User ID สำหรับการแจ้งเตือนนี้ (กรุณาให้พนักงานผูก LINE OA ก่อน)' 
+      });
+    }
+
     const lineResponse = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: {

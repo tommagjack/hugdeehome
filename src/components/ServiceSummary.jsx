@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { formatPatientNickname } from '../utils/format';
-import { db } from '../utils/db';
+import { db, syncDeltaToSupabase, toCamelCase, safeJsonParse } from '../utils/db';
+import { supabase } from '../utils/supabaseClient';
 import Swal from 'sweetalert2';
 import { 
   BarChart3, 
@@ -21,7 +22,10 @@ import {
   Edit2,
   Trash2,
   Save,
-  X
+  X,
+  Database,
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 
 export default function ServiceSummary({ 
@@ -100,6 +104,161 @@ export default function ServiceSummary({
     db.setAttendance(newAttendanceList);
     if (typeof propSetAttendance === 'function') {
       propSetAttendance(newAttendanceList);
+    }
+  };
+
+  // ตรวจสอบสถานะตาราง attendance ใน Supabase
+  const [isSupabaseTableMissing, setIsSupabaseTableMissing] = useState(false);
+  const [isRefreshingCloud, setIsRefreshingCloud] = useState(false);
+
+  // ดึงข้อมูล attendance จาก Supabase และผสานกับเครื่องนี้
+  const refreshAttendanceFromCloud = async (showToast = false) => {
+    setIsRefreshingCloud(true);
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) {
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+          setIsSupabaseTableMissing(true);
+          if (showToast) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ยังไม่พบตาราง attendance บน Supabase',
+              text: 'กรุณารันคำสั่ง SQL สร้างตารางใน Supabase Dashboard เพื่อเปิดใช้งานการซิงค์ข้ามอุปกรณ์ค่ะ',
+              confirmButtonColor: 'var(--secondary)'
+            });
+          }
+          return;
+        }
+      }
+
+      setIsSupabaseTableMissing(false);
+
+      if (Array.isArray(data)) {
+        const remoteLogs = data.map(row => {
+          const mapped = {};
+          for (const k in row) {
+            mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+          }
+          return mapped;
+        });
+
+        const localLogs = db.getAttendance() || [];
+        const remoteIds = new Set(remoteLogs.map(r => String(r.id)));
+        const unsynced = localLogs.filter(l => l && l.id && !remoteIds.has(String(l.id)));
+
+        if (unsynced.length > 0) {
+          syncDeltaToSupabase('hdh_attendance', { toUpsert: unsynced }).catch(() => {});
+        }
+
+        const mergedMap = new Map();
+        localLogs.forEach(l => { if (l && l.id) mergedMap.set(String(l.id), l); });
+        remoteLogs.forEach(r => { if (r && r.id) mergedMap.set(String(r.id), r); });
+
+        const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+          const dtA = `${a.date || ''} ${a.time || ''}`;
+          const dtB = `${b.date || ''} ${b.time || ''}`;
+          return dtB.localeCompare(dtA);
+        });
+
+        updateAttendance(mergedList);
+
+        if (showToast) {
+          Swal.fire({
+            icon: 'success',
+            title: 'ซิงค์ข้อมูลล่าสุดสำเร็จ',
+            text: `ดึงข้อมูลจากคลาวด์พบ ${remoteLogs.length} รายการ (รวมในเครื่อง ${mergedList.length} รายการ)`,
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error refreshing attendance from cloud:', e);
+    } finally {
+      setIsRefreshingCloud(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshAttendanceFromCloud(false);
+  }, []);
+
+  const handleCopySql = async () => {
+    const sqlScript = `-- =========================================================================
+-- สคริปต์สร้างตาราง attendance สำหรับระบบลงเวลาเข้า-ออกงาน (Time Attendance)
+-- คลินิกบ้านฮักดี (Hug Dee Home)
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS public.attendance (
+  id TEXT PRIMARY KEY,
+  employee_id TEXT NOT NULL,
+  employee_name TEXT,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL,
+  type TEXT NOT NULL,
+  latitude NUMERIC,
+  longitude NUMERIC,
+  accuracy NUMERIC,
+  maps_url TEXT,
+  work_hours NUMERIC DEFAULT 0,
+  line_user_id TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_emp_date ON public.attendance (employee_id, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON public.attendance (date);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS line_user_id TEXT;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon read attendance" ON public.attendance;
+CREATE POLICY "Allow anon read attendance" ON public.attendance FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow anon insert attendance" ON public.attendance;
+CREATE POLICY "Allow anon insert attendance" ON public.attendance FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon update attendance" ON public.attendance;
+CREATE POLICY "Allow anon update attendance" ON public.attendance FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow anon delete attendance" ON public.attendance;
+CREATE POLICY "Allow anon delete attendance" ON public.attendance FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Allow anon update line_user_id on users" ON public.users;
+CREATE POLICY "Allow anon update line_user_id on users" ON public.users FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon select users" ON public.users;
+CREATE POLICY "Allow anon select users" ON public.users FOR SELECT USING (true);
+
+GRANT ALL ON public.attendance TO anon, authenticated;
+GRANT SELECT ON public.clinic_info TO anon, authenticated;
+`;
+
+    try {
+      await navigator.clipboard.writeText(sqlScript);
+      await Swal.fire({
+        icon: 'success',
+        title: 'คัดลอกคำสั่ง SQL เรียบร้อยแล้ว! 📋',
+        html: `
+          <div style="text-align: left; font-size: 0.95rem; line-height: 1.6; padding: 0.5rem;">
+            <b>ขั้นตอนนำไปใช้งานบน Supabase (ทำเพียงครั้งเดียว):</b>
+            <ol style="margin: 0.5rem 0 0 1rem; padding: 0;">
+              <li>เปิด <a href="https://supabase.com/dashboard/project/bmplfuzkyyuqtlfgifvm/sql/new" target="_blank" style="color: #0284C7; font-weight: bold; text-decoration: underline;">Supabase SQL Editor</a></li>
+              <li>กด <b>Ctrl + V</b> เพื่อวางคำสั่ง SQL ที่คัดลอกไว้</li>
+              <li>กดปุ่มสีเขียว <b>Run</b> ที่มุมขวาล่าง</li>
+              <li>จากนั้นกลับมากดปุ่ม <b>"ตรวจสอบและซิงค์ข้อมูลอีกครั้ง"</b> ที่หน้านี้ได้เลยค่ะ 🎉</li>
+            </ol>
+          </div>
+        `,
+        confirmButtonText: 'รับทราบ',
+        confirmButtonColor: '#16A34A'
+      });
+    } catch (e) {
+      prompt('คัดลอกคำสั่ง SQL ด้านล่างนี้:', sqlScript);
     }
   };
 
@@ -869,6 +1028,19 @@ export default function ServiceSummary({
           {currentUser?.role === 'Admin' && activeSummaryTab === 'attendance' && (
             <button 
               className="btn btn-secondary" 
+              onClick={() => refreshAttendanceFromCloud(true)}
+              disabled={isRefreshingCloud}
+              title="ดึงข้อมูลการลงเวลาล่าสุดจากคลาวด์"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RefreshCw size={16} className={isRefreshingCloud ? 'spin' : ''} /> 
+              {isRefreshingCloud ? 'กำลังซิงค์...' : 'ซิงค์ข้อมูลคลาวด์'}
+            </button>
+          )}
+
+          {currentUser?.role === 'Admin' && activeSummaryTab === 'attendance' && (
+            <button 
+              className="btn btn-secondary" 
               onClick={handleOpenAddModal}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
@@ -1116,6 +1288,108 @@ export default function ServiceSummary({
       {/* ======================================================== */}
       {activeSummaryTab === 'attendance' && (
         <>
+          {/* แจ้งเตือนเมื่อยังไม่ได้สร้างตาราง attendance ใน Supabase */}
+          {isSupabaseTableMissing && (
+            <div style={{
+              backgroundColor: '#FEF2F2',
+              border: '2px dashed #EF4444',
+              borderRadius: '16px',
+              padding: '1.25rem 1.5rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  backgroundColor: '#FEE2E2',
+                  color: '#DC2626',
+                  borderRadius: '10px',
+                  padding: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Database size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#991B1B' }}>
+                    ⚠️ ยังไม่ได้สร้างตาราง attendance ในฐานข้อมูลออนไลน์ Supabase
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.875rem', color: '#B91C1C', lineHeight: '1.5' }}>
+                    ระบบตรวจพบว่าข้อมูลการลงเวลาจากมือถือยังไม่สามารถส่งมายังเครื่องคอมพิวเตอร์นี้ได้ เนื่องจากยังไม่มีตาราง <code>attendance</code> บน Supabase (ข้อมูลยังคงถูกบันทึกอยู่ในมือถือของพนักงานอย่างปลอดภัย)
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={handleCopySql}
+                  style={{
+                    backgroundColor: '#DC2626',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    padding: '0.6rem 1.2rem',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)'
+                  }}
+                >
+                  <Copy size={16} /> คัดลอก SQL สร้างตาราง (Supabase)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => refreshAttendanceFromCloud(true)}
+                  disabled={isRefreshingCloud}
+                  style={{
+                    backgroundColor: '#fff',
+                    color: '#DC2626',
+                    border: '1px solid #F87171',
+                    borderRadius: '10px',
+                    padding: '0.6rem 1.2rem',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <RefreshCw size={16} className={isRefreshingCloud ? 'spin' : ''} /> ตรวจสอบและซิงค์ข้อมูลอีกครั้ง
+                </button>
+
+                <a
+                  href="https://supabase.com/dashboard/project/bmplfuzkyyuqtlfgifvm/sql/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    backgroundColor: '#fff',
+                    color: '#4B5563',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '10px',
+                    padding: '0.6rem 1.2rem',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <ExternalLink size={16} /> เปิดหน้า Supabase SQL Editor
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Dynamic Summary Cards ด้านบนของพนักงาน */}
           <div>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
