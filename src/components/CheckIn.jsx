@@ -1387,6 +1387,61 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
               เมื่อเชื่อมต่อแล้ว ระบบจะส่งการแจ้งเตือนเวลาเข้างานและเลิกงานเข้า LINE ส่วนตัวของพนักงานรายนี้โดยตรงค่ะ
             </p>
 
+            {/* 1. ปุ่มผูกบัญชี LINE OA อัตโนมัติ (1 คลิก) แนะนำที่สุด */}
+            {(() => {
+              const empClean = (employeeId || '').toUpperCase().trim();
+              const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
+              const returnUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0] + '#/checkin');
+              const autoLinkUrl = `https://liff.line.me/${liffId}?action=employee_link&employeeId=${encodeURIComponent(empClean)}&returnUrl=${returnUrl}`;
+
+              return (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <a
+                    href={autoLinkUrl}
+                    style={{
+                      width: '100%',
+                      padding: '0.9rem 1rem',
+                      backgroundColor: '#16A34A',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '14px',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 14px rgba(22, 163, 74, 0.3)',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <MessageCircle size={20} />
+                    <span>⚡ ผูกบัญชี LINE อัตโนมัติ (1 คลิก)</span>
+                  </a>
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: '#15803D',
+                    backgroundColor: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    marginTop: '8px',
+                    lineHeight: '1.45'
+                  }}>
+                    ⭐ <b>สำหรับผู้ที่เป็นเพื่อนอยู่แล้ว หรือเพิ่งกดเพิ่มเพื่อน:</b> แตะปุ่มด้านบนนี้ ระบบจะดึงบัญชี LINE ของท่านมาผูกกับรหัสพนักงาน <b>{empClean}</b> ให้อัตโนมัติทันที โดยไม่ต้องพิมพ์รหัส ID เองค่ะ
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '1.25rem 0 1rem 0' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }}></div>
+              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>หรือกรณีที่ยังไม่ได้เพิ่มเพื่อน LINE</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }}></div>
+            </div>
+
             {/* เพิ่มเพื่อน LINE OA */}
             {(() => {
               const rawLineOa = (clinicInfo?.lineId || '@hugdeehome').trim();

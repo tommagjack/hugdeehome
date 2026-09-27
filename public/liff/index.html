@@ -209,11 +209,41 @@
     }
 
     async function main() {
-      // 1. ตรวจสอบพารามิเตอร์ของ URL
-      const urlParams = new URLSearchParams(window.location.search);
+      // 1. ตรวจสอบพารามิเตอร์ของ URL (รองรับ searchParams, liff.state, และ hash)
+      let urlParams = new URLSearchParams(window.location.search);
+
+      // ดึงพารามิเตอร์ที่ซ่อนอยู่ใน liff.state (มาตรฐาน LINE Login redirect)
+      const liffStateParam = urlParams.get('liff.state');
+      if (liffStateParam) {
+        try {
+          const decoded = decodeURIComponent(liffStateParam);
+          const stateQuery = decoded.startsWith('?') ? decoded.slice(1) : (decoded.includes('?') ? decoded.split('?')[1] : decoded);
+          const subParams = new URLSearchParams(stateQuery);
+          for (const [k, v] of subParams.entries()) {
+            if (!urlParams.get(k)) urlParams.set(k, v);
+          }
+        } catch (e) {
+          console.warn('Error parsing liff.state:', e);
+        }
+      }
+
+      // ดึงพารามิเตอร์จาก hash ถ้ามี (#?action=... หรือ #action=...)
+      if (window.location.hash) {
+        try {
+          const rawHash = window.location.hash.replace(/^#\/?/, '');
+          const hashQuery = rawHash.includes('?') ? rawHash.split('?')[1] : rawHash;
+          const hashParams = new URLSearchParams(hashQuery);
+          for (const [k, v] of hashParams.entries()) {
+            if (!urlParams.get(k)) urlParams.set(k, v);
+          }
+        } catch (e) {
+          console.warn('Error parsing hash:', e);
+        }
+      }
+
       const action = urlParams.get('action');
       const appId = urlParams.get('appId');
-      let liffId = urlParams.get('liffId');
+      let liffId = urlParams.get('liffId') || '2008270606-7bkwSGyt';
       let phone = urlParams.get('phone');
       let oaId = urlParams.get('oaId');
       
@@ -223,7 +253,7 @@
       const therapist = urlParams.get('therapist');
 
       // 1.0 โหมดผูกบัญชี LINE พนักงานกับระบบลงเวลาอัตโนมัติ (1-Click Auto Link)
-      const employeeId = urlParams.get('employeeId');
+      const employeeId = urlParams.get('employeeId') || urlParams.get('emp') || (action === 'employee_link' ? localStorage.getItem('hdh_checkin_saved_emp_id') : null);
       const returnUrl = urlParams.get('returnUrl');
 
       if (action === 'employee_link' || (employeeId && !appId && !nickname)) {
@@ -231,7 +261,7 @@
         document.getElementById('sending-title').innerText = 'กำลังเชื่อมต่อบัญชี LINE OA...';
         document.getElementById('status-text').innerHTML = `
           <div style="font-size: 1rem; color: #4A4036; margin-bottom: 0.5rem;">
-            รหัสพนักงาน: <strong>${employeeId}</strong>
+            รหัสพนักงาน: <strong>${employeeId || '-'}</strong>
           </div>
           <div style="font-size: 0.85rem; color: #8E7F70;">
             ระบบกำลังตรวจสอบและผูกบัญชี LINE อัตโนมัติ กรุณารอสักครู่...
@@ -241,14 +271,16 @@
 
         try {
           if (!liffId) {
-            const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id&limit=1`, {
-              headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
-            });
-            const data = await response.json();
-            if (data && data[0]) liffId = data[0].liff_id;
+            try {
+              const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id&limit=1`, {
+                headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+              });
+              const data = await response.json();
+              if (data && data[0] && data[0].liff_id) liffId = data[0].liff_id;
+            } catch (e) {}
           }
 
-          if (!liffId) throw new Error('ไม่พบการตั้งค่า LIFF ID');
+          if (!liffId) liffId = '2008270606-7bkwSGyt';
 
           await liff.init({ liffId });
           if (!liff.isLoggedIn()) {
@@ -291,8 +323,10 @@
             console.warn('Welcome message error:', msgErr);
           }
 
-          const sep = (returnUrl || '/#/checkin').includes('?') ? '&' : '?';
-          const returnWithParam = `${returnUrl || '/#/checkin'}${sep}line_linked=true&emp=${encodeURIComponent(empClean)}&line_id=${encodeURIComponent(lineUid)}&name=${encodeURIComponent(profile.displayName || '')}`;
+          const originBase = window.location.origin;
+          const baseReturn = returnUrl || `${originBase}/#/checkin`;
+          const sep = baseReturn.includes('?') ? '&' : '?';
+          const returnWithParam = `${baseReturn}${sep}line_linked=true&emp=${encodeURIComponent(empClean)}&line_id=${encodeURIComponent(lineUid)}&name=${encodeURIComponent(profile.displayName || '')}`;
 
           document.getElementById('sending-title').innerText = 'ผูกบัญชี LINE OA สำเร็จ! 🎉';
           document.getElementById('status-text').innerHTML = `
@@ -315,11 +349,9 @@
             </div>
           `;
 
-          if (returnUrl) {
-            setTimeout(() => {
-              window.location.href = returnWithParam;
-            }, 2500);
-          }
+          setTimeout(() => {
+            window.location.href = returnWithParam;
+          }, 2500);
 
         } catch (e) {
           document.getElementById('sending-title').innerText = 'เกิดข้อผิดพลาด ❌';
