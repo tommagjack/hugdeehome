@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Clock, Calendar, MapPin, User, LogIn, LogOut, CheckCircle2, 
   AlertCircle, Smartphone, ExternalLink, History, RefreshCw, 
-  Check, X, ChevronRight, ShieldCheck, MessageCircle, AlertTriangle
+  Check, X, ChevronRight, ShieldCheck, MessageCircle, AlertTriangle,
+  QrCode, Copy
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { db, syncDeltaToSupabase, sendAttendanceLineNotification, saveEmployeeLineUser } from '../utils/db';
@@ -91,6 +92,7 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
   const [showLineModal, setShowLineModal] = useState(false);
   const [lineUserIdInput, setLineUserIdInput] = useState('');
   const [isLinkingLine, setIsLinkingLine] = useState(false);
+  const [showLineQr, setShowLineQr] = useState(false);
 
   // โหลดข้อมูลล่าสุดจาก Supabase
   const reloadData = async () => {
@@ -1386,40 +1388,140 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
             </p>
 
             {/* เพิ่มเพื่อน LINE OA */}
-            <div style={{
-              backgroundColor: '#F0FDF4',
-              border: '1px solid #BBF7D0',
-              padding: '10px 12px',
-              borderRadius: '12px',
-              fontSize: '0.82rem',
-              color: '#166534',
-              marginBottom: '1.25rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Smartphone size={16} />
-                <span>LINE Official: <b>{clinicInfo?.lineId || '@hugdeehome'}</b></span>
-              </div>
-              <a 
-                href={clinicInfo?.lineId ? `https://line.me/R/ti/p/${clinicInfo.lineId.replace('@', '')}` : 'https://line.me/R/ti/p/@hugdeehome'}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  color: '#16A34A',
-                  fontWeight: 700,
-                  fontSize: '0.78rem',
-                  textDecoration: 'none',
-                  backgroundColor: '#fff',
-                  border: '1px solid #86EFAC',
-                  padding: '3px 8px',
-                  borderRadius: '6px'
-                }}
-              >
-                + เพิ่มเพื่อน LINE
-              </a>
-            </div>
+            {(() => {
+              const rawLineOa = (clinicInfo?.lineId || '@hugdeehome').trim();
+              const lineOaAt = rawLineOa.startsWith('@') ? rawLineOa : `@${rawLineOa}`;
+              const lineAddFriendUrl = `https://line.me/R/ti/p/${encodeURIComponent(lineOaAt)}`;
+              const lineWebUrl = `https://page.line.me/${lineOaAt.replace(/^@/, '')}`;
+
+              return (
+                <div style={{
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  padding: '12px 14px',
+                  borderRadius: '14px',
+                  marginBottom: '1.25rem'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Smartphone size={16} color="#166534" />
+                      <span style={{ fontSize: '0.85rem', color: '#166534' }}>
+                        LINE Official: <b>{lineOaAt}</b>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(lineOaAt);
+                            Swal.fire({
+                              toast: true,
+                              position: 'top-end',
+                              icon: 'success',
+                              title: `คัดลอกไอดี ${lineOaAt} แล้ว`,
+                              showConfirmButton: false,
+                              timer: 1500
+                            });
+                          }
+                        }}
+                        title="คัดลอกไอดี LINE"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#15803D',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowLineQr(prev => !prev)}
+                        style={{
+                          color: '#15803D',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          backgroundColor: '#fff',
+                          border: '1px solid #86EFAC',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <QrCode size={13} />
+                        {showLineQr ? 'ซ่อน QR' : 'ดู QR'}
+                      </button>
+                      <a 
+                        href={lineAddFriendUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          textDecoration: 'none',
+                          backgroundColor: '#16A34A',
+                          border: 'none',
+                          padding: '5px 12px',
+                          borderRadius: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                        }}
+                      >
+                        + เพิ่มเพื่อน LINE
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* QR Code Collapsible */}
+                  {showLineQr && (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '12px 0 6px 0',
+                      marginTop: '10px',
+                      borderTop: '1px dashed #BBF7D0'
+                    }}>
+                      <img 
+                        src="https://qr-official.line.me/gs/M_747fgvap_GW.png" 
+                        alt="LINE Official QR Code"
+                        style={{
+                          width: '130px',
+                          height: '130px',
+                          borderRadius: '8px',
+                          border: '2px solid #86EFAC',
+                          backgroundColor: '#fff',
+                          padding: '4px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                        }} 
+                      />
+                      <div style={{ fontSize: '0.75rem', color: '#15803D', marginTop: '6px', fontWeight: 500 }}>
+                        สแกน QR Code ด้วยแอป LINE เพื่อเพิ่มเพื่อน
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: '0.75rem', color: '#15803D', marginTop: '8px', lineHeight: '1.45' }}>
+                    💡 <b>คำแนะนำ:</b> หากคลิกแล้ว LINE แจ้งเตือนข้อผิดพลาด สามารถเปิดแอป LINE แล้วค้นหาเพื่อนด้วยไอดี: <b>@hugdeehome</b> (หรือ <b>@747fgvap</b>) หรือเข้าผ่าน <a href={lineWebUrl} target="_blank" rel="noreferrer" style={{ color: '#166534', fontWeight: 600, textDecoration: 'underline' }}>หน้าเว็บ LINE คลินิก</a> ได้เช่นกันค่ะ
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem', color: '#374151' }}>

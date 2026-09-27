@@ -364,14 +364,18 @@ export const getGasUrl = () => {
 };
 
 // --- ส่งข้อความแจ้งเตือนการลงเวลาเข้า LINE OA ---
-export const sendAttendanceLineNotification = async (payload) => {
+export const sendAttendanceLineNotification = async (payload, extraOptions = {}) => {
   try {
+    let finalBody = payload;
+    if (typeof payload === 'string') {
+      finalBody = { lineUserId: payload, ...(extraOptions || {}) };
+    }
     const res = await fetch('/api/send-line-message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(finalBody)
     });
     return await res.json();
   } catch (err) {
