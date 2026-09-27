@@ -297,15 +297,35 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
     notes: 'Admin บันทึกเวลาทำงาน'
   });
 
-  // ฟังก์ชันคำนวณผลต่างชั่วโมงระหว่าง In และ Out
-  const calculateDiffHours = (inT, outT) => {
+  // ตรวจสอบว่าเป็นวันเสาร์หรืออาทิตย์หรือไม่
+  const isWeekend = (dateStr) => {
+    if (!dateStr) return false;
+    const parts = String(dateStr).split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      const day = new Date(y, m - 1, d).getDay();
+      return day === 0 || day === 6; // 0 = อาทิตย์, 6 = เสาร์
+    }
+    return false;
+  };
+
+  // ฟังก์ชันคำนวณผลต่างชั่วโมงระหว่าง In และ Out (วันเสาร์-อาทิตย์ หักเวลาพักเที่ยง 1 ชั่วโมง)
+  const calculateDiffHours = (inT, outT, dateStr = '') => {
     if (!inT || !outT) return 0;
     const [h1, m1, s1] = inT.split(':').map(Number);
     const [h2, m2, s2] = outT.split(':').map(Number);
     const d1 = new Date(2000, 0, 1, h1 || 0, m1 || 0, s1 || 0);
     const d2 = new Date(2000, 0, 1, h2 || 0, m2 || 0, s2 || 0);
     const diffMs = Math.max(0, d2.getTime() - d1.getTime());
-    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    let hours = diffMs / (1000 * 60 * 60);
+
+    // วันเสาร์ อาทิตย์ คำนวณหักเวลาพักเที่ยง 1 ชั่วโมง (เมื่อทำงานตั้งแต่ 5 ชั่วโมงขึ้นไป)
+    const targetDate = dateStr || formAttendance?.date || todayStr;
+    if (isWeekend(targetDate) && hours >= 5) {
+      hours = Math.max(0, hours - 1);
+    }
+
+    return Math.round(hours * 10) / 10;
   };
 
   // ค้นหาข้อมูลพนักงานจาก users / therapists
@@ -613,7 +633,11 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
         const d1 = new Date(2000, 0, 1, h1 || 0, m1 || 0, s1 || 0);
         const d2 = new Date(2000, 0, 1, h2 || 0, m2 || 0, s2 || 0);
         const diffMs = Math.max(0, d2 - d1);
-        workHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+        let hours = diffMs / (1000 * 60 * 60);
+        if (isWeekend(g.date) && hours >= 5) {
+          hours = Math.max(0, hours - 1);
+        }
+        workHours = Math.round(hours * 10) / 10;
       } else {
         workHours = Math.round(workHours * 10) / 10;
       }
@@ -706,7 +730,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
       date: todayStr,
       inTime: '08:30:00',
       outTime: '17:30:00',
-      workHours: calculateDiffHours('08:30:00', '17:30:00'),
+      workHours: calculateDiffHours('08:30:00', '17:30:00', todayStr),
       notes: 'Admin บันทึกเวลาทำงาน'
     });
     setIsEditing(false);
@@ -718,7 +742,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
   const handleOpenEditModal = (row) => {
     const inT = row.firstInTime ? (row.firstInTime.length === 5 ? `${row.firstInTime}:00` : row.firstInTime) : '08:30:00';
     const outT = row.latestOutTime ? (row.latestOutTime.length === 5 ? `${row.latestOutTime}:00` : row.latestOutTime) : '17:30:00';
-    const hours = row.workHours > 0 ? row.workHours : calculateDiffHours(inT, outT);
+    const hours = row.workHours > 0 ? row.workHours : calculateDiffHours(inT, outT, row.date);
 
     setFormAttendance({
       employeeId: row.employeeId,
@@ -2003,7 +2027,13 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
                       type="date" 
                       className="form-control" 
                       value={formAttendance.date} 
-                      onChange={(e) => setFormAttendance(prev => ({ ...prev, date: e.target.value }))}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setFormAttendance(prev => {
+                          const hours = calculateDiffHours(prev.inTime, prev.outTime, newDate);
+                          return { ...prev, date: newDate, workHours: hours };
+                        });
+                      }}
                       required
                     />
                   </div>
@@ -2022,7 +2052,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormAttendance(prev => {
-                            const hours = calculateDiffHours(val, prev.outTime);
+                            const hours = calculateDiffHours(val, prev.outTime, prev.date);
                             return { ...prev, inTime: val, workHours: hours };
                           });
                         }}
@@ -2042,7 +2072,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormAttendance(prev => {
-                            const hours = calculateDiffHours(prev.inTime, val);
+                            const hours = calculateDiffHours(prev.inTime, val, prev.date);
                             return { ...prev, outTime: val, workHours: hours };
                           });
                         }}
@@ -2056,8 +2086,8 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
                       <label style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                         ชั่วโมงทำงานรวม (ชม.)
                       </label>
-                      <small style={{ color: 'var(--secondary)', fontWeight: 600 }}>
-                        คำนวณอัตโนมัติ
+                      <small style={{ color: isWeekend(formAttendance.date) ? '#16a34a' : 'var(--secondary)', fontWeight: 600 }}>
+                        {isWeekend(formAttendance.date) ? 'คำนวณอัตโนมัติ (หักพักเที่ยง 1 ชม.)' : 'คำนวณอัตโนมัติ'}
                       </small>
                     </div>
                     <input 
@@ -2068,8 +2098,10 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
                       value={formAttendance.workHours} 
                       onChange={(e) => setFormAttendance(prev => ({ ...prev, workHours: e.target.value }))}
                     />
-                    <small style={{ color: 'var(--dark-light)', fontSize: '0.75rem', marginTop: '3px', display: 'block' }}>
-                      * สามารถปรับแก้จำนวนชั่วโมงสุทธิได้โดยตรงหากมีเวลาพักหรือ OT
+                    <small style={{ color: isWeekend(formAttendance.date) ? '#15803d' : 'var(--dark-light)', fontSize: '0.75rem', marginTop: '3px', display: 'block' }}>
+                      {isWeekend(formAttendance.date) 
+                        ? '* ระบบคำนวณหักเวลาพักเที่ยง 1 ชั่วโมงให้อัตโนมัติสำหรับวันเสาร์-อาทิตย์ (สามารถปรับแก้ได้โดยตรง)' 
+                        : '* สามารถปรับแก้จำนวนชั่วโมงสุทธิได้โดยตรงหากมีเวลาพักหรือ OT'}
                     </small>
                   </div>
 

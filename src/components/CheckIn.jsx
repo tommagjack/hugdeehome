@@ -380,7 +380,12 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
     const inDate = new Date();
     inDate.setHours(inH || 0, inM || 0, inS || 0, 0);
     const diffMs = Math.max(0, currentTime.getTime() - inDate.getTime());
-    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    let hours = diffMs / (1000 * 60 * 60);
+    const dayOfWeek = currentTime.getDay();
+    if ((dayOfWeek === 0 || dayOfWeek === 6) && hours >= 5) {
+      hours = Math.max(0, hours - 1);
+    }
+    return Math.round(hours * 10) / 10;
   }, [latestCheckInToday, latestCheckOutToday, currentTime]);
 
   // คำนวณตามรอบเงินเดือน (26 ถึง 25)
@@ -539,7 +544,13 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
         const inDate = new Date();
         inDate.setHours(inH || 0, inM || 0, inS || 0, 0);
         const diffMs = Math.max(0, now.getTime() - inDate.getTime());
-        calculatedHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+        let hours = diffMs / (1000 * 60 * 60);
+        const dayOfWeek = now.getDay(); // 0 = อาทิตย์, 6 = เสาร์
+        // วันเสาร์ อาทิตย์ คำนวณหักเวลาพักเที่ยง 1 ชั่วโมง (เมื่อทำงานตั้งแต่ 5 ชั่วโมงขึ้นไป)
+        if ((dayOfWeek === 0 || dayOfWeek === 6) && hours >= 5) {
+          hours = Math.max(0, hours - 1);
+        }
+        calculatedHours = Math.round(hours * 10) / 10;
       }
 
       // 4. บันทึกข้อมูล
