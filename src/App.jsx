@@ -156,6 +156,7 @@ export default function App() {
   const [rewards, setRewards] = useState(() => db.getRewards());
   const [referrals, setReferrals] = useState(() => db.getReferrals());
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
+  const [attendance, setAttendance] = useState(() => db.getAttendance());
 
   // Refs for tracking the last synced database state to perform delta sync (only syncing inserts, updates, and deletes)
   const lastClinicInfoRef = useRef(clinicInfo);
@@ -176,6 +177,7 @@ export default function App() {
   const lastRewardsRef = useRef(rewards);
   const lastReferralsRef = useRef(referrals);
   const lastAssessmentTemplatesRef = useRef(assessmentTemplates);
+  const lastAttendanceRef = useRef(attendance);
 
   const refreshAllLocalStates = () => {
     setClinicInfo(db.getClinicInfo());
@@ -196,6 +198,7 @@ export default function App() {
     setRewards(db.getRewards());
     setReferrals(db.getReferrals());
     setAssessmentTemplates(db.getAssessmentTemplates());
+    setAttendance(db.getAttendance());
   };
 
   // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
@@ -408,6 +411,7 @@ export default function App() {
         lastRewardsRef.current = db.getRewards();
         lastReferralsRef.current = db.getReferrals();
         lastAssessmentTemplatesRef.current = db.getAssessmentTemplates();
+        lastAttendanceRef.current = db.getAttendance();
 
         setIsSyncing(false);
         hasLoadedRef.current = true;
@@ -581,7 +585,8 @@ export default function App() {
       { table: 'users', pk: 'username', setState: setUsers, ref: lastUsersRef, dbSet: db.setUsers },
       { table: 'therapists', pk: 'id', setState: setTherapists, ref: lastTherapistsRef, dbSet: db.setTherapists },
       { table: 'services', pk: 'code', setState: setServices, ref: lastServicesRef, dbSet: db.setServices },
-      { table: 'assessment_templates', pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates }
+      { table: 'assessment_templates', pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates },
+      { table: 'attendance', pk: 'id', setState: setAttendance, ref: lastAttendanceRef, dbSet: db.setAttendance }
     ];
 
     const toCamelCase = (str) => {
@@ -860,6 +865,10 @@ export default function App() {
   useEffect(() => {
     handleSyncDelta('hdh_assessment_templates', 'id', assessmentTemplates, lastAssessmentTemplatesRef, db.setAssessmentTemplates);
   }, [assessmentTemplates]);
+
+  useEffect(() => {
+    handleSyncDelta('hdh_attendance', 'id', attendance, lastAttendanceRef, db.setAttendance);
+  }, [attendance]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
 
@@ -2534,11 +2543,13 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'summaries' && ['Admin', 'OT'].includes(currentUser.role) && (
+        {activeTab === 'summaries' && ['Admin', 'OT', 'Staff'].includes(currentUser.role) && (
           <ServiceSummary 
             patients={patients}
             appointments={appointments}
             therapists={therapists}
+            users={users}
+            attendance={attendance}
             currentUser={currentUser}
           />
         )}
