@@ -2550,6 +2550,7 @@ export default function App() {
             therapists={therapists}
             users={users}
             attendance={attendance}
+            setAttendance={setAttendance}
             currentUser={currentUser}
           />
         )}

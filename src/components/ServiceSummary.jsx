@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { formatPatientNickname } from '../utils/format';
 import { db } from '../utils/db';
+import Swal from 'sweetalert2';
 import { 
   BarChart3, 
   Calendar, 
@@ -15,7 +16,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Users as UsersIcon,
-  Briefcase
+  Briefcase,
+  Plus,
+  Edit2,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 
 export default function ServiceSummary({ 
@@ -24,6 +30,7 @@ export default function ServiceSummary({
   therapists = [],
   users = [],
   attendance: propAttendance = [],
+  setAttendance: propSetAttendance,
   currentUser
 }) {
   // คำนวณรอบเงินเดือนปัจจุบันโดยอัตโนมัติ (วันที่ 26 ของเดือนก่อน ถึง วันที่ 25 ของเดือนปัจจุบัน)
@@ -87,12 +94,20 @@ export default function ServiceSummary({
     }
   }, [propAttendance]);
 
+  // ฟังก์ชันอัปเดตข้อมูล attendance ไปยัง State, LocalStorage และ Cloud
+  const updateAttendance = (newAttendanceList) => {
+    setAttendance(newAttendanceList);
+    db.setAttendance(newAttendanceList);
+    if (typeof propSetAttendance === 'function') {
+      propSetAttendance(newAttendanceList);
+    }
+  };
+
   // วันที่ปัจจุบัน YYYY-MM-DD
   const todayStr = useMemo(() => {
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, []);
 
@@ -108,6 +123,30 @@ export default function ServiceSummary({
   // สถานะเปิด Modal รายละเอียดการเข้างาน (Tab 2)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [modalAttendance, setModalAttendance] = useState(null);
+
+  // สถานะเปิด Modal เพิ่ม/แก้ไขเวลาการทำงาน (Admin Only)
+  const [showAddEditModal, setShowAddEditModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [formAttendance, setFormAttendance] = useState({
+    employeeId: '',
+    date: todayStr,
+    inTime: '08:30:00',
+    outTime: '17:30:00',
+    workHours: 8.0,
+    notes: 'Admin บันทึกเวลาทำงาน'
+  });
+
+  // ฟังก์ชันคำนวณผลต่างชั่วโมงระหว่าง In และ Out
+  const calculateDiffHours = (inT, outT) => {
+    if (!inT || !outT) return 0;
+    const [h1, m1, s1] = inT.split(':').map(Number);
+    const [h2, m2, s2] = outT.split(':').map(Number);
+    const d1 = new Date(2000, 0, 1, h1 || 0, m1 || 0, s1 || 0);
+    const d2 = new Date(2000, 0, 1, h2 || 0, m2 || 0, s2 || 0);
+    const diffMs = Math.max(0, d2.getTime() - d1.getTime());
+    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+  };
 
   // ค้นหาข้อมูลพนักงานจาก users / therapists
   const getEmployeeInfo = (empId, fallbackName = '') => {
@@ -471,12 +510,6 @@ export default function ServiceSummary({
     })).sort((a, b) => b.totalHours - a.totalHours || a.fullname.localeCompare(b.fullname));
   }, [dailyAttendanceRows]);
 
-  // คลิกเปิด Modal รายละเอียดการเข้างาน
-  const handleViewAttendanceDetail = (row) => {
-    setModalAttendance(row);
-    setShowAttendanceModal(true);
-  };
-
   // Helper วันภาษาไทย
   const getThaiDayOfWeek = (dateStr) => {
     if (!dateStr) return '';
@@ -499,6 +532,234 @@ export default function ServiceSummary({
     const day = parseInt(parts[2], 10);
     const d = new Date(year, month, day);
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  // ==========================================
+  // ฟังก์ชัน เพิ่ม / แก้ไข / ลบ สำหรับ ADMIN
+  // ==========================================
+
+  // เปิด Modal เพิ่มการลงเวลา
+  const handleOpenAddModal = () => {
+    const defaultEmp = availableEmployees[0]?.id || '';
+    setFormAttendance({
+      employeeId: defaultEmp,
+      date: todayStr,
+      inTime: '08:30:00',
+      outTime: '17:30:00',
+      workHours: calculateDiffHours('08:30:00', '17:30:00'),
+      notes: 'Admin บันทึกเวลาทำงาน'
+    });
+    setIsEditing(false);
+    setEditingRow(null);
+    setShowAddEditModal(true);
+  };
+
+  // เปิด Modal แก้ไขการลงเวลา
+  const handleOpenEditModal = (row) => {
+    const inT = row.firstInTime ? (row.firstInTime.length === 5 ? `${row.firstInTime}:00` : row.firstInTime) : '08:30:00';
+    const outT = row.latestOutTime ? (row.latestOutTime.length === 5 ? `${row.latestOutTime}:00` : row.latestOutTime) : '17:30:00';
+    const hours = row.workHours > 0 ? row.workHours : calculateDiffHours(inT, outT);
+
+    setFormAttendance({
+      employeeId: row.employeeId,
+      date: row.date,
+      inTime: inT,
+      outTime: outT,
+      workHours: hours,
+      notes: row.outRecord?.notes || row.inRecord?.notes || 'แก้ไขเวลาทำงานโดย Admin'
+    });
+    setIsEditing(true);
+    setEditingRow(row);
+    setShowAddEditModal(true);
+  };
+
+  // ลบรายการลงเวลา
+  const handleDeleteAttendance = async (row) => {
+    const confirmDelete = await Swal.fire({
+      icon: 'warning',
+      title: 'ยืนยันการลบรายการลงเวลา?',
+      html: `ต้องการลบข้อมูลการลงเวลาของ <b>${row.employeeName}</b> (${row.employeeId})<br/>วันที่ <b>${formatThaiDate(row.date)}</b> หรือไม่?<br/><span style="color: #dc2626; font-size: 0.85rem;">*ข้อมูลการลงเวลาในวันนี้จะถูกลบออกจากระบบ</span>`,
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันลบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6B7280'
+    });
+
+    if (confirmDelete.isConfirmed) {
+      const otherLogs = attendance.filter(l => {
+        const lEmpId = String(l.employeeId || l.employee_id || '').toUpperCase().trim();
+        return !(l.date === row.date && lEmpId === row.employeeId);
+      });
+      updateAttendance(otherLogs);
+      if (showAttendanceModal) {
+        setShowAttendanceModal(false);
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'ลบรายการสำเร็จ',
+        text: `ลบข้อมูลการลงเวลาของ ${row.employeeName} วันที่ ${formatThaiDate(row.date)} เรียบร้อยแล้ว`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    }
+  };
+
+  // บันทึกฟอร์ม เพิ่ม / แก้ไข
+  const handleSaveAttendance = async (e) => {
+    e.preventDefault();
+    
+    if (!formAttendance.employeeId) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกพนักงาน', text: 'ต้องระบุพนักงานที่ต้องการบันทึกเวลา' });
+      return;
+    }
+    if (!formAttendance.date) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุวันที่', text: 'ต้องระบุวันที่ทำงาน' });
+      return;
+    }
+    if (!formAttendance.inTime) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุเวลาเข้างาน', text: 'ต้องระบุเวลาเข้างาน' });
+      return;
+    }
+
+    const empInfo = getEmployeeInfo(formAttendance.employeeId);
+    const now = new Date();
+    
+    const formatTime = (t) => {
+      if (!t) return '';
+      const parts = t.split(':');
+      const h = String(parts[0] || '00').padStart(2, '0');
+      const m = String(parts[1] || '00').padStart(2, '0');
+      const s = String(parts[2] || '00').padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    };
+
+    const finalInTime = formatTime(formAttendance.inTime);
+    const finalOutTime = formAttendance.outTime ? formatTime(formAttendance.outTime) : null;
+    const finalWorkHours = parseFloat(formAttendance.workHours) || 0;
+
+    if (isEditing && editingRow) {
+      // อัปเดตรายการเดิม
+      const otherLogs = attendance.filter(l => {
+        const lEmpId = String(l.employeeId || l.employee_id || '').toUpperCase().trim();
+        return !(l.date === editingRow.date && lEmpId === editingRow.employeeId);
+      });
+
+      const inRec = {
+        ...(editingRow.inRecord || {}),
+        id: editingRow.inRecord?.id || `att_${Date.now()}_${editingRow.employeeId}_in`,
+        employeeId: editingRow.employeeId,
+        employeeName: empInfo.fullname,
+        date: formAttendance.date,
+        time: finalInTime,
+        type: 'เข้างาน',
+        workHours: 0,
+        notes: formAttendance.notes ? `${formAttendance.notes} (แก้ไขโดย Admin)` : 'แก้ไขโดย Admin',
+        createdAt: editingRow.inRecord?.createdAt || now.toISOString()
+      };
+
+      const newLogs = [inRec];
+
+      if (finalOutTime) {
+        const outRec = {
+          ...(editingRow.outRecord || {}),
+          id: editingRow.outRecord?.id || `att_${Date.now() + 1}_${editingRow.employeeId}_out`,
+          employeeId: editingRow.employeeId,
+          employeeName: empInfo.fullname,
+          date: formAttendance.date,
+          time: finalOutTime,
+          type: 'เลิกงาน',
+          workHours: finalWorkHours,
+          notes: formAttendance.notes ? `${formAttendance.notes} (แก้ไขโดย Admin)` : 'แก้ไขโดย Admin',
+          createdAt: editingRow.outRecord?.createdAt || now.toISOString()
+        };
+        newLogs.push(outRec);
+      }
+
+      const updatedList = [...newLogs, ...otherLogs];
+      updateAttendance(updatedList);
+
+      setShowAddEditModal(false);
+      Swal.fire({
+        icon: 'success',
+        title: 'บันทึกการแก้ไขสำเร็จ!',
+        text: `อัปเดตเวลาทำงานของ ${empInfo.fullname} วันที่ ${formatThaiDate(formAttendance.date)} เรียบร้อยแล้ว`,
+        timer: 1800,
+        showConfirmButton: false
+      });
+
+    } else {
+      // เพิ่มรายการใหม่
+      const existing = attendance.filter(l => {
+        const lEmpId = String(l.employeeId || l.employee_id || '').toUpperCase().trim();
+        return l.date === formAttendance.date && lEmpId === formAttendance.employeeId;
+      });
+
+      if (existing.length > 0) {
+        const overwrite = await Swal.fire({
+          icon: 'question',
+          title: 'มีรายการลงเวลาในวันนี้อยู่แล้ว',
+          html: `พนักงาน <b>${empInfo.fullname}</b> มีบันทึกเวลาในวันที่ <b>${formatThaiDate(formAttendance.date)}</b> อยู่แล้ว<br/>ต้องการบันทึกแทนที่ข้อมูลเดิมหรือไม่?`,
+          showCancelButton: true,
+          confirmButtonText: 'แทนที่ข้อมูลเดิม',
+          cancelButtonText: 'ยกเลิก',
+          confirmButtonColor: 'var(--primary)'
+        });
+        if (!overwrite.isConfirmed) return;
+      }
+
+      const otherLogs = attendance.filter(l => {
+        const lEmpId = String(l.employeeId || l.employee_id || '').toUpperCase().trim();
+        return !(l.date === formAttendance.date && lEmpId === formAttendance.employeeId);
+      });
+
+      const inRec = {
+        id: `att_${Date.now()}_${formAttendance.employeeId}_in`,
+        employeeId: formAttendance.employeeId,
+        employeeName: empInfo.fullname,
+        date: formAttendance.date,
+        time: finalInTime,
+        type: 'เข้างาน',
+        workHours: 0,
+        notes: formAttendance.notes || 'Admin บันทึกเวลาเข้างาน',
+        createdAt: now.toISOString()
+      };
+
+      const newLogs = [inRec];
+
+      if (finalOutTime) {
+        const outRec = {
+          id: `att_${Date.now() + 1}_${formAttendance.employeeId}_out`,
+          employeeId: formAttendance.employeeId,
+          employeeName: empInfo.fullname,
+          date: formAttendance.date,
+          time: finalOutTime,
+          type: 'เลิกงาน',
+          workHours: finalWorkHours,
+          notes: formAttendance.notes || 'Admin บันทึกเวลาเลิกงาน',
+          createdAt: now.toISOString()
+        };
+        newLogs.push(outRec);
+      }
+
+      const updatedList = [...newLogs, ...otherLogs];
+      updateAttendance(updatedList);
+
+      setShowAddEditModal(false);
+      Swal.fire({
+        icon: 'success',
+        title: 'เพิ่มรายการลงเวลาสำเร็จ!',
+        text: `บันทึกเวลาทำงานของ ${empInfo.fullname} วันที่ ${formatThaiDate(formAttendance.date)} เรียบร้อยแล้ว`,
+        timer: 1800,
+        showConfirmButton: false
+      });
+    }
+  };
+
+  // คลิกเปิด Modal รายละเอียดการเข้างาน
+  const handleViewAttendanceDetail = (row) => {
+    setModalAttendance(row);
+    setShowAttendanceModal(true);
   };
 
   // Export CSV สำหรับชั่วโมงสอนครู
@@ -589,7 +850,7 @@ export default function ServiceSummary({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-      {/* ส่วนหัวหน้าเว็บและปุ่ม Export */}
+      {/* ส่วนหัวหน้าเว็บและปุ่ม Export / เพิ่มการลงเวลา */}
       <div className="page-header" style={{ alignItems: 'flex-start' }}>
         <div>
           <h1 className="page-title">
@@ -603,16 +864,27 @@ export default function ServiceSummary({
           </p>
         </div>
 
-        {currentUser?.role === 'Admin' && (
-          <div className="page-actions">
+        <div className="page-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {currentUser?.role === 'Admin' && activeSummaryTab === 'attendance' && (
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleOpenAddModal}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={16} /> บันทึกเวลาทำงาน
+            </button>
+          )}
+
+          {currentUser?.role === 'Admin' && (
             <button 
               className="btn btn-primary" 
               onClick={activeSummaryTab === 'teaching' ? handleExportCSV : handleExportAttendanceCSV}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
               <Download size={16} /> Export CSV
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* แถบสลับ Tab หลัก: ชั่วโมงสอนครู (OT) vs การเข้าทำงานของพนักงาน */}
@@ -906,10 +1178,22 @@ export default function ServiceSummary({
           {/* ตารางแสดงการเข้าทำงานรายวันของพนักงาน (พนักงาน 1 คนต่อ 1 วัน = 1 แถว) */}
           <div className="card-3xl">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>รายการบันทึกเวลาเข้า-ออกงานรายวัน</h2>
-              <span style={{ fontSize: '0.85rem', color: 'var(--dark-light)' }}>
-                พบทั้งหมด <strong>{dailyAttendanceRows.length}</strong> รายการ
-              </span>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>รายการบันทึกเวลาเข้า-ออกงานรายวัน</h2>
+                <span style={{ fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+                  พบทั้งหมด <strong>{dailyAttendanceRows.length}</strong> รายการ
+                </span>
+              </div>
+
+              {currentUser?.role === 'Admin' && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={handleOpenAddModal}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', padding: '0.4rem 0.85rem' }}
+                >
+                  <Plus size={15} /> บันทึกเวลาทำงาน
+                </button>
+              )}
             </div>
 
             <div className="table-container">
@@ -923,7 +1207,9 @@ export default function ServiceSummary({
                     <th style={{ textAlign: 'center' }}>เวลาเลิกงาน</th>
                     <th style={{ textAlign: 'center' }}>ชั่วโมงรวมในวัน</th>
                     <th style={{ textAlign: 'center' }}>พิกัดสถานที่</th>
-                    <th style={{ textAlign: 'center' }}>ดูรายละเอียด</th>
+                    <th style={{ textAlign: 'center' }}>
+                      {currentUser?.role === 'Admin' ? 'จัดการ / รายละเอียด' : 'ดูรายละเอียด'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1049,8 +1335,8 @@ export default function ServiceSummary({
                             <span style={{ color: 'var(--dark-light)', fontSize: '0.8rem' }}>ไม่มีพิกัด</span>
                           )}
                         </td>
-                        <td>
-                          <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
                             <button 
                               className="btn btn-light btn-icon-only" 
                               title="ดูรายละเอียดการลงเวลาวันนี้"
@@ -1058,6 +1344,28 @@ export default function ServiceSummary({
                             >
                               <Eye size={16} color="var(--dark)" />
                             </button>
+
+                            {currentUser?.role === 'Admin' && (
+                              <>
+                                <button 
+                                  className="btn btn-light btn-icon-only" 
+                                  title="แก้ไขเวลาทำงาน"
+                                  onClick={() => handleOpenEditModal(row)}
+                                  style={{ color: '#0284c7' }}
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+
+                                <button 
+                                  className="btn btn-light btn-icon-only" 
+                                  title="ลบรายการนี้"
+                                  onClick={() => handleDeleteAttendance(row)}
+                                  style={{ color: '#dc2626' }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1289,9 +1597,193 @@ export default function ServiceSummary({
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowAttendanceModal(false)}>ปิดหน้าต่าง</button>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: currentUser?.role === 'Admin' ? 'space-between' : 'flex-end', alignItems: 'center', width: '100%' }}>
+              {currentUser?.role === 'Admin' && (
+                <button 
+                  className="btn btn-light" 
+                  style={{ color: '#dc2626', borderColor: '#fca5a5', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => handleDeleteAttendance(modalAttendance)}
+                >
+                  <Trash2 size={16} /> ลบรายการนี้
+                </button>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {currentUser?.role === 'Admin' && (
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => {
+                      setShowAttendanceModal(false);
+                      handleOpenEditModal(modalAttendance);
+                    }}
+                  >
+                    <Edit2 size={16} /> แก้ไขเวลาทำงาน
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={() => setShowAttendanceModal(false)}>ปิดหน้าต่าง</button>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: บันทึก/แก้ไขเวลาการทำงานของพนักงาน (Admin Only)     */}
+      {/* ======================================================== */}
+      {showAddEditModal && (
+        <div className="modal-overlay">
+          <div className="modal-content-wrapper" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontWeight: 700, margin: 0 }}>
+                  {isEditing ? 'แก้ไขเวลาการทำงาน' : 'บันทึกเวลาทำงานพนักงาน'}
+                </h3>
+                <span style={{ fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+                  {isEditing ? `รหัสพนักงาน: ${formAttendance.employeeId}` : 'เพิ่มข้อมูลการลงเวลาย้อนหลังโดย Admin'}
+                </span>
+              </div>
+              <button className="close-modal-btn" onClick={() => setShowAddEditModal(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleSaveAttendance}>
+              <div className="modal-body">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                  {/* เลือกพนักงาน */}
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                      พนักงาน <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    {isEditing ? (
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        value={`${getEmployeeInfo(formAttendance.employeeId).fullname} [${formAttendance.employeeId}]`} 
+                        disabled 
+                        style={{ backgroundColor: '#F5F5F0', color: '#666' }}
+                      />
+                    ) : (
+                      <select
+                        className="form-control"
+                        value={formAttendance.employeeId}
+                        onChange={(e) => setFormAttendance(prev => ({ ...prev, employeeId: e.target.value }))}
+                        required
+                      >
+                        <option value="">-- กรุณาเลือกพนักงาน --</option>
+                        {availableEmployees.map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            [{emp.id}] {emp.fullname} {emp.nickname ? `(${emp.nickname})` : ''} - {emp.position}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* วันที่ทำงาน */}
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                      วันที่ทำงาน <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="date" 
+                      className="form-control" 
+                      value={formAttendance.date} 
+                      onChange={(e) => setFormAttendance(prev => ({ ...prev, date: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  {/* เวลาเข้างาน และ เวลาเลิกงาน */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                        เวลาเข้างาน <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input 
+                        type="time" 
+                        step="1"
+                        className="form-control" 
+                        value={formAttendance.inTime} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormAttendance(prev => {
+                            const hours = calculateDiffHours(val, prev.outTime);
+                            return { ...prev, inTime: val, workHours: hours };
+                          });
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                        เวลาเลิกงาน
+                      </label>
+                      <input 
+                        type="time" 
+                        step="1"
+                        className="form-control" 
+                        value={formAttendance.outTime} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormAttendance(prev => {
+                            const hours = calculateDiffHours(prev.inTime, val);
+                            return { ...prev, outTime: val, workHours: hours };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ชั่วโมงทำงานรวม */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        ชั่วโมงทำงานรวม (ชม.)
+                      </label>
+                      <small style={{ color: 'var(--secondary)', fontWeight: 600 }}>
+                        คำนวณอัตโนมัติ
+                      </small>
+                    </div>
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      min="0"
+                      className="form-control" 
+                      value={formAttendance.workHours} 
+                      onChange={(e) => setFormAttendance(prev => ({ ...prev, workHours: e.target.value }))}
+                    />
+                    <small style={{ color: 'var(--dark-light)', fontSize: '0.75rem', marginTop: '3px', display: 'block' }}>
+                      * สามารถปรับแก้จำนวนชั่วโมงสุทธิได้โดยตรงหากมีเวลาพักหรือ OT
+                    </small>
+                  </div>
+
+                  {/* หมายเหตุ */}
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                      หมายเหตุ / รายละเอียดเพิ่มเติม
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="เช่น บันทึกเวลาย้อนหลัง, แก้ไขเวลาเข้างาน, ลืมกด Check-in..." 
+                      value={formAttendance.notes} 
+                      onChange={(e) => setFormAttendance(prev => ({ ...prev, notes: e.target.value }))}
+                    />
+                  </div>
+
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddEditModal(false)}>
+                  ยกเลิก
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Save size={16} /> บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
