@@ -536,7 +536,7 @@ export default function CheckIn({ clinicInfo, users = [] }) {
       minHeight: '100vh',
       backgroundColor: '#FEF8F1',
       color: '#4A4036',
-      fontFamily: 'Prompt, sans-serif',
+      fontFamily: "'Noto Sans Thai', var(--font-family), -apple-system, sans-serif",
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -629,7 +629,8 @@ export default function CheckIn({ clinicInfo, users = [] }) {
           <div style={{
             fontSize: '3rem',
             fontWeight: 800,
-            fontFamily: 'monospace',
+            fontFamily: "'Noto Sans Thai', monospace",
+            fontVariantNumeric: 'tabular-nums',
             color: '#4A4036',
             letterSpacing: '2px',
             lineHeight: 1,

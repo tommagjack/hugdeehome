@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Kanit:wght@300;400;500;600;700&display=swap');
 
 :root {
   --primary: #d3b38c;       /* ทองอ่อน */
@@ -24,7 +24,7 @@
   --shadow-md: 0 10px 15px -3px rgba(74, 64, 54, 0.08), 0 4px 6px -2px rgba(74, 64, 54, 0.04);
   --shadow-lg: 0 20px 25px -5px rgba(74, 64, 54, 0.1), 0 10px 10px -5px rgba(74, 64, 54, 0.04);
   
-  --font-family: 'Kanit', sans-serif;
+  --font-family: 'Noto Sans Thai', 'Kanit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
@@ -50,6 +50,18 @@ body {
 
 button, input, select, textarea {
   font-family: var(--font-family);
+}
+
+.checkin-container,
+.checkin-container button,
+.checkin-container input,
+.checkin-container select,
+.checkin-container textarea {
+  font-family: var(--font-family) !important;
+}
+
+.swal2-popup, .swal2-title, .swal2-html-container, .swal2-confirm, .swal2-cancel {
+  font-family: var(--font-family) !important;
 }
 
 /* Scrollbar */
@@ -1163,7 +1175,7 @@ button, input, select, textarea {
   box-shadow: 0 8px 30px rgba(0,0,0,0.5);
   box-sizing: border-box;
   color: #000 !important;
-  font-family: 'Kanit', sans-serif !important;
+  font-family: var(--font-family) !important;
   position: relative;
   font-size: 13px;
   line-height: 1.4;
