@@ -272,6 +272,24 @@ export default async function handler(req, res) {
         text: `เชื่อมต่อระบบแจ้งเตือนนัดหมาย คลินิกเด็กบ้านฮักดี สำเร็จเรียบร้อยแล้วค่ะ!\n\nข้อมูลผู้ป่วยที่เชื่อมโยง:\n- ${patientNames}\n\nเมื่อใกล้ถึงวันนัดหมาย คุณพ่อคุณแม่จะได้รับการแจ้งเตือนและบัตรยืนยันนัดส่งเข้าสู่ห้องแชทนี้โดยตรงจากทางคลินิกค่ะ 🤎`
       }];
     } else if (type === 'employee_welcome') {
+      if (employeeId && lineUserId) {
+        try {
+          const empClean = String(employeeId).trim().toUpperCase();
+          const avatarPayload = JSON.stringify({ line_user_id: lineUserId });
+          await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?employee_id=eq.${empClean}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': dbKey,
+              'Authorization': 'Bearer ' + dbKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ avatar_file: avatarPayload })
+          });
+        } catch (dbErr) {
+          console.warn('Could not persist line_user_id to Supabase in employee_welcome:', dbErr);
+        }
+      }
+
       messages = [{
         type: 'text',
         text: `✅ เชื่อมต่อระบบแจ้งเตือนการลงเวลาสำเร็จ!\n\nสวัสดีค่ะ คุณ${employeeName || ''} (${employeeId || ''})\nท่านได้ผูกบัญชี LINE กับระบบลงเวลาเข้า-ออกงาน คลินิกบ้านฮักดี เรียบร้อยแล้ว\n\nเมื่อท่านทำการลงเวลาเข้างานหรือเลิกงาน ระบบจะส่งการแจ้งเตือนสรุปมายังห้องแชทนี้โดยอัตโนมัติค่ะ 🤎`

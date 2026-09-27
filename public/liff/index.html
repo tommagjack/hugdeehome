@@ -222,6 +222,112 @@
       const time = urlParams.get('time');
       const therapist = urlParams.get('therapist');
 
+      // 1.0 โหมดผูกบัญชี LINE พนักงานกับระบบลงเวลาอัตโนมัติ (1-Click Auto Link)
+      const employeeId = urlParams.get('employeeId');
+      const returnUrl = urlParams.get('returnUrl');
+
+      if (action === 'employee_link' || (employeeId && !appId && !nickname)) {
+        document.getElementById('sending-view').style.display = 'block';
+        document.getElementById('sending-title').innerText = 'กำลังเชื่อมต่อบัญชี LINE OA...';
+        document.getElementById('status-text').innerHTML = `
+          <div style="font-size: 1rem; color: #4A4036; margin-bottom: 0.5rem;">
+            รหัสพนักงาน: <strong>${employeeId}</strong>
+          </div>
+          <div style="font-size: 0.85rem; color: #8E7F70;">
+            ระบบกำลังตรวจสอบและผูกบัญชี LINE อัตโนมัติ กรุณารอสักครู่...
+          </div>
+        `;
+        document.getElementById('linking-view').style.display = 'none';
+
+        try {
+          if (!liffId) {
+            const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id&limit=1`, {
+              headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+            });
+            const data = await response.json();
+            if (data && data[0]) liffId = data[0].liff_id;
+          }
+
+          if (!liffId) throw new Error('ไม่พบการตั้งค่า LIFF ID');
+
+          await liff.init({ liffId });
+          if (!liff.isLoggedIn()) {
+            liff.login();
+            return;
+          }
+
+          const profile = await liff.getProfile();
+          const lineUid = profile.userId;
+
+          const empClean = String(employeeId).trim().toUpperCase();
+          const avatarPayload = JSON.stringify({ line_user_id: lineUid });
+
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/users?employee_id=eq.${empClean}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': apiKey,
+                'Authorization': 'Bearer ' + apiKey,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ avatar_file: avatarPayload })
+            });
+          } catch(dbErr) {
+            console.warn('Could not patch avatar_file in users:', dbErr);
+          }
+
+          try {
+            await fetch('/api/send-line-message', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'employee_welcome',
+                lineUserId: lineUid,
+                employeeId: empClean,
+                employeeName: profile.displayName
+              })
+            });
+          } catch(msgErr) {
+            console.warn('Welcome message error:', msgErr);
+          }
+
+          const sep = (returnUrl || '/#/checkin').includes('?') ? '&' : '?';
+          const returnWithParam = `${returnUrl || '/#/checkin'}${sep}line_linked=true&emp=${encodeURIComponent(empClean)}&line_id=${encodeURIComponent(lineUid)}&name=${encodeURIComponent(profile.displayName || '')}`;
+
+          document.getElementById('sending-title').innerText = 'ผูกบัญชี LINE OA สำเร็จ! 🎉';
+          document.getElementById('status-text').innerHTML = `
+            <div style="text-align: center; padding: 1rem;">
+              ${profile.pictureUrl ? `<img src="${profile.pictureUrl}" style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #2E7D32; margin-bottom: 0.75rem;" alt="Profile" />` : ''}
+              <div style="font-size: 1.2rem; font-weight: bold; color: #2E7D32;">
+                ${profile.displayName}
+              </div>
+              <div style="font-size: 0.95rem; color: #4A4036; margin: 0.5rem 0;">
+                ผูกกับรหัสพนักงาน <b>${empClean}</b> เรียบร้อยแล้วค่ะ
+              </div>
+              <p style="font-size: 0.85rem; color: #8E7F70; line-height: 1.5;">
+                ระบบจะส่งการแจ้งเตือนสรุปเวลาเข้างานและเลิกงานเข้า LINE นี้โดยอัตโนมัติ ⏰
+              </p>
+              <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                <a href="${returnWithParam}" class="btn btn-success" style="text-decoration: none;">
+                  กลับไปที่ระบบลงเวลา (Check-in)
+                </a>
+              </div>
+            </div>
+          `;
+
+          if (returnUrl) {
+            setTimeout(() => {
+              window.location.href = returnWithParam;
+            }, 2500);
+          }
+
+        } catch (e) {
+          document.getElementById('sending-title').innerText = 'เกิดข้อผิดพลาด ❌';
+          document.getElementById('status-text').innerText = 'ไม่สามารถผูกบัญชี LINE ได้: ' + e.message;
+        }
+        return;
+      }
+
       // 1.1 โหมดการยืนยันการนัดหมายโดยผู้ปกครอง (ทำงานโดยตรงไม่ต้องรอล็อกอิน)
       if (action === 'confirm' && appId) {
         document.getElementById('sending-view').style.display = 'block';

@@ -149,17 +149,30 @@ export const db = {
   getUsers: () => {
     const data = get(KEYS.USERS, mock.INITIAL_USERS);
     if (Array.isArray(data)) {
-      return data.map(u => ({
-        ...u,
-        password: u.password || (u.username === 'admin' ? 'admin0100' : '123456'),
-        avatarFile: safeJsonParse(u.avatarFile),
-        citizenIdDoc: safeJsonParse(u.citizenIdDoc),
-        houseRegDoc: safeJsonParse(u.houseRegDoc),
-        bankBookDoc: safeJsonParse(u.bankBookDoc),
-        licenseDoc: safeJsonParse(u.licenseDoc),
-        otherDoc: safeJsonParse(u.otherDoc),
-        contractDoc: safeJsonParse(u.contractDoc)
-      }));
+      return data.map(u => {
+        const empCode = String(u.employeeId || u.employee_id || u.username || '').toUpperCase().trim();
+        const savedLine = localStorage.getItem(`hdh_line_user_${empCode}`) || '';
+        let lineId = u.lineUserId || u.line_user_id || savedLine || '';
+        if (!lineId && u.avatarFile) {
+          const av = typeof u.avatarFile === 'string' ? safeJsonParse(u.avatarFile) : u.avatarFile;
+          if (av && (av.line_user_id || av.lineUserId)) {
+            lineId = av.line_user_id || av.lineUserId;
+          }
+        }
+        return {
+          ...u,
+          lineUserId: lineId,
+          line_user_id: lineId,
+          password: u.password || (u.username === 'admin' ? 'admin0100' : '123456'),
+          avatarFile: safeJsonParse(u.avatarFile),
+          citizenIdDoc: safeJsonParse(u.citizenIdDoc),
+          houseRegDoc: safeJsonParse(u.houseRegDoc),
+          bankBookDoc: safeJsonParse(u.bankBookDoc),
+          licenseDoc: safeJsonParse(u.licenseDoc),
+          otherDoc: safeJsonParse(u.otherDoc),
+          contractDoc: safeJsonParse(u.contractDoc)
+        };
+      });
     }
     return data;
   },
@@ -288,6 +301,53 @@ export const db = {
 
   getAttendance: () => get(KEYS.ATTENDANCE, []),
   setAttendance: (data) => set(KEYS.ATTENDANCE, data),
+
+  saveEmployeeLineUser: async (employeeId, lineUserId) => {
+    return await saveEmployeeLineUser(employeeId, lineUserId);
+  }
+};
+
+// --- ฟังก์ชันบันทึกการผูกบัญชี LINE OA ของพนักงาน ---
+export const saveEmployeeLineUser = async (employeeId, lineUserId) => {
+  if (!employeeId || !lineUserId) return false;
+  const empClean = String(employeeId).trim().toUpperCase();
+
+  // 1. จัดเก็บลง LocalStorage hdh_users
+  try {
+    const raw = localStorage.getItem(KEYS.USERS);
+    const users = raw ? JSON.parse(raw) : (mock.INITIAL_USERS || []);
+    let updated = false;
+    const newUsers = users.map(u => {
+      const uEmp = String(u.employeeId || u.employee_id || u.username || '').toUpperCase().trim();
+      if (uEmp === empClean) {
+        updated = true;
+        return {
+          ...u,
+          lineUserId,
+          line_user_id: lineUserId
+        };
+      }
+      return u;
+    });
+    if (updated) {
+      localStorage.setItem(KEYS.USERS, JSON.stringify(newUsers));
+    }
+  } catch (e) {
+    console.warn('Error updating local users with lineUserId:', e);
+  }
+
+  // 2. จัดเก็บ mapping สำรองใน LocalStorage
+  localStorage.setItem(`hdh_line_user_${empClean}`, lineUserId);
+
+  // 3. บันทึกลง Supabase users
+  try {
+    const avatarPayload = JSON.stringify({ line_user_id: lineUserId });
+    await supabase.from('users').update({ avatar_file: avatarPayload }).eq('employee_id', empClean);
+  } catch (err) {
+    console.warn('Could not update avatar_file in Supabase users:', err);
+  }
+
+  return true;
 };
 
 // --- ฟังก์ชันดึง Google Apps Script URL ที่ถูกต้อง ---
@@ -597,6 +657,15 @@ export const syncFromSupabase = async () => {
 
           finalData = finalData.map(dbUser => {
             const localUser = localUserMap.get(dbUser.username);
+            const empCode = String(dbUser.employeeId || dbUser.employee_id || dbUser.username || '').toUpperCase().trim();
+            const savedLine = localStorage.getItem(`hdh_line_user_${empCode}`) || '';
+            let lineId = localUser?.lineUserId || localUser?.line_user_id || dbUser.lineUserId || dbUser.line_user_id || savedLine || '';
+            if (!lineId && dbUser.avatarFile) {
+              const av = typeof dbUser.avatarFile === 'string' ? safeJsonParse(dbUser.avatarFile) : dbUser.avatarFile;
+              if (av && (av.line_user_id || av.lineUserId)) {
+                lineId = av.line_user_id || av.lineUserId;
+              }
+            }
             if (localUser) {
               let bestAvatar = localUser.avatarUrl || dbUser.avatarUrl || '';
               if (bestAvatar.includes('pic.in.th')) {
@@ -605,10 +674,16 @@ export const syncFromSupabase = async () => {
               return {
                 ...dbUser,
                 avatarUrl: bestAvatar,
+                lineUserId: lineId,
+                line_user_id: lineId,
                 password: localUser.password || dbUser.password || (dbUser.username === 'admin' ? 'admin0100' : '123456')
               };
             }
-            return dbUser;
+            return {
+              ...dbUser,
+              lineUserId: lineId,
+              line_user_id: lineId
+            };
           });
 
           const existingNames = new Set(finalData.map(u => u.username));
