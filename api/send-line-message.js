@@ -118,10 +118,19 @@ export default async function handler(req, res) {
       } catch (e) {
         console.error('Error fetching patient LINE User ID in backend:', e);
       }
+
+      if (!targetLineUserId) {
+        return res.status(200).json({ 
+          success: false, 
+          status: 'not_linked', 
+          message: 'ผู้ปกครองของคนไข้คนนี้ยังไม่ได้ผูกบัญชี LINE เข้ากับระบบ',
+          liffUrl: liffId ? `https://liff.line.me/${liffId}` : ''
+        });
+      }
     } else if (['attendance', 'attendance_reminder', 'employee_welcome'].includes(type) && !targetLineUserId && employeeId) {
       // ค้นหา line_user_id ของพนักงานจากตาราง users หรือ attendance
       try {
-        const userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?employee_id=eq.${employeeId}&select=line_user_id`, {
+        const userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?employee_id=eq.${employeeId}&select=line_user_id,avatar_file`, {
           headers: {
             'apikey': dbKey,
             'Authorization': 'Bearer ' + dbKey
@@ -129,8 +138,15 @@ export default async function handler(req, res) {
         });
         if (userRes.ok) {
           const uData = await userRes.json();
-          if (uData && uData[0] && uData[0].line_user_id) {
-            targetLineUserId = uData[0].line_user_id;
+          if (uData && uData[0]) {
+            if (uData[0].line_user_id) {
+              targetLineUserId = uData[0].line_user_id;
+            } else if (uData[0].avatar_file) {
+              try {
+                const parsed = JSON.parse(uData[0].avatar_file);
+                if (parsed?.line_user_id) targetLineUserId = parsed.line_user_id;
+              } catch (e) {}
+            }
           }
         }
       } catch (e) {
@@ -154,16 +170,6 @@ export default async function handler(req, res) {
         } catch (e) {
           // ignore
         }
-      }
-    }
-
-      if (!targetLineUserId) {
-        return res.status(200).json({ 
-          success: false, 
-          status: 'not_linked', 
-          message: 'ผู้ปกครองของคนไข้คนนี้ยังไม่ได้ผูกบัญชี LINE เข้ากับระบบ',
-          liffUrl: liffId ? `https://liff.line.me/${liffId}` : ''
-        });
       }
     }
 
