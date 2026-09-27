@@ -1845,6 +1845,7 @@ export default function App() {
       <CheckIn 
         clinicInfo={clinicInfo}
         users={users}
+        setUsers={setUsers}
       />
     );
   }

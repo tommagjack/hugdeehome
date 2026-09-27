@@ -62,9 +62,10 @@ const getPayPeriodRange = (refDate = new Date()) => {
   return { startDateStr, endDateStr, label };
 };
 
-export default function CheckIn({ clinicInfo, users = [] }) {
+export default function CheckIn({ clinicInfo, users = [], setUsers }) {
   // เวลาปัจจุบันเดินแบบ Real-time
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [lineUpdatedTick, setLineUpdatedTick] = useState(0);
 
   // รหัสพนักงานที่พิมพ์ (บังคับตัวพิมพ์ใหญ่)
   const [employeeId, setEmployeeId] = useState(() => {
@@ -212,6 +213,17 @@ export default function CheckIn({ clinicInfo, users = [] }) {
       )
     ) || null;
   }, [employeeId, users]);
+
+  // ตรวจสอบสถานะการผูก LINE OA ของพนักงานคนนี้
+  const isEmployeeLineLinked = useMemo(() => {
+    if (!employeeId) return false;
+    const empClean = employeeId.trim().toUpperCase();
+    return !!(
+      currentEmployee?.line_user_id || 
+      currentEmployee?.lineUserId || 
+      localStorage.getItem(`hdh_line_user_${empClean}`)
+    );
+  }, [employeeId, currentEmployee, lineUpdatedTick]);
 
   // ประวัติการลงเวลาของพนักงานคนนี้
   const employeeLogs = useMemo(() => {
@@ -512,7 +524,7 @@ export default function CheckIn({ clinicInfo, users = [] }) {
   };
 
   // ผูกบัญชี LINE OA สำหรับพนักงาน
-  const handleAutoLinkLine = async () => {
+  const handleAutoLinkLine = () => {
     if (!employeeId) {
       Swal.fire({
         icon: 'warning',
@@ -526,60 +538,6 @@ export default function CheckIn({ clinicInfo, users = [] }) {
     const empClean = employeeId.trim().toUpperCase();
     const currentLineId = currentEmployee?.line_user_id || currentEmployee?.lineUserId || localStorage.getItem(`hdh_line_user_${empClean}`) || '';
 
-    // 1. ตรวจสอบว่าเปิดผ่าน LINE LIFF In-App Browser และล็อกอินอยู่หรือไม่
-    if (window.liff && window.liff.isLoggedIn && window.liff.isLoggedIn()) {
-      try {
-        Swal.fire({
-          title: 'กำลังเชื่อมต่อ LINE OA...',
-          html: 'กำลังตรวจสอบข้อมูลบัญชี LINE ของท่านอัตโนมัติ กรุณารอสักครู่',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          }
-        });
-
-        const profile = await window.liff.getProfile();
-        const lineUid = profile.userId;
-
-        // บันทึกการผูกบัญชีลงในเครื่องและ Supabase
-        await saveEmployeeLineUser(empClean, lineUid);
-
-        // ส่งข้อความยืนยันเข้า LINE OA
-        try {
-          await sendAttendanceLineNotification({
-            type: 'employee_welcome',
-            lineUserId: lineUid,
-            employeeId: empClean,
-            employeeName: profile.displayName || currentEmployee?.fullname || empClean
-          });
-        } catch (err) {
-          console.warn('Welcome message error:', err);
-        }
-
-        await Swal.fire({
-          icon: 'success',
-          title: 'ผูกบัญชี LINE OA สำเร็จ! 🎉',
-          html: `
-            <div style="text-align: center; padding: 0.5rem;">
-              ${profile.pictureUrl ? `<img src="${profile.pictureUrl}" style="width: 68px; height: 68px; border-radius: 50%; border: 3px solid #16A34A; margin-bottom: 0.5rem;" alt="Profile" />` : ''}
-              <div style="font-size: 1.15rem; font-weight: bold; color: #166534;">${profile.displayName}</div>
-              <div style="font-size: 0.95rem; color: #4A4036; margin: 4px 0;">รหัสพนักงาน: <b>${empClean}</b></div>
-              <div style="font-size: 0.85rem; color: #6B7280; margin-top: 8px; line-height: 1.5;">
-                ระบบได้ผูกบัญชีและส่งข้อความยืนยันเข้า LINE เรียบร้อยแล้วค่ะ ⏰
-              </div>
-            </div>
-          `,
-          confirmButtonColor: '#16A34A'
-        });
-
-        window.location.reload();
-        return;
-      } catch (liffErr) {
-        console.warn('In-page LIFF profile fetch error:', liffErr);
-      }
-    }
-
-    // 2. หากเปิดในเบราว์เซอร์ปกติ: เปิด Modal เชื่อมต่อ LINE OA ของพนักงานคนนี้โดยตรง
     setLineUserIdInput(currentLineId);
     setShowLineModal(true);
   };
@@ -603,6 +561,17 @@ export default function CheckIn({ clinicInfo, users = [] }) {
     try {
       // 1. บันทึกเข้าข้อมูลพนักงาน
       await saveEmployeeLineUser(empClean, trimmedId);
+
+      // อัปเดต state users หากมี
+      if (typeof setUsers === 'function') {
+        setUsers(prev => prev.map(u => {
+          if (String(u.employeeId || u.employee_id || u.username).toUpperCase() === empClean) {
+            return { ...u, lineUserId: trimmedId, line_user_id: trimmedId };
+          }
+          return u;
+        }));
+      }
+      setLineUpdatedTick(t => t + 1);
 
       // 2. ส่งข้อความยินดีต้อนรับทดสอบการเชื่อมต่อ
       const notifyResult = await sendAttendanceLineNotification({
@@ -871,7 +840,7 @@ export default function CheckIn({ clinicInfo, users = [] }) {
               </div>
 
               {/* ปุ่ม/สถานะ LINE */}
-              {currentEmployee.line_user_id || currentEmployee.lineUserId ? (
+              {isEmployeeLineLinked ? (
                 <button
                   type="button"
                   onClick={handleAutoLinkLine}
@@ -1087,10 +1056,10 @@ export default function CheckIn({ clinicInfo, users = [] }) {
             onClick={handleAutoLinkLine}
             style={{
               padding: '8px 12px',
-              backgroundColor: (currentEmployee?.line_user_id || currentEmployee?.lineUserId) ? '#F0FDF4' : '#fff',
-              border: (currentEmployee?.line_user_id || currentEmployee?.lineUserId) ? '1px solid #86EFAC' : '1px solid #DCD1C4',
+              backgroundColor: isEmployeeLineLinked ? '#F0FDF4' : '#fff',
+              border: isEmployeeLineLinked ? '1px solid #86EFAC' : '1px solid #DCD1C4',
               borderRadius: '10px',
-              color: (currentEmployee?.line_user_id || currentEmployee?.lineUserId) ? '#166534' : '#4A4036',
+              color: isEmployeeLineLinked ? '#166534' : '#4A4036',
               fontSize: '0.78rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -1099,11 +1068,11 @@ export default function CheckIn({ clinicInfo, users = [] }) {
               justifyContent: 'center',
               gap: '6px',
               transition: 'all 0.2s',
-              boxShadow: (currentEmployee?.line_user_id || currentEmployee?.lineUserId) ? '0 1px 3px rgba(22, 101, 52, 0.1)' : 'none'
+              boxShadow: isEmployeeLineLinked ? '0 1px 3px rgba(22, 101, 52, 0.1)' : 'none'
             }}
           >
             <MessageCircle size={15} color="#16A34A" />
-            <span>{(currentEmployee?.line_user_id || currentEmployee?.lineUserId) ? 'ผูก LINE OA แล้ว ✓' : 'เชื่อมต่อ LINE OA'}</span>
+            <span>{isEmployeeLineLinked ? 'ผูก LINE OA แล้ว ✓' : 'เชื่อมต่อ LINE OA'}</span>
           </button>
         </div>
 
