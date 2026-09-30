@@ -551,6 +551,7 @@ export default function ReceiptHistory({
         const query = searchQuery.trim().toLowerCase();
         const matchesQuery = 
           String(r.id || '').toLowerCase().includes(query) ||
+          (r.parentBillId && String(r.parentBillId).toLowerCase().includes(query)) ||
           String(r.hn || '').toLowerCase().includes(query) ||
           String(r.patientName || '').toLowerCase().includes(query) ||
           (r.patientNickname && String(r.patientNickname).toLowerCase().includes(query));
@@ -716,7 +717,12 @@ export default function ReceiptHistory({
                   return (
                     <tr key={r.id} style={{ opacity: isVoided ? 0.6 : 1 }}>
                       <td style={{ fontWeight: 700, color: 'var(--secondary)', fontFamily: 'monospace' }}>
-                        {r.id}
+                        <div>{r.id}</div>
+                        {r.parentBillId && (
+                          <div style={{ fontSize: '0.72rem', color: '#0284c7', fontWeight: 600, marginTop: '2px', fontFamily: 'var(--font-base, sans-serif)' }}>
+                            [บิลย่อย: {r.parentBillId}]
+                          </div>
+                        )}
                       </td>
                       <td>{new Date(r.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
                       <td>
@@ -833,11 +839,28 @@ export default function ReceiptHistory({
                           {/* บิลพิมพ์ */}
                           <button 
                             className="btn btn-light btn-icon-only" 
-                            title="พิมพ์บิล (PDF)"
+                            title={r.parentBillId ? "พิมพ์บิลย่อยนี้ (PDF)" : "พิมพ์บิล (PDF)"}
                             onClick={() => onPrintReceipt(r.id)}
                           >
                             <Printer size={16} color="var(--info)" />
                           </button>
+
+                          {/* ปุ่มพิมพ์บิลทุกใบในชุดสำหรับ Split Bill */}
+                          {r.parentBillId && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title={`พิมพ์ทุกบิลย่อยในชุด (${r.parentBillId})`}
+                              style={{ backgroundColor: '#e0f2fe' }}
+                              onClick={() => {
+                                const siblingIds = receipts
+                                  .filter(item => item.parentBillId === r.parentBillId || item.id === r.parentBillId)
+                                  .map(item => item.id);
+                                onPrintReceipt(siblingIds);
+                              }}
+                            >
+                              <Printer size={16} color="#0284c7" />
+                            </button>
+                          )}
 
                           {/* บิลดราฟท์ดึงกลับไปจ่ายเงินต่อ */}
                           {isDraft && (

@@ -11,7 +11,10 @@ import {
   Image as ImageIcon,
   CheckCircle,
   FileCheck2,
-  Gift
+  Gift,
+  Users,
+  Layers,
+  Split
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -91,6 +94,16 @@ export default function ReceiptPOS({
   const [newDiscountReason, setNewDiscountReason] = useState('');
   const [newDiscountValue, setNewDiscountValue] = useState('');
   const [newDiscountType, setNewDiscountType] = useState('flat'); // flat, percentage
+
+  // --- สถานะสำหรับโหมดแบ่งบิล (Split Bill) ---
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [activeSplitIndex, setActiveSplitIndex] = useState(0);
+  const [splitBills, setSplitBills] = useState([]);
+  const [paymentMode, setPaymentMode] = useState('consolidated'); // 'consolidated' = ชำระรวมยอดเดียว, 'separate' = ชำระแยกบิล
+  const [consolidatedPaymentMethod, setConsolidatedPaymentMethod] = useState('เงินสด');
+  const [consolidatedBankId, setConsolidatedBankId] = useState('');
+  const [consolidatedSlipAttached, setConsolidatedSlipAttached] = useState(false);
+  const [consolidatedSlipName, setConsolidatedSlipName] = useState('');
 
   // Sync patientSearchText when selectedHn updates
   useEffect(() => {
@@ -188,7 +201,7 @@ export default function ReceiptPOS({
     });
   }, [promotions, receipts]);
 
-  // คำนวณรหัสบิลใบเสร็จลำดับถัดไป (HDRYYYYMM-XXXX)
+  // คำนวณรหัสบิลใบเสร็จลำดับถัดไป (HDRYYYYMM-XXXX) - รองรับการตัดรหัสย่อย -01, -02 ออก
   const generateNextBillId = () => {
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -201,9 +214,9 @@ export default function ReceiptPOS({
     }
 
     const serials = matchingReceipts.map(r => {
-      const parts = r.id.split('-');
-      const serialPart = parts[parts.length - 1];
-      return parseInt(serialPart, 10) || 0;
+      const withoutPrefix = r.id.slice(prefix.length);
+      const baseNumStr = withoutPrefix.split('-')[0];
+      return parseInt(baseNumStr, 10) || 0;
     });
     const maxSerial = Math.max(...serials);
     const nextSerial = maxSerial + 1;
@@ -211,8 +224,392 @@ export default function ReceiptPOS({
     return `${prefix}${padded}`;
   };
 
+  // สร้างอ็อบเจกต์บิลย่อยว่าง
+  const createEmptySplitBill = (index) => ({
+    idSuffix: String(index + 1).padStart(2, '0'),
+    hn: '',
+    patientSearchText: '',
+    cart: [],
+    discountType: 'flat',
+    discountValue: 0,
+    discountReason: '',
+    selectedPromoCode: '',
+    paymentMethod: 'เงินสด',
+    selectedBankId: '',
+    slipAttached: false,
+    slipName: '',
+    status: 'ชำระเงินแล้ว'
+  });
+
+  // เปิดโหมดแบ่งบิล (Split Bill)
+  const handleEnableSplitMode = () => {
+    const bill1 = {
+      idSuffix: '01',
+      hn: selectedHn,
+      patientSearchText: patientSearchText,
+      cart: [...cart],
+      discountType: discountType,
+      discountValue: discountValue,
+      discountReason: discountReason,
+      selectedPromoCode: selectedPromoCode,
+      paymentMethod: paymentMethod,
+      selectedBankId: selectedBankId,
+      slipAttached: slipAttached,
+      slipName: slipName,
+      status: 'ชำระเงินแล้ว'
+    };
+    const bill2 = createEmptySplitBill(1);
+    setSplitBills([bill1, bill2]);
+    setIsSplitMode(true);
+    setActiveSplitIndex(0);
+    setConsolidatedPaymentMethod(paymentMethod || 'เงินสด');
+    setConsolidatedBankId(selectedBankId || '');
+    setConsolidatedSlipAttached(slipAttached || false);
+    setConsolidatedSlipName(slipName || '');
+
+    Swal.fire({
+      icon: 'success',
+      title: 'เปิดโหมดแบ่งบิล (Split Bill)',
+      text: 'ระบบสร้างแท็บบิลย่อย 2 รายการเรียบร้อย สามารถสลับแท็บเพื่อเลือกผู้รับบริการและรายการสินค้าของแต่ละบิลได้ทันที',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2500
+    });
+  };
+
+  // ปิด/ยกเลิกโหมดแบ่งบิล
+  const handleDisableSplitMode = () => {
+    Swal.fire({
+      title: 'ยกเลิกโหมดแบ่งบิล?',
+      text: 'ระบบจะปิดโหมดแบ่งบิล และคงเฉพาะข้อมูลของบิลที่เปิดอยู่ปัจจุบันไว้',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'กลับ',
+      confirmButtonColor: 'var(--danger)'
+    }).then(res => {
+      if (res.isConfirmed) {
+        setIsSplitMode(false);
+        setSplitBills([]);
+        setActiveSplitIndex(0);
+      }
+    });
+  };
+
+  // สลับแท็บบิลย่อย
+  const handleSwitchSplitTab = (targetIdx) => {
+    if (targetIdx === activeSplitIndex || targetIdx < 0 || targetIdx >= splitBills.length) return;
+    
+    // 1. บันทึกข้อมูลแท็บปัจจุบัน
+    const currentSnapshot = {
+      idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+      hn: selectedHn,
+      patientSearchText: patientSearchText,
+      cart: [...cart],
+      discountType: discountType,
+      discountValue: discountValue,
+      discountReason: discountReason,
+      selectedPromoCode: selectedPromoCode,
+      paymentMethod: paymentMethod,
+      selectedBankId: selectedBankId,
+      slipAttached: slipAttached,
+      slipName: slipName,
+      status: 'ชำระเงินแล้ว'
+    };
+    const updated = [...splitBills];
+    updated[activeSplitIndex] = currentSnapshot;
+    setSplitBills(updated);
+
+    // 2. ดึงข้อมูลแท็บเป้าหมายมาใส่ state
+    const target = updated[targetIdx];
+    setSelectedHn(target.hn || '');
+    setPatientSearchText(target.patientSearchText || '');
+    setCart(target.cart || []);
+    setDiscountType(target.discountType || 'flat');
+    setDiscountValue(target.discountValue || 0);
+    setDiscountReason(target.discountReason || '');
+    setSelectedPromoCode(target.selectedPromoCode || '');
+    setPaymentMethod(target.paymentMethod || 'เงินสด');
+    setSelectedBankId(target.selectedBankId || '');
+    setSlipAttached(target.slipAttached || false);
+    setSlipName(target.slipName || '');
+    setActiveSplitIndex(targetIdx);
+  };
+
+  // เพิ่มบิลย่อยใหม่ (Tab)
+  const handleAddSplitTab = () => {
+    const currentSnapshot = {
+      idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+      hn: selectedHn,
+      patientSearchText: patientSearchText,
+      cart: [...cart],
+      discountType: discountType,
+      discountValue: discountValue,
+      discountReason: discountReason,
+      selectedPromoCode: selectedPromoCode,
+      paymentMethod: paymentMethod,
+      selectedBankId: selectedBankId,
+      slipAttached: slipAttached,
+      slipName: slipName,
+      status: 'ชำระเงินแล้ว'
+    };
+    const newIndex = splitBills.length;
+    const newBill = createEmptySplitBill(newIndex);
+    const updated = [...splitBills];
+    updated[activeSplitIndex] = currentSnapshot;
+    updated.push(newBill);
+    setSplitBills(updated);
+
+    // เคลียร์ฟอร์มสำหรับแท็บใหม่
+    setSelectedHn('');
+    setPatientSearchText('');
+    setCart([]);
+    setDiscountType('flat');
+    setDiscountValue(0);
+    setDiscountReason('');
+    setSelectedPromoCode('');
+    setPaymentMethod('เงินสด');
+    setSelectedBankId('');
+    setSlipAttached(false);
+    setSlipName('');
+    setActiveSplitIndex(newIndex);
+  };
+
+  // ลบบิลย่อย
+  const handleRemoveSplitTab = (removeIdx) => {
+    if (splitBills.length <= 2) {
+      // ถ้าเหลือ 2 บิลแล้วลบออก จะกลับสู่โหมดบิลเดี่ยว
+      const remainIdx = removeIdx === 0 ? 1 : 0;
+      const remainTab = splitBills[remainIdx];
+      setSelectedHn(remainTab.hn || '');
+      setPatientSearchText(remainTab.patientSearchText || '');
+      setCart(remainTab.cart || []);
+      setDiscountType(remainTab.discountType || 'flat');
+      setDiscountValue(remainTab.discountValue || 0);
+      setDiscountReason(remainTab.discountReason || '');
+      setSelectedPromoCode(remainTab.selectedPromoCode || '');
+      setPaymentMethod(remainTab.paymentMethod || 'เงินสด');
+      setSelectedBankId(remainTab.selectedBankId || '');
+      setSlipAttached(remainTab.slipAttached || false);
+      setSlipName(remainTab.slipName || '');
+      setIsSplitMode(false);
+      setSplitBills([]);
+      setActiveSplitIndex(0);
+      return;
+    }
+
+    const updated = splitBills.filter((_, idx) => idx !== removeIdx);
+    let newActive = activeSplitIndex;
+    if (activeSplitIndex === removeIdx) {
+      newActive = Math.max(0, removeIdx - 1);
+      const target = updated[newActive];
+      setSelectedHn(target.hn || '');
+      setPatientSearchText(target.patientSearchText || '');
+      setCart(target.cart || []);
+      setDiscountType(target.discountType || 'flat');
+      setDiscountValue(target.discountValue || 0);
+      setDiscountReason(target.discountReason || '');
+      setSelectedPromoCode(target.selectedPromoCode || '');
+      setPaymentMethod(target.paymentMethod || 'เงินสด');
+      setSelectedBankId(target.selectedBankId || '');
+      setSlipAttached(target.slipAttached || false);
+      setSlipName(target.slipName || '');
+    } else if (activeSplitIndex > removeIdx) {
+      newActive = activeSplitIndex - 1;
+    }
+    setSplitBills(updated);
+    setActiveSplitIndex(newActive);
+  };
+
+  // แนบสลิปชำระเงินรวมยอดเดียว
+  const handleConsolidatedSlipUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const today = new Date();
+      const yy = today.getFullYear().toString().slice(-2);
+      const folderName = `${yy}-IN-RECEIPTS`;
+      const fileName = `${yy}-IN-SPLIT-${file.name}`;
+
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: folderName,
+          filename: fileName,
+          base64Data: reader.result
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('อัปโหลดสลิปใบเสร็จล้มเหลว');
+        return res.json();
+      })
+      .then(data => {
+        setConsolidatedSlipAttached(true);
+        setConsolidatedSlipName(data.url);
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปโหลดสำเร็จ',
+          text: `แนบสลิป ${file.name} เรียบร้อย`,
+          timer: 1200,
+          showConfirmButton: false
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire('อัปโหลดล้มเหลว', 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์', 'error');
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ฟังก์ชันคำนวณยอดเงินของบิลใดๆ อย่างบริสุทธิ์ (Pure Calculation)
+  const calculateSingleBillFinancials = (b, isCurrentActive = false) => {
+    if (isCurrentActive) {
+      return {
+        subtotal: cartSubtotal,
+        discountAmount: discountAmount,
+        rewardsDiscountAmount: rewardsDiscountAmount,
+        total: cartTotal,
+        cartCount: (cart || []).reduce((sum, i) => sum + i.quantity, 0)
+      };
+    }
+
+    const bCart = b.cart || [];
+    const flatSub = bCart
+      .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const percentSum = bCart
+      .filter(item => !item.isReward && (item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+    const regSubtotal = flatSub + percentSum;
+    
+    const allSubtotal = bCart
+      .filter(item => !(item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (item.price * item.quantity), 0) +
+      bCart
+      .filter(item => (item.description || '').includes('[price_type:percent]'))
+      .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+
+    let discountsList = [];
+    if (b.discountReason) {
+      try {
+        const parsed = JSON.parse(b.discountReason);
+        if (Array.isArray(parsed)) discountsList = parsed;
+      } catch (e) {}
+    }
+    let discAmt = 0;
+    if (discountsList.length > 0) {
+      discountsList.forEach(d => {
+        if (d.type === 'flat' || d.type === 'บาท') {
+          discAmt += Number(d.value);
+        } else {
+          discAmt += (regSubtotal * Number(d.value)) / 100;
+        }
+      });
+    } else if (Number(b.discountValue) > 0) {
+      if (b.discountType === 'flat') discAmt = Number(b.discountValue);
+      else discAmt = (regSubtotal * Number(b.discountValue)) / 100;
+    }
+    discAmt = Math.min(discAmt, regSubtotal);
+
+    const netBeforeReward = Math.max(0, regSubtotal - discAmt);
+    const rItem = bCart.find(i => i.isReward);
+    let rewDiscAmt = 0;
+    if (rItem) {
+      if (rItem.rewardType === 'สินค้า') {
+        rewDiscAmt = rItem.price * rItem.quantity;
+      } else if (rItem.rewardType === 'ส่วนลด') {
+        if (rItem.rewardCondition === 'ส่วนลดเงินสด') {
+          rewDiscAmt = Math.min(rItem.discountVal * rItem.quantity, netBeforeReward);
+        } else if (rItem.rewardCondition === 'ส่วนลดเป็นเปอร์เซ็นต์') {
+          rewDiscAmt = Math.min((netBeforeReward * rItem.discountVal) / 100, netBeforeReward);
+        }
+      }
+    }
+
+    const finalTotal = Math.max(0, allSubtotal - discAmt - rewDiscAmt);
+    return {
+      subtotal: allSubtotal,
+      discountAmount: discAmt,
+      rewardsDiscountAmount: rewDiscAmt,
+      total: finalTotal,
+      cartCount: bCart.reduce((sum, i) => sum + i.quantity, 0)
+    };
+  };
+
   // รีเซ็ตฟอร์ม (ปุ่มสีแดง)
   const handleResetForm = () => {
+    if (isSplitMode) {
+      Swal.fire({
+        title: 'รีเซ็ตข้อมูลบิล',
+        text: 'เลือกรูปแบบการรีเซ็ตที่ต้องการ',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: `รีเซ็ตเฉพาะบิลนี้ (บิลที่ ${activeSplitIndex + 1})`,
+        cancelButtonText: 'ยกเลิก',
+        showDenyButton: true,
+        denyButtonText: 'รีเซ็ตทั้งหมดและปิดโหมดแบ่งบิล',
+        confirmButtonColor: 'var(--secondary)',
+        denyButtonColor: 'var(--danger)'
+      }).then(res => {
+        if (res.isConfirmed) {
+          setSelectedHn('');
+          setPatientSearchText('');
+          setCart([]);
+          setDiscountType('flat');
+          setDiscountValue(0);
+          setDiscountReason('');
+          setSelectedPromoCode('');
+          setPaymentMethod('เงินสด');
+          setSelectedBankId('');
+          setSlipAttached(false);
+          setSlipName('');
+          Swal.fire({
+            icon: 'info',
+            title: `รีเซ็ตบิลย่อยที่ ${activeSplitIndex + 1} เรียบร้อย`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1500
+          });
+        } else if (res.isDenied) {
+          setIsSplitMode(false);
+          setSplitBills([]);
+          setActiveSplitIndex(0);
+          setSelectedHn('');
+          setPatientSearchText('');
+          setCart([]);
+          setDiscountType('flat');
+          setDiscountValue(0);
+          setDiscountReason('');
+          setSelectedPromoCode('');
+          setPaymentMethod('เงินสด');
+          setSelectedBankId('');
+          setSlipAttached(false);
+          setSlipName('');
+          setCustomBillId('');
+          const today = new Date();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          setCustomDate(`${today.getFullYear()}-${mm}-${dd}`);
+          if (onCancelEdit) onCancelEdit();
+          Swal.fire({
+            icon: 'info',
+            title: 'รีเซ็ตและปิดโหมดแบ่งบิลเรียบร้อย',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1500
+          });
+        }
+      });
+      return;
+    }
+
     setSelectedHn('');
     setCart([]);
     setDiscountType('flat');
@@ -744,6 +1141,274 @@ export default function ReceiptPOS({
     }
   };
 
+  // ยอดรวมทั้งหมดของทุกบิลย่อยในโหมดแบ่งบิล
+  const allSplitTotal = useMemo(() => {
+    if (!isSplitMode || splitBills.length === 0) return cartTotal;
+    return splitBills.reduce((sum, b, idx) => {
+      const fin = calculateSingleBillFinancials(b, idx === activeSplitIndex);
+      return sum + fin.total;
+    }, 0);
+  }, [isSplitMode, splitBills, activeSplitIndex, cartTotal]);
+
+  const previewMasterBillId = useMemo(() => {
+    if (currentUser?.role === 'Admin' && customBillId.trim()) {
+      return customBillId.trim();
+    }
+    return generateNextBillId();
+  }, [currentUser, customBillId, receipts]);
+
+  // บันทึกบิลในโหมดแบ่งบิล (Split Bill)
+  const saveSplitInvoices = (statusType) => {
+    // 1. รวม Snapshot ล่าสุดของแท็บที่กำลังเปิดอยู่
+    const currentTabSnapshot = {
+      idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+      hn: selectedHn,
+      patientSearchText: patientSearchText,
+      cart: [...cart],
+      discountType: discountType,
+      discountValue: discountValue,
+      discountReason: discountReason,
+      selectedPromoCode: selectedPromoCode,
+      paymentMethod: paymentMethod,
+      selectedBankId: selectedBankId,
+      slipAttached: slipAttached,
+      slipName: slipName,
+      status: statusType
+    };
+    const allTabs = splitBills.map((b, idx) => idx === activeSplitIndex ? { ...b, ...currentTabSnapshot } : b);
+
+    // 2. ตรวจสอบความถูกต้องของทุกบิล
+    for (let i = 0; i < allTabs.length; i++) {
+      const tab = allTabs[i];
+      if (!tab.hn) {
+        Swal.fire({
+          icon: 'warning',
+          title: `บิลย่อยที่ ${i + 1} ยังไม่ได้เลือกผู้รับบริการ`,
+          text: 'กรุณาเลือกผู้รับบริการให้ครบทุกบิลย่อยก่อนทำรายการครับ',
+          confirmButtonColor: 'var(--secondary)'
+        }).then(() => {
+          handleSwitchSplitTab(i);
+        });
+        return;
+      }
+      if (!tab.cart || tab.cart.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: `บิลย่อยที่ ${i + 1} ยังไม่มีรายการสินค้า`,
+          text: 'กรุณาเลือกรายการสินค้าหรือบริการอย่างน้อย 1 รายการในแต่ละบิลย่อยครับ',
+          confirmButtonColor: 'var(--secondary)'
+        }).then(() => {
+          handleSwitchSplitTab(i);
+        });
+        return;
+      }
+      const fin = calculateSingleBillFinancials(tab, i === activeSplitIndex);
+      if (fin.discountAmount > 0 && !tab.discountReason) {
+        Swal.fire({
+          icon: 'warning',
+          title: `ระบุเหตุผลส่วนลดในบิลย่อยที่ ${i + 1}`,
+          text: 'เนื่องจากมีการให้ส่วนลด กรุณากรอกระบุเหตุผลส่วนลดด้วยครับ',
+          confirmButtonColor: 'var(--secondary)'
+        }).then(() => {
+          handleSwitchSplitTab(i);
+        });
+        return;
+      }
+    }
+
+    // ตรวจสอบช่องทางการชำระเงิน
+    if (paymentMode === 'consolidated') {
+      if (consolidatedPaymentMethod === 'โอนเงิน' && statusType === 'ชำระเงินแล้ว' && !consolidatedBankId) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'กรุณาเลือกบัญชีธนาคารคลินิก',
+          text: 'สำหรับการชำระเงินรวมยอดเดียวผ่านการโอนเงิน กรุณาเลือกบัญชีธนาคารโอนเข้าด้วยครับ',
+          confirmButtonColor: 'var(--secondary)'
+        });
+        return;
+      }
+    } else {
+      // Separate payment validation
+      for (let i = 0; i < allTabs.length; i++) {
+        const tab = allTabs[i];
+        if (tab.paymentMethod === 'โอนเงิน' && statusType === 'ชำระเงินแล้ว' && !tab.selectedBankId) {
+          Swal.fire({
+            icon: 'warning',
+            title: `บิลย่อยที่ ${i + 1} ยังไม่ได้เลือกบัญชีธนาคาร`,
+            text: 'สำหรับการชำระเงินแยกบิล กรุณาเลือกบัญชีธนาคารโอนเข้าของแต่ละบิลด้วยครับ',
+            confirmButtonColor: 'var(--secondary)'
+          }).then(() => {
+            handleSwitchSplitTab(i);
+          });
+          return;
+        }
+      }
+    }
+
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const invoiceDate = (currentUser?.role === 'Admin' && customDate) ? customDate : `${today.getFullYear()}-${mm}-${dd}`;
+    const masterBillId = previewMasterBillId;
+
+    const isDuplicate = receipts.some(r => r.id === masterBillId || (r.id && r.id.startsWith(`${masterBillId}-`)));
+    if (isDuplicate) {
+      Swal.fire({
+        icon: 'error',
+        title: 'เลขที่เอกสารซ้ำในระบบ',
+        text: `หมายเลขเอกสาร ${masterBillId} มีการใช้งานไปแล้ว กรุณาระบุเลขอื่น`,
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const finalInvoices = allTabs.map((tab, idx) => {
+      const subBillId = `${masterBillId}-${String(idx + 1).padStart(2, '0')}`;
+      const fin = calculateSingleBillFinancials(tab, idx === activeSplitIndex);
+
+      const flatSub = tab.cart
+        .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+        .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      const finalItems = tab.cart.map(item => {
+        const isPercent = (item.description || '').includes('[price_type:percent]');
+        const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
+        const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
+        const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
+
+        return {
+          code: item.code,
+          name: displayName,
+          price: calculatedPrice,
+          quantity: item.quantity,
+          type: item.category,
+          sessionsPerUnit: item.sessionsPerUnit || 1
+        };
+      });
+
+      const rItem = tab.cart.find(item => item.isReward);
+      if (rItem) {
+        finalItems.push({
+          code: 'REWARD_REDEEM',
+          name: `แลกของรางวัล ${rItem.name.replace('[แลกของรางวัล] ', '').replace('[แลกส่วนลด] ', '')} (${rItem.code})`,
+          price: 0,
+          quantity: rItem.pointsCost,
+          type: 'คะแนน',
+          sessionsPerUnit: 1
+        });
+      }
+
+      const finalPaymentMethod = paymentMode === 'consolidated' ? consolidatedPaymentMethod : tab.paymentMethod;
+      const finalBankId = paymentMode === 'consolidated'
+        ? (consolidatedPaymentMethod === 'โอนเงิน' ? consolidatedBankId : '')
+        : (tab.paymentMethod === 'โอนเงิน' ? tab.selectedBankId : '');
+      const finalSlipUrl = paymentMode === 'consolidated'
+        ? (consolidatedPaymentMethod === 'โอนเงิน' && consolidatedSlipAttached ? consolidatedSlipName : '')
+        : (tab.paymentMethod === 'โอนเงิน' && tab.slipAttached ? tab.slipName : '');
+      const finalStatus = paymentMode === 'consolidated' ? statusType : (tab.status || statusType);
+
+      return {
+        id: subBillId,
+        parentBillId: masterBillId,
+        splitIndex: idx + 1,
+        splitTotal: allTabs.length,
+        hn: tab.hn,
+        date: invoiceDate,
+        items: finalItems,
+        discountType: tab.discountType || 'flat',
+        discountValue: Number(tab.discountValue) || 0,
+        discountReason: tab.discountReason || '',
+        promotionId: tab.selectedPromoCode || '',
+        rewardId: rItem ? rItem.code : '',
+        rewardDiscountAmount: fin.rewardsDiscountAmount,
+        paymentMethod: finalPaymentMethod,
+        bankAccountId: finalBankId,
+        slipUrl: finalSlipUrl,
+        status: finalStatus,
+        totalAmount: fin.total,
+        created_at: new Date().toISOString(),
+        createdBy: currentUser?.fullname || 'ผู้ดูแลระบบ'
+      };
+    });
+
+    onSaveReceipt(finalInvoices);
+
+    const grandTotal = finalInvoices.reduce((s, i) => s + i.totalAmount, 0);
+
+    if (statusType === 'ชำระเงินแล้ว') {
+      Swal.fire({
+        icon: 'success',
+        title: 'ออกใบเสร็จแบ่งบิลสำเร็จ!',
+        html: `
+          <div style="text-align: left; font-size: 0.9rem;">
+            <div style="margin-bottom: 0.5rem;"><strong>เลขที่เอกสารหลัก:</strong> <span style="font-family: monospace; color: var(--secondary); font-weight: bold;">${masterBillId}</span></div>
+            <div style="margin-bottom: 0.5rem;">สร้างบิลย่อยเรียบร้อยแล้วทั้งหมด <strong>${finalInvoices.length}</strong> ใบ:</div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem;">
+              ${finalInvoices.map(inv => {
+                const p = patients.find(pat => pat.hn === inv.hn);
+                const name = p ? `${p.firstname} (น้อง${p.nickname})` : inv.hn;
+                return `
+                  <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px dashed #e2e8f0;">
+                    <span><strong style="font-family: monospace;">${inv.id}:</strong> ${name}</span>
+                    <span style="font-weight: bold; color: var(--secondary);">฿${inv.totalAmount.toLocaleString()}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1rem; color: var(--secondary);">
+              <span>ยอดรวมชำระทั้งสิ้น:</span>
+              <span>฿${grandTotal.toLocaleString()}</span>
+            </div>
+          </div>
+        `,
+        showConfirmButton: true,
+        confirmButtonText: 'พิมพ์ใบเสร็จทั้งหมด (PDF)',
+        confirmButtonColor: 'var(--secondary)',
+        showCancelButton: true,
+        cancelButtonText: 'ปิดหน้าต่าง'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          if (window.printReceiptDirect) {
+            window.printReceiptDirect(finalInvoices);
+          } else if (window.printReceiptById) {
+            window.printReceiptById(finalInvoices.map(i => i.id));
+          }
+        }
+      });
+    } else {
+      Swal.fire({
+        icon: 'info',
+        title: 'บันทึกร่างใบแจ้งหนี้แบ่งบิลสำเร็จ!',
+        html: `
+          <div style="text-align: left; font-size: 0.9rem;">
+            <p>บันทึกร่างบิลย่อยคุมโดย <strong>${masterBillId}</strong> จำนวน <strong>${finalInvoices.length}</strong> ใบ เรียบร้อยแล้ว</p>
+            <p>ยอดรวมทั้งสิ้น: <strong>฿${grandTotal.toLocaleString()}</strong></p>
+          </div>
+        `,
+        confirmButtonColor: 'var(--secondary)'
+      });
+    }
+
+    // ล้างฟอร์มและปิด Split Mode
+    setSelectedHn('');
+    setCart([]);
+    setDiscountType('flat');
+    setDiscountValue(0);
+    setDiscountReason('');
+    setSelectedPromoCode('');
+    setPaymentMethod('เงินสด');
+    setSelectedBankId('');
+    setSlipAttached(false);
+    setSlipName('');
+    setIsSplitMode(false);
+    setSplitBills([]);
+    setActiveSplitIndex(0);
+    setConsolidatedPaymentMethod('เงินสด');
+    setConsolidatedBankId('');
+    setConsolidatedSlipAttached(false);
+    setConsolidatedSlipName('');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="page-header">
@@ -751,11 +1416,185 @@ export default function ReceiptPOS({
           <ShoppingCart size={28} />
           ออกใบเสร็จรับเงิน (POS)
         </h1>
-        <button className="btn btn-danger" onClick={handleResetForm}>
-          <RotateCcw size={16} />
-          รีเซ็ตฟอร์ม (เคลียร์ตะกร้า)
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {!editingReceiptId && (
+            !isSplitMode ? (
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+                onClick={handleEnableSplitMode}
+              >
+                <Split size={16} /> แบ่งบิล / เพิ่มผู้รับบริการ (Split Bill)
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                className="btn btn-light" 
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#d97706', color: '#d97706', fontWeight: 600 }}
+                onClick={handleDisableSplitMode}
+              >
+                <RotateCcw size={14} /> ยกเลิกโหมดแบ่งบิล
+              </button>
+            )
+          )}
+          <button className="btn btn-danger" onClick={handleResetForm}>
+            <RotateCcw size={16} />
+            รีเซ็ตฟอร์ม (เคลียร์ตะกร้า)
+          </button>
+        </div>
       </div>
+
+      {/* แถบและข้อมูลโหมดแบ่งบิล (Split Bill Mode) */}
+      {isSplitMode && (
+        <div style={{
+          backgroundColor: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          {/* Header แถบแบ่งบิล */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ 
+                backgroundColor: 'var(--secondary)', 
+                color: 'white', 
+                padding: '0.35rem 0.6rem', 
+                borderRadius: 'var(--radius-md)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.35rem', 
+                fontSize: '0.85rem', 
+                fontWeight: 700 
+              }}>
+                <Split size={16} /> โหมดแบ่งบิล (Split Bill)
+              </div>
+              <span style={{ fontSize: '0.9rem', color: '#1e40af' }}>
+                เลขที่เอกสารหลักคุมรายการ: <strong style={{ fontFamily: 'monospace', fontSize: '1rem' }}>{previewMasterBillId}</strong>
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem' }}>
+              <span style={{ color: '#1e40af' }}>
+                กำลังคีย์บิลที่: <strong>{activeSplitIndex + 1}</strong> จากทั้งหมด <strong>{splitBills.length}</strong> บิล
+              </span>
+              <span style={{ 
+                backgroundColor: '#dbeafe', 
+                color: '#1d4ed8', 
+                padding: '0.2rem 0.6rem', 
+                borderRadius: '12px', 
+                fontWeight: 700 
+              }}>
+                ยอดรวมทุกบิล: ฿{allSplitTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* แถบแท็บสลับบิลย่อย */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {splitBills.map((b, idx) => {
+              const p = patients.find(pat => pat.hn === (idx === activeSplitIndex ? selectedHn : b.hn));
+              const name = p ? (p.nickname ? `น้อง${p.nickname}` : p.firstname) : ((idx === activeSplitIndex ? selectedHn : b.hn) || `ผู้รับบริการ ${idx + 1}`);
+              const isActive = idx === activeSplitIndex;
+              const fin = calculateSingleBillFinancials(b, isActive);
+              const subBillCode = `${previewMasterBillId}-${String(idx + 1).padStart(2, '0')}`;
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => handleSwitchSplitTab(idx)}
+                  style={{
+                    padding: '0.6rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    backgroundColor: isActive ? 'var(--secondary)' : 'white',
+                    color: isActive ? 'white' : 'var(--dark)',
+                    border: isActive ? '2px solid var(--secondary)' : '1px solid #cbd5e1',
+                    boxShadow: isActive ? 'var(--shadow-md)' : 'none',
+                    transition: 'all 0.2s',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ fontSize: '0.75rem', opacity: isActive ? 0.9 : 0.7, fontFamily: 'monospace' }}>
+                        {subBillCode}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.95rem' }}>
+                      บิลที่ {idx + 1}: {name}
+                    </div>
+                  </div>
+
+                  <span style={{
+                    fontSize: '0.8rem',
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                    color: isActive ? 'white' : 'var(--secondary)',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontWeight: 700
+                  }}>
+                    ฿{fin.total.toLocaleString()}
+                  </span>
+
+                  {splitBills.length > 2 && (
+                    <button
+                      type="button"
+                      title="ลบบิลย่อยนี้"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSplitTab(idx);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: isActive ? 'rgba(255,255,255,0.8)' : 'var(--danger)',
+                        cursor: 'pointer',
+                        padding: '0 2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontSize: '1rem',
+                        marginLeft: '0.2rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* ปุ่มเพิ่มบิลย่อย */}
+            <button
+              type="button"
+              className="btn btn-light"
+              style={{
+                padding: '0.6rem 1rem',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: 'white',
+                border: '1px dashed #0284c7',
+                color: '#0284c7',
+                fontWeight: 600
+              }}
+              onClick={handleAddSplitTab}
+            >
+              <Plus size={16} /> เพิ่มบิลย่อย
+            </button>
+          </div>
+        </div>
+      )}
 
       {editingReceiptId && (
         <div style={{ 
@@ -1291,26 +2130,127 @@ export default function ReceiptPOS({
             </div>
           </div>
 
+          {/* สรุปภาพรวมแบ่งบิล (แสดงเมื่ออยู่ในโหมดแบ่งบิล) */}
+          {isSplitMode && (
+            <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0369a1', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Split size={16} /> สรุปภาพรวมแบ่งบิล ({splitBills.length} ผู้รับบริการ)
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>
+                  คุมด้วย: {previewMasterBillId}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
+                {splitBills.map((b, idx) => {
+                  const p = patients.find(pat => pat.hn === (idx === activeSplitIndex ? selectedHn : b.hn));
+                  const name = p ? (p.nickname ? `น้อง${p.nickname}` : p.firstname) : ((idx === activeSplitIndex ? selectedHn : b.hn) || `ผู้รับบริการ ${idx + 1}`);
+                  const fin = calculateSingleBillFinancials(b, idx === activeSplitIndex);
+                  const isCurrent = idx === activeSplitIndex;
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => handleSwitchSplitTab(idx)}
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        fontSize: '0.85rem', 
+                        padding: '0.4rem 0.6rem', 
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: isCurrent ? '#e0f2fe' : 'transparent',
+                        border: isCurrent ? '1px solid #bae6fd' : '1px solid transparent',
+                        cursor: 'pointer',
+                        color: isCurrent ? '#0369a1' : '#334155'
+                      }}
+                      title="คลิกเพื่อสลับแก้ไขบิลนี้"
+                    >
+                      <span style={{ fontWeight: isCurrent ? 700 : 500 }}>
+                        {isCurrent ? '👉 ' : ''}บิลที่ {idx + 1} ({name}):
+                      </span>
+                      <span style={{ fontWeight: 700, color: isCurrent ? '#0284c7' : 'inherit' }}>
+                        ฿{fin.total.toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ borderTop: '1px dashed #7dd3fc', marginTop: '0.75rem', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1.05rem', color: '#0369a1' }}>
+                <span>ยอดรวมชำระทั้งสิ้น:</span>
+                <span>฿{allSplitTotal.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
+          {/* สลับรูปแบบการชำระเงิน (เมื่ออยู่ในโหมดแบ่งบิล) */}
+          {isSplitMode && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e40af' }}>
+                รูปแบบการชำระเงินของชุดบิลนี้
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className={`btn ${paymentMode === 'consolidated' ? 'btn-secondary' : 'btn-light'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.4rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                  onClick={() => setPaymentMode('consolidated')}
+                >
+                  <Users size={14} /> ชำระรวมยอดเดียว
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${paymentMode === 'separate' ? 'btn-secondary' : 'btn-light'}`}
+                  style={{ fontSize: '0.82rem', padding: '0.5rem 0.4rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                  onClick={() => setPaymentMode('separate')}
+                >
+                  <Layers size={14} /> ชำระแยกทีละบิล
+                </button>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
+                {paymentMode === 'consolidated' 
+                  ? '💡 จ่ายรวมยอดเดียวครั้งเดียว (สลิป/หลักฐานเดียว) ระบบจะบันทึกทุกบิลย่อยเป็นชำระเงินแล้วพร้อมกัน' 
+                  : '💡 กำหนดช่องทางชำระเงินและสถานะแยกอิสระในแต่ละแท็บบิลย่อย'}
+              </div>
+            </div>
+          )}
+
           {/* วิธีชำระเงิน */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <Coins size={14} /> ช่องทางชำระเงิน
+                <Coins size={14} /> ช่องทางชำระเงิน {isSplitMode && (paymentMode === 'consolidated' ? '(สำหรับทุกบิลย่อย)' : `(เฉพาะบิลย่อยที่ ${activeSplitIndex + 1})`)}
               </label>
-              <select className="form-control" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <select 
+                className="form-control" 
+                value={isSplitMode && paymentMode === 'consolidated' ? consolidatedPaymentMethod : paymentMethod} 
+                onChange={(e) => {
+                  if (isSplitMode && paymentMode === 'consolidated') {
+                    setConsolidatedPaymentMethod(e.target.value);
+                  } else {
+                    setPaymentMethod(e.target.value);
+                  }
+                }}
+              >
                 <option value="เงินสด">เงินสด</option>
                 <option value="โอนเงิน">โอนเงิน (สแกน QR / บัญชี)</option>
               </select>
             </div>
 
-            {paymentMethod === 'โอนเงิน' && (
+            {((isSplitMode && paymentMode === 'consolidated' && consolidatedPaymentMethod === 'โอนเงิน') ||
+              ((!isSplitMode || paymentMode === 'separate') && paymentMethod === 'โอนเงิน')) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem', backgroundColor: 'var(--border-light)', borderRadius: 'var(--radius-md)' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">โอนเข้าบัญชีธนาคารคลินิก</label>
                   <select 
                     className="form-control"
-                    value={selectedBankId}
-                    onChange={(e) => setSelectedBankId(e.target.value)}
+                    value={isSplitMode && paymentMode === 'consolidated' ? consolidatedBankId : selectedBankId}
+                    onChange={(e) => {
+                      if (isSplitMode && paymentMode === 'consolidated') {
+                        setConsolidatedBankId(e.target.value);
+                      } else {
+                        setSelectedBankId(e.target.value);
+                      }
+                    }}
                   >
                     <option value="">-- เลือกบัญชีธนาคาร --</option>
                     {bankAccounts.map(bank => (
@@ -1327,12 +2267,12 @@ export default function ReceiptPOS({
                     type="file" 
                     accept="image/*"
                     className="form-control" 
-                    onChange={handleSlipUpload}
+                    onChange={isSplitMode && paymentMode === 'consolidated' ? handleConsolidatedSlipUpload : handleSlipUpload}
                   />
-                  {slipAttached && (
+                  {(isSplitMode && paymentMode === 'consolidated' ? consolidatedSlipAttached : slipAttached) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>
-                        ✓ แนบสลิปเรียบร้อย: {slipName.split('/').pop()}
+                        ✓ แนบสลิปเรียบร้อย: {(isSplitMode && paymentMode === 'consolidated' ? consolidatedSlipName : slipName).split('/').pop()}
                       </span>
                       <button
                         type="button"
@@ -1346,8 +2286,13 @@ export default function ReceiptPOS({
                           padding: 0
                         }}
                         onClick={() => {
-                          setSlipAttached(false);
-                          setSlipName('');
+                          if (isSplitMode && paymentMode === 'consolidated') {
+                            setConsolidatedSlipAttached(false);
+                            setConsolidatedSlipName('');
+                          } else {
+                            setSlipAttached(false);
+                            setSlipName('');
+                          }
                         }}
                       >
                         ลบรูป
@@ -1360,29 +2305,53 @@ export default function ReceiptPOS({
           </div>
 
           {/* ปุ่มทำรายการ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <button 
-              type="button" 
-              className="btn btn-secondary" 
-              style={{ width: '100%', padding: '0.8rem 1rem', fontSize: '1rem', fontWeight: 700 }}
-              onClick={() => saveInvoice('ชำระเงินแล้ว')}
-              disabled={cart.length === 0 || !selectedHn}
-            >
-              <CheckCircle size={18} />
-              รับชำระเงิน (ออกใบเสร็จสำเร็จ)
-            </button>
-            
-            <button 
-              type="button" 
-              className="btn btn-light" 
-              style={{ width: '100%', padding: '0.6rem 1rem' }}
-              onClick={() => saveInvoice('รอชำระเงิน')}
-              disabled={cart.length === 0 || !selectedHn}
-            >
-              <FileCheck2 size={16} />
-              บันทึกร่าง (รอชำระเงิน)
-            </button>
-          </div>
+          {!isSplitMode ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ width: '100%', padding: '0.8rem 1rem', fontSize: '1rem', fontWeight: 700 }}
+                onClick={() => saveInvoice('ชำระเงินแล้ว')}
+                disabled={cart.length === 0 || !selectedHn}
+              >
+                <CheckCircle size={18} />
+                รับชำระเงิน (ออกใบเสร็จสำเร็จ)
+              </button>
+              
+              <button 
+                type="button" 
+                className="btn btn-light" 
+                style={{ width: '100%', padding: '0.6rem 1rem' }}
+                onClick={() => saveInvoice('รอชำระเงิน')}
+                disabled={cart.length === 0 || !selectedHn}
+              >
+                <FileCheck2 size={16} />
+                บันทึกร่าง (รอชำระเงิน)
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ width: '100%', padding: '0.85rem 1rem', fontSize: '1rem', fontWeight: 700 }}
+                onClick={() => saveSplitInvoices('ชำระเงินแล้ว')}
+              >
+                <CheckCircle size={18} />
+                รับชำระเงินทั้งหมด (ออกบิลย่อย {splitBills.length} ใบ)
+              </button>
+              
+              <button 
+                type="button" 
+                className="btn btn-light" 
+                style={{ width: '100%', padding: '0.65rem 1rem' }}
+                onClick={() => saveSplitInvoices('รอชำระเงิน')}
+              >
+                <FileCheck2 size={16} />
+                บันทึกร่างทั้งหมด (รอชำระเงิน {splitBills.length} ใบ)
+              </button>
+            </div>
+          )}
 
         </div>
 

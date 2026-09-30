@@ -914,11 +914,11 @@ export default function PDFViewer({
   };
 
   // --- 3. เอกสารใบเสร็จ (HDR) หรือใบแจ้งหนี้ ---
-  const renderReceipt = () => {
+  const renderSingleReceipt = (docData, docIndex = 0, totalDocs = 1) => {
     // กรองเอา Audit Item ออกเพื่อความถูกต้องในการพิมพ์ใบเสร็จ PDF
-    const bill = documentData ? {
-      ...documentData,
-      items: (documentData.items || []).filter(item => item && !item.isAudit)
+    const bill = docData ? {
+      ...docData,
+      items: (docData.items || []).filter(item => item && !item.isAudit)
     } : null;
     
     if (!bill) return null;
@@ -928,7 +928,7 @@ export default function PDFViewer({
     const isVoided = bill.status === 'ยกเลิก';
 
     // คำนวณยอดดิบในตารางสินค้า
-    const itemsSubtotal = bill.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemsSubtotal = (bill.items || []).reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     // ยอดลดสุทธิ - รองรับกรณีมีส่วนลดหลายรายการ
     let discountsList = [];
@@ -961,7 +961,14 @@ export default function PDFViewer({
     }
 
     return (
-      <div className="a4-document repeating-header-doc" ref={documentRef} id="printable-a4-area" style={{ padding: '10mm 15mm 15mm 15mm' }}>
+      <div 
+        key={bill.id || docIndex} 
+        className="a4-document repeating-header-doc" 
+        style={{ 
+          padding: '10mm 15mm 15mm 15mm',
+          pageBreakAfter: docIndex < totalDocs - 1 ? 'always' : 'auto'
+        }}
+      >
         {/* ลายน้ำ VOID แสดงข้อความทับตัวแดงตามสเปก */}
         {isVoided && <div className="void-watermark">ยกเลิกเอกสารนี้แล้ว (VOIDED)</div>}
 
@@ -1002,6 +1009,11 @@ export default function PDFViewer({
                 <div className="a4-doc-meta" style={{ marginTop: '10px' }}>
                   <span className="a4-doc-meta-label">เลขที่เอกสาร:</span>
                   <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontFamily: 'monospace' }}>{bill.id}</span>
+                  {bill.parentBillId && (
+                    <div style={{ fontSize: '10px', color: 'var(--secondary)', gridColumn: 'span 2', textAlign: 'right', marginTop: '2px', fontWeight: 600 }}>
+                      (บิลย่อยคุมโดย: {bill.parentBillId}{bill.splitIndex ? ` | ลำดับที่ ${bill.splitIndex}/${bill.splitTotal || totalDocs}` : ''})
+                    </div>
+                  )}
                   <span className="a4-doc-meta-label">วันที่ออกบิล:</span>
                   <span className="a4-doc-meta-value">{formatDateTh(bill.date)}</span>
                 </div>
@@ -1124,7 +1136,7 @@ export default function PDFViewer({
                 src={clinicInfo?.stampUrl || DEFAULT_CLINIC_STAMP} 
                 className="a4-sig-stamp" 
                 alt="Stamp" 
-                referrerPolicy="no-referrer"
+                referrerPolicy="no-referrer" 
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = DEFAULT_CLINIC_STAMP;
@@ -1150,6 +1162,17 @@ export default function PDFViewer({
             </div>
           </div>
         </PrintLayout>
+      </div>
+    );
+  };
+
+  const renderReceipt = () => {
+    const rawList = Array.isArray(documentData) ? documentData : [documentData];
+    if (rawList.length === 0 || !rawList[0]) return null;
+
+    return (
+      <div id="printable-a4-area" ref={documentRef} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {rawList.map((item, idx) => renderSingleReceipt(item, idx, rawList.length))}
       </div>
     );
   };

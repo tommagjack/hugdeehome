@@ -1187,13 +1187,24 @@ export default function App() {
   // สร้างฟังก์ชัน Global ลอยบน Window เพื่อให้ POS เรียกเปิดพรีวิวพิมพ์ได้รวดเร็ว
   useEffect(() => {
     window.printReceiptById = (billId) => {
+      if (Array.isArray(billId)) {
+        const matchingBills = receipts.filter(r => billId.includes(r.id));
+        if (matchingBills.length > 0) {
+          setPrintView({ show: true, type: 'receipt', data: matchingBills });
+        }
+        return;
+      }
       const bill = receipts.find(r => r.id === billId);
       if (bill) {
         setPrintView({ show: true, type: 'receipt', data: bill });
       }
     };
+    window.printReceiptDirect = (receiptOrArray) => {
+      setPrintView({ show: true, type: 'receipt', data: receiptOrArray });
+    };
     return () => {
       delete window.printReceiptById;
+      delete window.printReceiptDirect;
     };
   }, [receipts]);
 
@@ -1320,10 +1331,15 @@ export default function App() {
   };
 
   const handleSaveReceipt = (data) => {
-    // กรองบิลเก่าออกถ้าเป็นการอัปเดต / บันทึกทับบิลเดิม (สำหรับบิลแจ้งหนี้ชำระเงินต่อ)
-    const filtered = receipts.filter(r => r.id !== data.id);
-    setReceipts([...filtered, data]);
-    logActivity(`ออกใบเสร็จรับเงิน/ใบแจ้งหนี้ เลขที่: ${data.id} (HN: ${data.hn}) ยอดสุทธิ: ฿${(data.totalAmount || 0).toLocaleString()}`);
+    // รองรับทั้งบิลเดี่ยวและกลุ่มบิลย่อย (Split Bill)
+    const list = Array.isArray(data) ? data : [data];
+    const incomingIds = new Set(list.map(b => b.id));
+    const filtered = receipts.filter(r => !incomingIds.has(r.id));
+    setReceipts([...filtered, ...list]);
+    list.forEach(item => {
+      const splitNote = item.parentBillId ? ` [บิลย่อยจาก: ${item.parentBillId}]` : '';
+      logActivity(`ออกใบเสร็จรับเงิน/ใบแจ้งหนี้ เลขที่: ${item.id}${splitNote} (HN: ${item.hn}) ยอดสุทธิ: ฿${(item.totalAmount || 0).toLocaleString()}`);
+    });
   };
 
   const handleVoidReceipt = (id, reason) => {
