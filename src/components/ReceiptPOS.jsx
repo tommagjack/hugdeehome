@@ -104,6 +104,8 @@ export default function ReceiptPOS({
   const [consolidatedBankId, setConsolidatedBankId] = useState('');
   const [consolidatedSlipAttached, setConsolidatedSlipAttached] = useState(false);
   const [consolidatedSlipName, setConsolidatedSlipName] = useState('');
+  const [customItemTarget, setCustomItemTarget] = useState('current'); // 'current' = เฉพาะบิลนี้, 'all' = ทุกบิลย่อย
+  const [discountTarget, setDiscountTarget] = useState('current'); // 'current' = เฉพาะบิลนี้, 'all' = ทุกบิลย่อย
 
   // Sync patientSearchText when selectedHn updates
   useEffect(() => {
@@ -685,17 +687,59 @@ export default function ReceiptPOS({
       description: 'ค่าบริการ/สินค้าอื่นๆ เพิ่มเติม'
     };
 
-    setCart([...cart, { ...newCustomItem, quantity: qtyNum }]);
+    if (isSplitMode && customItemTarget === 'all') {
+      const updatedActiveCart = [...cart, { ...newCustomItem, quantity: qtyNum }];
+      setCart(updatedActiveCart);
+
+      const currentSnapshot = {
+        idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+        hn: selectedHn,
+        patientSearchText: patientSearchText,
+        cart: updatedActiveCart,
+        discountType: discountType,
+        discountValue: discountValue,
+        discountReason: discountReason,
+        selectedPromoCode: selectedPromoCode,
+        paymentMethod: paymentMethod,
+        selectedBankId: selectedBankId,
+        slipAttached: slipAttached,
+        slipName: slipName,
+        status: 'ชำระเงินแล้ว'
+      };
+
+      const updatedSplit = splitBills.map((b, idx) => {
+        if (idx === activeSplitIndex) return currentSnapshot;
+        return {
+          ...b,
+          cart: [...(b.cart || []), { ...newCustomItem, quantity: qtyNum }]
+        };
+      });
+      setSplitBills(updatedSplit);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'เพิ่มรายการในทุกบิลย่อยแล้ว',
+        text: `เพิ่ม "${newCustomItem.name}" ลงในบิลย่อยทั้ง ${splitBills.length} บิลเรียบร้อย`,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } else {
+      setCart([...cart, { ...newCustomItem, quantity: qtyNum }]);
+      Swal.fire({
+        icon: 'success',
+        title: isSplitMode ? `เพิ่มในบิลที่ ${activeSplitIndex + 1} แล้ว` : 'เพิ่มรายการอื่นๆ แล้ว',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1000
+      });
+    }
+
     setCustomItemName('');
     setCustomItemPrice('');
     setCustomItemQty(1);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'เพิ่มรายการอื่นๆ แล้ว',
-      showConfirmButton: false,
-      timer: 1000
-    });
   };
 
   // จัดการเพิ่มส่วนลดเพิ่มเติม (หลายรายการ)
@@ -710,15 +754,17 @@ export default function ReceiptPOS({
       return;
     }
 
+    const timestamp = Date.now();
     const newDisc = {
-      id: `DISC_${Date.now()}`,
+      id: `DISC_${timestamp}`,
       reason: newDiscountReason.trim(),
       type: newDiscountType,
       value: val
     };
 
     const updated = [...additionalDiscounts, newDisc];
-    setDiscountReason(JSON.stringify(updated));
+    const newReason = JSON.stringify(updated);
+    setDiscountReason(newReason);
 
     let total = 0;
     updated.forEach(d => {
@@ -731,19 +777,101 @@ export default function ReceiptPOS({
     setDiscountValue(total);
     setDiscountType('multiple');
 
+    if (isSplitMode && discountTarget === 'all') {
+      const currentSnapshot = {
+        idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+        hn: selectedHn,
+        patientSearchText: patientSearchText,
+        cart: [...cart],
+        discountType: 'multiple',
+        discountValue: total,
+        discountReason: newReason,
+        selectedPromoCode: selectedPromoCode,
+        paymentMethod: paymentMethod,
+        selectedBankId: selectedBankId,
+        slipAttached: slipAttached,
+        slipName: slipName,
+        status: 'ชำระเงินแล้ว'
+      };
+
+      const updatedSplit = splitBills.map((b, idx) => {
+        if (idx === activeSplitIndex) return currentSnapshot;
+
+        let bDiscounts = [];
+        if (b.discountReason) {
+          try {
+            const parsed = JSON.parse(b.discountReason);
+            if (Array.isArray(parsed)) bDiscounts = parsed;
+          } catch (e) {}
+        }
+        if (bDiscounts.length === 0 && Number(b.discountValue) > 0) {
+          bDiscounts = [{
+            id: `legacy_${b.idSuffix || idx}`,
+            reason: b.discountReason || 'ส่วนลดพิเศษ',
+            type: b.discountType || 'flat',
+            value: Number(b.discountValue)
+          }];
+        }
+
+        const bUpdatedDiscounts = [...bDiscounts, { ...newDisc, id: `DISC_${timestamp}_${idx}` }];
+
+        const bCart = b.cart || [];
+        const flatSub = bCart
+          .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+          .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const percentSum = bCart
+          .filter(item => !item.isReward && (item.description || '').includes('[price_type:percent]'))
+          .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+        const bRegSubtotal = flatSub + percentSum;
+
+        let bTotal = 0;
+        bUpdatedDiscounts.forEach(d => {
+          if (d.type === 'flat' || d.type === 'บาท') {
+            bTotal += Number(d.value);
+          } else {
+            bTotal += (bRegSubtotal * Number(d.value)) / 100;
+          }
+        });
+
+        return {
+          ...b,
+          discountReason: JSON.stringify(bUpdatedDiscounts),
+          discountValue: bTotal,
+          discountType: 'multiple'
+        };
+      });
+
+      setSplitBills(updatedSplit);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'เพิ่มส่วนลดในทุกบิลย่อยแล้ว',
+        text: `เพิ่มส่วนลด "${newDisc.reason}" ลงในบิลย่อยทั้ง ${splitBills.length} บิลเรียบร้อย`,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    }
+
     setNewDiscountReason('');
     setNewDiscountValue('');
   };
 
   const handleDeleteDiscount = (id) => {
+    const discToDelete = additionalDiscounts.find(d => d.id === id);
     const updated = additionalDiscounts.filter(d => d.id !== id);
+    let newReason = '';
+    let total = 0;
+    let newType = 'flat';
+
     if (updated.length === 0) {
       setDiscountReason('');
       setDiscountValue(0);
       setDiscountType('flat');
     } else {
-      setDiscountReason(JSON.stringify(updated));
-      let total = 0;
+      newReason = JSON.stringify(updated);
+      setDiscountReason(newReason);
       updated.forEach(d => {
         if (d.type === 'flat' || d.type === 'บาท') {
           total += Number(d.value);
@@ -753,6 +881,74 @@ export default function ReceiptPOS({
       });
       setDiscountValue(total);
       setDiscountType('multiple');
+      newType = 'multiple';
+    }
+
+    if (isSplitMode && discountTarget === 'all' && discToDelete) {
+      const currentSnapshot = {
+        idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+        hn: selectedHn,
+        patientSearchText: patientSearchText,
+        cart: [...cart],
+        discountType: newType,
+        discountValue: total,
+        discountReason: newReason,
+        selectedPromoCode: selectedPromoCode,
+        paymentMethod: paymentMethod,
+        selectedBankId: selectedBankId,
+        slipAttached: slipAttached,
+        slipName: slipName,
+        status: 'ชำระเงินแล้ว'
+      };
+
+      const updatedSplit = splitBills.map((b, idx) => {
+        if (idx === activeSplitIndex) return currentSnapshot;
+
+        let bDiscounts = [];
+        if (b.discountReason) {
+          try {
+            const parsed = JSON.parse(b.discountReason);
+            if (Array.isArray(parsed)) bDiscounts = parsed;
+          } catch (e) {}
+        }
+
+        const bFiltered = bDiscounts.filter(d => d.id !== id && d.reason !== discToDelete.reason);
+        if (bFiltered.length === 0) {
+          return {
+            ...b,
+            discountReason: '',
+            discountValue: 0,
+            discountType: 'flat'
+          };
+        }
+
+        const bCart = b.cart || [];
+        const flatSub = bCart
+          .filter(item => !item.isReward && !(item.description || '').includes('[price_type:percent]'))
+          .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const percentSum = bCart
+          .filter(item => !item.isReward && (item.description || '').includes('[price_type:percent]'))
+          .reduce((sum, item) => sum + (((item.price / 100) * flatSub) * item.quantity), 0);
+        const bRegSubtotal = flatSub + percentSum;
+
+        let bTotal = 0;
+        bFiltered.forEach(d => {
+          if (d.type === 'flat' || d.type === 'บาท') {
+            bTotal += Number(d.value);
+          } else {
+            bTotal += (bRegSubtotal * Number(d.value)) / 100;
+          }
+        });
+
+        return {
+          ...b,
+          discountReason: JSON.stringify(bFiltered),
+          discountValue: bTotal,
+          discountType: 'multiple'
+        };
+      });
+
+      setSplitBills(updatedSplit);
     }
   };
 
@@ -911,16 +1107,87 @@ export default function ReceiptPOS({
       setSelectedPromoCode('');
       setDiscountValue(0);
       setDiscountReason('');
+
+      if (isSplitMode && discountTarget === 'all') {
+        const currentSnapshot = {
+          idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+          hn: selectedHn,
+          patientSearchText: patientSearchText,
+          cart: [...cart],
+          discountType: 'flat',
+          discountValue: 0,
+          discountReason: '',
+          selectedPromoCode: '',
+          paymentMethod: paymentMethod,
+          selectedBankId: selectedBankId,
+          slipAttached: slipAttached,
+          slipName: slipName,
+          status: 'ชำระเงินแล้ว'
+        };
+
+        const updatedSplit = splitBills.map((b, idx) => {
+          if (idx === activeSplitIndex) return currentSnapshot;
+          return {
+            ...b,
+            selectedPromoCode: '',
+            discountValue: 0,
+            discountReason: '',
+            discountType: 'flat'
+          };
+        });
+        setSplitBills(updatedSplit);
+      }
       return;
     }
 
     const promo = activePromotions.find(p => p.code === promoCode);
     if (!promo) return;
 
+    const promoReason = `โปรโมชั่น: ${promo.name} (${promo.description})`;
     setSelectedPromoCode(promo.code);
     setDiscountType(promo.type); // flat หรือ percentage
     setDiscountValue(promo.value);
-    setDiscountReason(`โปรโมชั่น: ${promo.name} (${promo.description})`);
+    setDiscountReason(promoReason);
+
+    if (isSplitMode && discountTarget === 'all') {
+      const currentSnapshot = {
+        idSuffix: String(activeSplitIndex + 1).padStart(2, '0'),
+        hn: selectedHn,
+        patientSearchText: patientSearchText,
+        cart: [...cart],
+        discountType: promo.type,
+        discountValue: promo.value,
+        discountReason: promoReason,
+        selectedPromoCode: promo.code,
+        paymentMethod: paymentMethod,
+        selectedBankId: selectedBankId,
+        slipAttached: slipAttached,
+        slipName: slipName,
+        status: 'ชำระเงินแล้ว'
+      };
+
+      const updatedSplit = splitBills.map((b, idx) => {
+        if (idx === activeSplitIndex) return currentSnapshot;
+        return {
+          ...b,
+          selectedPromoCode: promo.code,
+          discountType: promo.type,
+          discountValue: promo.value,
+          discountReason: promoReason
+        };
+      });
+      setSplitBills(updatedSplit);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'ใช้โปรโมชั่นกับทุกบิลย่อยแล้ว',
+        text: `ปรับใช้โปรโมชั่น "${promo.name}" กับบิลย่อยทั้ง ${splitBills.length} บิลเรียบร้อย`,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    }
   };
 
   // แนบไฟล์สลิปจริงและอัปโหลดไปเซิร์ฟเวอร์
@@ -1766,8 +2033,48 @@ export default function ReceiptPOS({
 
             {/* เพิ่มค่าบริการ/สินค้าอื่นๆ (Custom Fee) */}
             <div style={{ borderTop: '1px dashed var(--border-light)', marginTop: '1.5rem', paddingTop: '1.5rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--secondary)' }}>
-                <Plus size={16} /> เพิ่มค่าบริการ / สินค้าอื่น ๆ เพิ่มเติม (Custom Item / Fee)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--secondary)' }}>
+                  <Plus size={16} /> เพิ่มค่าบริการ / สินค้าอื่น ๆ เพิ่มเติม (Custom Item / Fee)
+                </div>
+                {isSplitMode && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 'var(--radius-full)', padding: '2px', fontSize: '0.75rem' }}>
+                    <button
+                      type="button"
+                      style={{
+                        border: 'none',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        transition: 'all 0.2s',
+                        backgroundColor: customItemTarget === 'current' ? 'var(--secondary)' : 'transparent',
+                        color: customItemTarget === 'current' ? '#fff' : '#64748b'
+                      }}
+                      onClick={() => setCustomItemTarget('current')}
+                    >
+                      เฉพาะบิลนี้ (บิลที่ {activeSplitIndex + 1})
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        border: 'none',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        transition: 'all 0.2s',
+                        backgroundColor: customItemTarget === 'all' ? 'var(--secondary)' : 'transparent',
+                        color: customItemTarget === 'all' ? '#fff' : '#64748b'
+                      }}
+                      onClick={() => setCustomItemTarget('all')}
+                    >
+                      ทุกบิลย่อย ({splitBills.length} บิล)
+                    </button>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: '2 1 200px' }}>
@@ -1804,7 +2111,7 @@ export default function ReceiptPOS({
                   style={{ padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                   onClick={handlePostCustomItem}
                 >
-                  <Plus size={16} /> เพิ่มเข้ารายการ
+                  <Plus size={16} /> {isSplitMode && customItemTarget === 'all' ? `เพิ่มในทุกบิลย่อย (${splitBills.length})` : 'เพิ่มเข้ารายการ'}
                 </button>
               </div>
             </div>
@@ -2011,6 +2318,60 @@ export default function ReceiptPOS({
 
           {/* โปรโมชั่นและส่วนลด */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+            {isSplitMode && (
+              <div style={{
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.5rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap'
+              }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e40af' }}>
+                  ขอบเขตส่วนลด:
+                </span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', backgroundColor: '#dbeafe', borderRadius: 'var(--radius-full)', padding: '2px', fontSize: '0.75rem' }}>
+                  <button
+                    type="button"
+                    style={{
+                      border: 'none',
+                      borderRadius: 'var(--radius-full)',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      transition: 'all 0.2s',
+                      backgroundColor: discountTarget === 'current' ? 'var(--secondary)' : 'transparent',
+                      color: discountTarget === 'current' ? '#fff' : '#1e40af'
+                    }}
+                    onClick={() => setDiscountTarget('current')}
+                  >
+                    เฉพาะบิลนี้ (บิลที่ {activeSplitIndex + 1})
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      border: 'none',
+                      borderRadius: 'var(--radius-full)',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      transition: 'all 0.2s',
+                      backgroundColor: discountTarget === 'all' ? 'var(--secondary)' : 'transparent',
+                      color: discountTarget === 'all' ? '#fff' : '#1e40af'
+                    }}
+                    onClick={() => setDiscountTarget('all')}
+                  >
+                    ทุกบิลย่อย ({splitBills.length} บิล)
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <Tag size={14} /> เลือกใช้โปรโมชั่น / คูปอง
@@ -2031,8 +2392,15 @@ export default function ReceiptPOS({
 
             {/* ส่วนลดแบบแมนนวล - แบบระบุได้หลายรายการ */}
             <div style={{ border: '1px solid var(--border-light)', padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fff' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--dark)' }}>
-                กำหนดส่วนลดเพิ่มเติม
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--dark)' }}>
+                  กำหนดส่วนลดเพิ่มเติม
+                </div>
+                {isSplitMode && (
+                  <span style={{ fontSize: '0.7rem', color: discountTarget === 'all' ? '#2563eb' : '#64748b', fontWeight: 600 }}>
+                    {discountTarget === 'all' ? `(ใช้กับทุกบิลย่อย ${splitBills.length} บิล)` : `(เฉพาะบิลที่ ${activeSplitIndex + 1})`}
+                  </span>
+                )}
               </div>
 
               {/* รายการส่วนลดที่เพิ่มแล้ว */}
@@ -2099,7 +2467,7 @@ export default function ReceiptPOS({
                     style={{ padding: '0.3rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', gap: '0.2rem' }}
                     onClick={handleAddDiscount}
                   >
-                    <Plus size={12} /> เพิ่ม
+                    <Plus size={12} /> {isSplitMode && discountTarget === 'all' ? `เพิ่มทุกบิล (${splitBills.length})` : 'เพิ่ม'}
                   </button>
                 </div>
               </div>
