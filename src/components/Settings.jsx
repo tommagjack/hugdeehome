@@ -1245,6 +1245,81 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
 
   const maxHolidayPages = Math.ceil(holidays.length / 10) || 1;
 
+  // ฟังก์ชันแปลงรูปแบบวันที่หลากหลาย (DD/MM/YYYY, YYYY-MM-DD, ISO String, ปี พ.ศ.) ให้เป็น YYYY-MM-DD มาตรฐาน
+  const parseHolidayDate = (rawDateStr) => {
+    if (!rawDateStr) return null;
+    let str = String(rawDateStr).replace(/^\uFEFF/, '').trim().replace(/^["']|["']$/g, '').trim();
+    if (!str) return null;
+
+    // 1. ISO format: 2026-04-30T17:00:00.000Z
+    if (str.includes('T')) {
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+    }
+
+    // 2. YYYY-MM-DD หรือ YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (ymdMatch) {
+      let year = parseInt(ymdMatch[1], 10);
+      if (year > 2400) year -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+      const month = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+      const day = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 3. DD/MM/YYYY หรือ D/M/YYYY หรือ DD-MM-YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (dmyMatch) {
+      const day = String(parseInt(dmyMatch[1], 10)).padStart(2, '0');
+      const month = String(parseInt(dmyMatch[2], 10)).padStart(2, '0');
+      let year = parseInt(dmyMatch[3], 10);
+      if (year > 2400) year -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+      return `${year}-${month}-${day}`;
+    }
+
+    // 4. แปลงผ่าน Date constructor
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    return null;
+  };
+
+  // แยกคอลัมน์ CSV อย่างปลอดภัย (รองรับเครื่องหมายจุลภาค , อัฒภาค ; แถบแท็บ \t และข้อความในเครื่องหมายคำพูด "")
+  const parseCSVLine = (line) => {
+    let delim = ',';
+    if (line.includes(';') && (line.split(';').length > line.split(',').length)) {
+      delim = ';';
+    } else if (line.includes('\t') && (line.split('\t').length > line.split(',').length)) {
+      delim = '\t';
+    }
+    
+    const parts = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let c of line) {
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === delim && !inQuotes) {
+        parts.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    parts.push(cur.trim());
+    return parts.map(p => p.replace(/^["']|["']$/g, '').trim());
+  };
+
   // นำออกวันหยุด CSV (รองรับภาษาไทย + BOM ให้ Excel อ่านได้ถูกต้อง)
   const handleExportHolidaysCSV = () => {
     let csvContent = "\uFEFF"; // BOM สำหรับ Excel สนับสนุน UTF-8
@@ -1252,7 +1327,12 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
 
     if (holidays.length > 0) {
       holidays.forEach(h => {
-        csvContent += `${h.date},${h.name},${h.type || 'วันหยุดคลินิก'}\r\n`;
+        let cleanDate = h.date;
+        if (cleanDate) {
+          const parsed = parseHolidayDate(cleanDate);
+          if (parsed) cleanDate = parsed;
+        }
+        csvContent += `${cleanDate},${h.name},${h.type || 'วันหยุดคลินิก'}\r\n`;
       });
     }
 
@@ -1277,20 +1357,31 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
       const lines = text.split(/\r?\n/);
       const imported = [];
       
-      // ข้ามหัวตาราง (บรรทัดแรก)
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
+      for (let i = 0; i < lines.length; i++) {
+        const cleanLine = lines[i].replace(/^\uFEFF/, '').trim();
+        if (!cleanLine) continue;
         
-        // แยกข้อมูลด้วยคอมม่า
-        const parts = line.split(',');
+        const parts = parseCSVLine(cleanLine);
         if (parts.length >= 2) {
-          const date = parts[0].replace('\uFEFF', '').trim(); // ล้าง BOM ถ้าตกค้าง
-          const name = parts[1].trim();
-          const type = parts[2] ? parts[2].trim() : 'วันหยุดคลินิก';
-          
-          // ตรวจสอบฟอร์แมตวันที่แบบง่าย YYYY-MM-DD
-          if (date.match(/^\d{4}-\d{2}-\d{2}$/) && name) {
+          const date1 = parseHolidayDate(parts[0]);
+          const date2 = parseHolidayDate(parts[1]);
+
+          let date = null;
+          let name = '';
+          let type = 'วันหยุดคลินิก';
+
+          if (date1) {
+            date = date1;
+            name = parts[1];
+            type = parts[2] ? parts[2].trim() : 'วันหยุดคลินิก';
+          } else if (date2) {
+            date = date2;
+            name = parts[0];
+            type = parts[2] ? parts[2].trim() : 'วันหยุดคลินิก';
+          }
+
+          // กรองบรรทัดหัวตาราง (Header) ออก
+          if (date && name && name !== 'ชื่อวันหยุด' && name !== 'name' && name !== 'ชื่อ') {
             imported.push({ date, name, type });
           }
         }
@@ -1301,18 +1392,30 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
         return;
       }
 
-      // ทำการรวมข้อมูล (ป้องกันวันซ้ำ)
+      // ทำการรวมข้อมูล (ถ้ามีวันเดิมอยู่แล้วให้อัปเดตชื่อ ถ้าเป็นวันใหม่ให้เพิ่ม)
       const merged = [...holidays];
       let addedCount = 0;
+      let updatedCount = 0;
       imported.forEach(imp => {
-        if (!merged.find(h => h.date === imp.date)) {
+        const existingIdx = merged.findIndex(h => h.date === imp.date);
+        if (existingIdx === -1) {
           merged.push(imp);
           addedCount++;
+        } else {
+          merged[existingIdx] = { ...merged[existingIdx], name: imp.name, type: imp.type };
+          updatedCount++;
         }
       });
 
-      setHolidays(merged.sort((a, b) => b.date.localeCompare(a.date)));
-      Swal.fire('นำเข้าสำเร็จ', `นำเข้าข้อมูลวันหยุดคลินิกสำเร็จทั้งหมด ${addedCount} รายการ`, 'success');
+      const sortedHolidays = merged.sort((a, b) => b.date.localeCompare(a.date));
+      setHolidays(sortedHolidays);
+      logActivity(`นำเข้าข้อมูลวันหยุดจากไฟล์ CSV: เพิ่มใหม่ ${addedCount} รายการ, อัปเดต ${updatedCount} รายการ`);
+      Swal.fire({
+        icon: 'success',
+        title: 'นำเข้าสำเร็จ',
+        html: `นำเข้าข้อมูลวันหยุดคลินิกเรียบร้อยแล้ว<br/><b>เพิ่มใหม่:</b> ${addedCount} รายการ<br/><b>อัปเดต:</b> ${updatedCount} รายการ`,
+        confirmButtonColor: 'var(--secondary)'
+      });
       e.target.value = null; // รีเซ็ต input
     };
     reader.readAsText(file, "UTF-8");
