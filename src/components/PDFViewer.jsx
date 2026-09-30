@@ -228,6 +228,10 @@ export default function PDFViewer({
     const cleanFirstname = (p.firstname || '').replace(/\$/g, '');
     const cleanLastname = (p.lastname || '').replace(/\$/g, '');
     
+    // วันที่บันทึกข้อมูลประวัติผู้ป่วย
+    const rawRecordedDate = p.created_at || p.createdAt || p.registrationDate || p.regDate || p.date;
+    const recordedDateStr = rawRecordedDate ? formatDateTh(rawRecordedDate) : formatDateTh(today);
+
     return (
       <div className="a4-document repeating-header-doc" ref={documentRef} id="printable-a4-area">
         <PrintLayout
@@ -260,7 +264,7 @@ export default function PDFViewer({
                   <span className="a4-doc-meta-label">เลขที่ผู้ป่วย (HN):</span>
                   <span className="a4-doc-meta-value" style={{ fontWeight: 700, fontSize: '1.1rem' }}>{p.hn}</span>
                   <span className="a4-doc-meta-label">วันที่พิมพ์ประวัติ:</span>
-                  <span className="a4-doc-meta-value">05 มิถุนายน 2569</span>
+                  <span className="a4-doc-meta-value">{formatDateTh(today)}</span>
                 </div>
               </div>
             </div>
@@ -331,6 +335,9 @@ export default function PDFViewer({
               )}
               <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>
                 {p.createdBy ? `( ${p.createdBy} )` : ''}
+              </span>
+              <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '3px', color: '#444' }}>
+                วันที่บันทึกข้อมูล: {recordedDateStr}
               </span>
             </div>
             <div className="a4-sig-line-container">
@@ -1643,7 +1650,7 @@ export default function PDFViewer({
                 <span className="a4-doc-type-en" style={{ whiteSpace: 'nowrap', display: 'block', marginTop: '2px' }}>Clinic Annual Holidays</span>
                 <div className="a4-doc-meta" style={{ marginTop: '8px' }}>
                   <span className="a4-doc-meta-label">วันที่ออกเอกสาร:</span>
-                  <span className="a4-doc-meta-value">05 มิถุนายน 2569</span>
+                  <span className="a4-doc-meta-value">{formatDateTh(new Date())}</span>
                 </div>
               </div>
             </div>
