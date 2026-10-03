@@ -537,6 +537,18 @@ export default function PatientRegister({
         : (existingPatient?.activatedAt || (status === 'Active' ? new Date().toISOString() : ''))
     };
 
+    if (lineUserId && lineUserId.trim()) {
+      fetch('/api/line-richmenu?action=link-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineUserId: lineUserId.trim(),
+          role: 'parent',
+          status: status
+        })
+      }).catch(err => console.warn('Sync patient rich menu error:', err));
+    }
+
     if (isEditing) {
       onUpdatePatient(patientData, oldHn || formHn);
       Swal.fire({

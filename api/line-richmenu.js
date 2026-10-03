@@ -1,0 +1,578 @@
+// Backend Serverless API Proxy for LINE OA Rich Menu Management
+import fs from 'fs';
+import path from 'path';
+
+function loadEnv() {
+  const env = {
+    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
+  };
+  
+  if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        envContent.split('\n').forEach(line => {
+          const match = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/);
+          if (match) {
+            env[match[1]] = match[2].trim();
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Could not load .env file:', e.message);
+    }
+  }
+  
+  if (!env.VITE_SUPABASE_URL) {
+    env.VITE_SUPABASE_URL = 'https://bmplfuzkyyuqtlfgifvm.supabase.co';
+  }
+  if (!env.VITE_SUPABASE_ANON_KEY) {
+    env.VITE_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtcGxmdXpreXl1cXRsZmdpZnZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMTgwNjcsImV4cCI6MjA5Nzc5NDA2N30.mhegnIyPtEq9zFL70wb0W9Ivz7YP3wVU0OUR0fUR_BE';
+  }
+  
+  return env;
+}
+
+// Helper to fetch clinic credentials
+async function getClinicCredentials(env) {
+  const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+  let token = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  let liffId = '2008270606-7bkwSGyt';
+  let phone = '0946753557';
+  let appUrl = 'https://hugdeehome.vercel.app';
+
+  try {
+    const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id&limit=1`, {
+      headers: {
+        'apikey': dbKey,
+        'Authorization': `Bearer ${dbKey}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data[0]) {
+        token = data[0].line_channel_access_token || token;
+        liffId = data[0].liff_id || liffId;
+        phone = data[0].phone || phone;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching clinic credentials:', err);
+  }
+
+  return { token, liffId, phone, appUrl };
+}
+
+// 6 standard grid areas for 2500 x 1686 px (3 columns x 2 rows)
+function getGridAreas(actions) {
+  const areas = [
+    { bounds: { x: 0, y: 0, width: 833, height: 843 }, action: actions[0] },
+    { bounds: { x: 833, y: 0, width: 834, height: 843 }, action: actions[1] },
+    { bounds: { x: 1667, y: 0, width: 833, height: 843 }, action: actions[2] },
+    { bounds: { x: 0, y: 843, width: 833, height: 843 }, action: actions[3] },
+    { bounds: { x: 833, y: 843, width: 834, height: 843 }, action: actions[4] },
+    { bounds: { x: 1667, y: 843, width: 833, height: 843 }, action: actions[5] }
+  ];
+  return areas;
+}
+
+export default async function handler(req, res) {
+  const env = loadEnv();
+  const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+  const { action } = req.query;
+
+  try {
+    const { token, liffId, phone, appUrl } = await getClinicCredentials(env);
+    const liffBase = liffId ? `https://liff.line.me/${liffId}` : appUrl;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Missing LINE Channel Access Token in clinic settings' });
+    }
+
+    // 1. ACTION: LIST current Rich Menus in LINE
+    if (action === 'list') {
+      const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const listData = await listRes.json();
+
+      let defaultMenuId = null;
+      try {
+        const defRes = await fetch('https://api.line.me/v2/bot/user/all/richmenu', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (defRes.ok) {
+          const defData = await defRes.json();
+          defaultMenuId = defData.richMenuId;
+        }
+      } catch (e) {}
+
+      let aliases = [];
+      try {
+        const aliasRes = await fetch('https://api.line.me/v2/bot/richmenu/alias/list', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (aliasRes.ok) {
+          const aliasData = await aliasRes.json();
+          aliases = aliasData.aliases || [];
+        }
+      } catch (e) {}
+
+      return res.status(200).json({
+        success: true,
+        richmenus: listData.richmenus || [],
+        defaultMenuId,
+        aliases
+      });
+    }
+
+    // 2. ACTION: DEPLOY ALL 5 RICH MENUS
+    if (action === 'deploy-all') {
+      console.log('Deploying all 5 Rich Menus to LINE...');
+
+      const menuConfigs = [
+        {
+          key: 'guest',
+          aliasId: 'rm-guest',
+          name: 'HDH_RichMenu_1_Guest',
+          imageFile: 'richmenu_1_guest.png',
+          chatBarText: 'เมนูทั่วไป 🏡',
+          isDefault: true,
+          actions: [
+            { type: 'uri', label: 'บริการของเรา', uri: `${liffBase}?action=services` },
+            { type: 'uri', label: 'ลงทะเบียนคนไข้ใหม่', uri: `${liffBase}?action=register-patient` },
+            { type: 'uri', label: 'แผนที่คลินิก', uri: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
+            { type: 'uri', label: 'โทรติดต่อคลินิก', uri: `tel:${phone}` },
+            { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: `${liffBase}?action=line-link` },
+            { type: 'message', label: 'สิทธิประโยชน์ & โปรโมชัน', text: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
+          ]
+        },
+        {
+          key: 'parent',
+          aliasId: 'rm-parent',
+          name: 'HDH_RichMenu_2_Parent',
+          imageFile: 'richmenu_2_parent.png',
+          chatBarText: 'พอร์ทัลผู้ปกครอง 👶',
+          isDefault: false,
+          actions: [
+            { type: 'uri', label: 'นัดหมายของน้อง', uri: `${liffBase}?action=parent-appointments` },
+            { type: 'uri', label: 'พัฒนาการ & แผน ITP', uri: `${liffBase}?action=parent-itp` },
+            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${liffBase}?action=parent-homeprogram` },
+            { type: 'uri', label: 'คอร์ส & ยอดคงเหลือ', uri: `${liffBase}?action=parent-courses` },
+            { type: 'message', label: 'แจ้งเลื่อนนัด / คุยกับครู', text: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' },
+            { type: 'uri', label: 'โปรไฟล์น้อง / สลับบัญชี', uri: `${liffBase}?action=line-link` }
+          ]
+        },
+        {
+          key: 'staff',
+          aliasId: 'rm-staff',
+          name: 'HDH_RichMenu_3_Staff',
+          imageFile: 'richmenu_3_staff.png',
+          chatBarText: 'เมนูเจ้าหน้าที่ 🛎️',
+          isDefault: false,
+          actions: [
+            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${liffBase}?action=checkin` },
+            { type: 'uri', label: 'Check-in รับคนไข้', uri: `${liffBase}?action=reception-intake` },
+            { type: 'uri', label: 'ส่ง LINE เตือนนัดกลุ่ม', uri: `${liffBase}?action=batch-reminders` },
+            { type: 'uri', label: 'ออกใบเสร็จ & ตัดคอร์ส', uri: `${liffBase}?action=receipts` },
+            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${liffBase}?action=dormant-tracker` },
+            { type: 'uri', label: 'สลับมุมมอง', uri: `${liffBase}?action=menu-switch&role=staff` }
+          ]
+        },
+        {
+          key: 'ot',
+          aliasId: 'rm-ot',
+          name: 'HDH_RichMenu_4_OT',
+          imageFile: 'richmenu_4_ot.png',
+          chatBarText: 'เมนูกิจกรรมบำบัด 🧩',
+          isDefault: false,
+          actions: [
+            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${liffBase}?action=checkin` },
+            { type: 'uri', label: 'ตารางเคสของฉันวันนี้', uri: `${liffBase}?action=my-cases` },
+            { type: 'uri', label: 'บันทึกผลการฝึก (OPD)', uri: `${liffBase}?action=opd-soap` },
+            { type: 'uri', label: 'เป้าหมายบำบัด (ITP)', uri: `${liffBase}?action=itp-tracker` },
+            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${liffBase}?action=home-program-planner` },
+            { type: 'uri', label: 'สลับมุมมอง', uri: `${liffBase}?action=menu-switch&role=ot` }
+          ]
+        },
+        {
+          key: 'admin',
+          aliasId: 'rm-admin',
+          name: 'HDH_RichMenu_5_Admin',
+          imageFile: 'richmenu_5_admin.png',
+          chatBarText: 'ศูนย์บริหารจัดการ 👑',
+          isDefault: false,
+          actions: [
+            { type: 'uri', label: 'แดชบอร์ดภาพรวมคลินิก', uri: `${liffBase}?action=dashboard` },
+            { type: 'uri', label: 'ตรวจสอบเวลาบุคลากร', uri: `${liffBase}?action=staff-attendance` },
+            { type: 'uri', label: 'สรุปการเงิน & Payroll', uri: `${liffBase}?action=financial-payroll` },
+            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${liffBase}?action=dormant-tracker` },
+            { type: 'uri', label: 'ควบคุม LINE & ระบบ', uri: `${liffBase}?action=line-manager` },
+            { type: 'uri', label: 'สลับมุมมองอิสระ', uri: `${liffBase}?action=menu-switch&role=admin` }
+          ]
+        }
+      ];
+
+      const deployedResults = {};
+
+      for (const cfg of menuConfigs) {
+        // 1. Create Rich Menu
+        const payload = {
+          size: { width: 2500, height: 1686 },
+          selected: true,
+          name: cfg.name,
+          chatBarText: cfg.chatBarText,
+          areas: getGridAreas(cfg.actions)
+        };
+
+        const createRes = await fetch('https://api.line.me/v2/bot/richmenu', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!createRes.ok) {
+          const errData = await createRes.json();
+          throw new Error(`Failed to create rich menu ${cfg.name}: ${JSON.stringify(errData)}`);
+        }
+
+        const { richMenuId } = await createRes.json();
+        console.log(`Created ${cfg.name} with ID: ${richMenuId}`);
+
+        // 2. Upload Image
+        const imgPath = path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile);
+        if (fs.existsSync(imgPath)) {
+          const imgBuffer = fs.readFileSync(imgPath);
+          const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'image/png'
+            },
+            body: imgBuffer
+          });
+
+          if (!uploadRes.ok) {
+            console.error(`Failed to upload image for ${richMenuId}: status ${uploadRes.status}`);
+          } else {
+            console.log(`Uploaded image for ${cfg.name}`);
+          }
+        } else {
+          console.warn(`Image file not found at ${imgPath}`);
+        }
+
+        // 3. Set Default if Guest
+        if (cfg.isDefault) {
+          await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          console.log(`Set ${richMenuId} as DEFAULT Rich Menu`);
+        }
+
+        // 4. Create / Update Alias
+        try {
+          // Delete existing alias if any
+          await fetch(`https://api.line.me/v2/bot/richmenu/alias/${cfg.aliasId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          // Create alias
+          await fetch('https://api.line.me/v2/bot/richmenu/alias', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              richMenuAliasId: cfg.aliasId,
+              richMenuId: richMenuId
+            })
+          });
+          console.log(`Created alias ${cfg.aliasId} -> ${richMenuId}`);
+        } catch (aliasErr) {
+          console.warn(`Could not set alias ${cfg.aliasId}:`, aliasErr.message);
+        }
+
+        deployedResults[cfg.key] = richMenuId;
+      }
+
+      // Save deployed IDs into Supabase clinic_info
+      try {
+        await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=not.is.null`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': dbKey,
+            'Authorization': `Bearer ${dbKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            rich_menu_data: JSON.stringify(deployedResults)
+          })
+        });
+      } catch (saveErr) {
+        console.warn('Could not save rich_menu_data to clinic_info table:', saveErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Deployed all 5 Rich Menus successfully',
+        menus: deployedResults
+      });
+    }
+
+    // 3. ACTION: LINK / UNLINK USER ROLE
+    if (action === 'link-user') {
+      const { lineUserId, role, status } = req.body || {};
+      if (!lineUserId) {
+        return res.status(400).json({ error: 'Missing lineUserId' });
+      }
+
+      // SECURITY RULE: If status is inactive, UNLINK immediately and reset to Default (Guest)
+      if (status && status.toLowerCase() === 'inactive') {
+        await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return res.status(200).json({
+          success: true,
+          action: 'unlinked_inactive',
+          message: 'ผู้ใช้มีสถานะ Inactive ระบบได้ปลด Rich Menu กลับเป็นบุคคลทั่วไปแล้ว'
+        });
+      }
+
+      // Get deployed menus from LINE list
+      const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const listData = await listRes.json();
+      const richmenus = listData.richmenus || [];
+
+      let targetMenu = null;
+      const cleanRole = (role || 'guest').toLowerCase();
+
+      if (cleanRole === 'admin') {
+        targetMenu = richmenus.find(m => m.name.includes('Admin'));
+      } else if (cleanRole === 'ot') {
+        targetMenu = richmenus.find(m => m.name.includes('OT'));
+      } else if (cleanRole === 'staff') {
+        targetMenu = richmenus.find(m => m.name.includes('Staff'));
+      } else if (cleanRole === 'parent') {
+        targetMenu = richmenus.find(m => m.name.includes('Parent'));
+      }
+
+      if (targetMenu) {
+        const linkRes = await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${targetMenu.richMenuId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (linkRes.ok) {
+          return res.status(200).json({
+            success: true,
+            role: cleanRole,
+            richMenuId: targetMenu.richMenuId,
+            message: `ผูกเมนู ${targetMenu.name} ให้กับผู้ใช้สำเร็จ`
+          });
+        } else {
+          const err = await linkRes.json();
+          return res.status(500).json({ error: 'LINE link error', details: err });
+        }
+      } else {
+        // If guest or role not found, unlink to return to default
+        await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return res.status(200).json({
+          success: true,
+          role: 'guest',
+          message: 'ผู้ใช้ถูกตั้งเป็นบุคคลทั่วไป (Default Guest Menu)'
+        });
+      }
+    }
+
+    // 4. ACTION: SWITCH USER MENU (Self-Service or Switcher Button)
+    if (action === 'switch-user-menu') {
+      const { lineUserId, targetRole } = req.body || {};
+      if (!lineUserId || !targetRole) {
+        return res.status(400).json({ error: 'Missing lineUserId or targetRole' });
+      }
+
+      // Check user permission in DB
+      let allowedRoles = ['guest'];
+      let userStatus = 'active';
+
+      // Check users table
+      const uRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?line_user_id=eq.${lineUserId}&select=role,status&limit=1`, {
+        headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+      });
+      if (uRes.ok) {
+        const uData = await uRes.json();
+        if (uData && uData[0]) {
+          userStatus = uData[0].status || 'active';
+          const r = (uData[0].role || '').toLowerCase();
+          if (r === 'admin') allowedRoles = ['guest', 'parent', 'staff', 'ot', 'admin'];
+          else if (r === 'ot') allowedRoles = ['guest', 'parent', 'ot', 'staff'];
+          else if (r === 'staff') allowedRoles = ['guest', 'parent', 'staff'];
+        }
+      }
+
+      // Check patients table if not found in users
+      if (allowedRoles.length === 1) {
+        const pRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/patients?line_user_id=eq.${lineUserId}&select=status&limit=1`, {
+          headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+        });
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          if (pData && pData[0]) {
+            userStatus = pData[0].status || 'active';
+            allowedRoles = ['guest', 'parent'];
+          }
+        }
+      }
+
+      // Inactive check
+      if (userStatus && userStatus.toLowerCase() === 'inactive') {
+        await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return res.status(403).json({ error: 'User is inactive. Reset to Guest.' });
+      }
+
+      if (!allowedRoles.includes(targetRole.toLowerCase())) {
+        return res.status(403).json({ error: `Permission denied. Your role cannot switch to ${targetRole}.` });
+      }
+
+      // Switch
+      const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const listData = await listRes.json();
+      const richmenus = listData.richmenus || [];
+
+      let targetMenu = null;
+      const cleanTarget = targetRole.toLowerCase();
+      if (cleanTarget === 'admin') targetMenu = richmenus.find(m => m.name.includes('Admin'));
+      else if (cleanTarget === 'ot') targetMenu = richmenus.find(m => m.name.includes('OT'));
+      else if (cleanTarget === 'staff') targetMenu = richmenus.find(m => m.name.includes('Staff'));
+      else if (cleanTarget === 'parent') targetMenu = richmenus.find(m => m.name.includes('Parent'));
+
+      if (targetMenu) {
+        await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${targetMenu.richMenuId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } else {
+        await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        switchedTo: cleanTarget,
+        message: `สลับมุมมองไปยัง ${cleanTarget} สำเร็จ`
+      });
+    }
+
+    // 5. ACTION: SYNC ALL REGISTERED USERS TO APPROPRIATE RICH MENUS
+    if (action === 'sync-all-users') {
+      console.log('Syncing all users and applying role & inactive rules...');
+
+      // 1. Get all Rich Menus
+      const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const listData = await listRes.json();
+      const richmenus = listData.richmenus || [];
+
+      const adminMenu = richmenus.find(m => m.name.includes('Admin'))?.richMenuId;
+      const otMenu = richmenus.find(m => m.name.includes('OT'))?.richMenuId;
+      const staffMenu = richmenus.find(m => m.name.includes('Staff'))?.richMenuId;
+      const parentMenu = richmenus.find(m => m.name.includes('Parent'))?.richMenuId;
+
+      let linkedCount = 0;
+      let unlinkedCount = 0;
+
+      // 2. Sync Users (Staff, OT, Admin)
+      const uRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?line_user_id=not.is.null&select=line_user_id,role,status`, {
+        headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+      });
+      if (uRes.ok) {
+        const usersList = await uRes.json();
+        for (const u of usersList) {
+          if (!u.line_user_id) continue;
+          const isInactive = u.status && u.status.toLowerCase() === 'inactive';
+          if (isInactive) {
+            await fetch(`https://api.line.me/v2/bot/user/${u.line_user_id}/richmenu`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            unlinkedCount++;
+          } else {
+            const r = (u.role || '').toLowerCase();
+            let targetId = staffMenu;
+            if (r === 'admin') targetId = adminMenu;
+            else if (r === 'ot') targetId = otMenu;
+
+            if (targetId) {
+              await fetch(`https://api.line.me/v2/bot/user/${u.line_user_id}/richmenu/${targetId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              linkedCount++;
+            }
+          }
+        }
+      }
+
+      // 3. Sync Patients (Parents)
+      const pRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/patients?line_user_id=not.is.null&select=line_user_id,status`, {
+        headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+      });
+      if (pRes.ok) {
+        const patientsList = await pRes.json();
+        for (const p of patientsList) {
+          if (!p.line_user_id) continue;
+          const isInactive = p.status && p.status.toLowerCase() === 'inactive';
+          if (isInactive) {
+            await fetch(`https://api.line.me/v2/bot/user/${p.line_user_id}/richmenu`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            unlinkedCount++;
+          } else if (parentMenu) {
+            await fetch(`https://api.line.me/v2/bot/user/${p.line_user_id}/richmenu/${parentMenu}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            linkedCount++;
+          }
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        linkedCount,
+        unlinkedCount,
+        message: `ซิงค์เมนูสำเร็จ: เชื่อมโยง ${linkedCount} รายการ, ตัดสิทธิ์ Inactive ${unlinkedCount} รายการ`
+      });
+    }
+
+    return res.status(400).json({ error: 'Invalid action parameter' });
+
+  } catch (err) {
+    console.error('LINE Rich Menu API error:', err);
+    return res.status(500).json({ error: 'Internal Server Error: ' + err.message });
+  }
+}

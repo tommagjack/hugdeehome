@@ -24,6 +24,8 @@ import GuestRegister from './components/GuestRegister';
 import CheckIn from './components/CheckIn';
 import UserProfile from './components/UserProfile';
 import ParentPatientRegister from './components/ParentPatientRegister';
+import LineOAManager from './components/LineOAManager';
+import LineLinkPortal from './components/LineLinkPortal';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
@@ -1201,6 +1203,13 @@ export default function App() {
     window.location.pathname === '/register-patient' ||
     window.location.search.includes('register-patient')
   );
+  // สถานะเปิดหน้าเชื่อมต่อบัญชี LINE OA (สาธารณะ / LIFF)
+  const [isLineLinkPage, setIsLineLinkPage] = useState(() => 
+    window.location.hash === '#/line-link' || 
+    window.location.hash.startsWith('#/line-link') ||
+    window.location.pathname === '/line-link' ||
+    window.location.search.includes('line-link')
+  );
 
 
   useEffect(() => {
@@ -1216,6 +1225,12 @@ export default function App() {
         window.location.hash === '#/patient-form' ||
         window.location.pathname === '/register-patient' ||
         window.location.search.includes('register-patient')
+      );
+      setIsLineLinkPage(
+        window.location.hash === '#/line-link' || 
+        window.location.hash.startsWith('#/line-link') ||
+        window.location.pathname === '/line-link' ||
+        window.location.search.includes('line-link')
       );
     };
     window.addEventListener('hashchange', handleHash);
@@ -2032,6 +2047,17 @@ export default function App() {
     );
   }
 
+  // 13. รันหน้าเชื่อมต่อบัญชี LINE OA (สาธารณะ / LIFF)
+  if (isLineLinkPage) {
+    return (
+      <LineLinkPortal 
+        clinicInfo={clinicInfo}
+        users={users}
+        patients={patients}
+      />
+    );
+  }
+
   // รันวิวล็อกอินถ้าผู้ใช้งานยังไม่ได้ลงชื่อเข้าใช้ระบบ
   if (!currentUser) {
     return (
@@ -2803,6 +2829,15 @@ export default function App() {
           <SalarySettings 
             salaryRules={salaryRules}
             setSalaryRules={setSalaryRules}
+          />
+        )}
+
+        {activeTab === 'lineManager' && currentUser.role === 'Admin' && (
+          <LineOAManager 
+            clinicInfo={clinicInfo}
+            users={users}
+            patients={patients}
+            onRefreshData={fetchData}
           />
         )}
 

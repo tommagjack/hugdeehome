@@ -601,6 +601,18 @@ export default function Users({ users, setUsers, setPrintView }) {
       saveEmployeeLineUser(uEmployeeId, uLineUserId.trim()).catch(err => console.warn('Save line user error:', err));
     }
 
+    if (uLineUserId && uLineUserId.trim()) {
+      fetch('/api/line-richmenu?action=link-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineUserId: uLineUserId.trim(),
+          role: uRole.toLowerCase(),
+          status: uStatus
+        })
+      }).catch(err => console.warn('Sync user rich menu error:', err));
+    }
+
     if (editingUsername) {
       if (uUsername !== editingUsername && (users.some(u => u.username === uUsername) || uUsername.toLowerCase() === 'admin')) {
         Swal.fire('ชื่อผู้ใช้ซ้ำ', 'มีชื่อล็อกอินนี้ในระบบหรือถูกสงวนไว้แล้ว', 'error');

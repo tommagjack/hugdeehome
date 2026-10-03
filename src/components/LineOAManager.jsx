@@ -1,0 +1,898 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  MessageSquare, Smartphone, Users, ShieldCheck, RefreshCw, 
+  Send, ExternalLink, QrCode, Copy, Check, AlertCircle, 
+  Search, Filter, ChevronRight, Zap, CheckCircle2, UserX,
+  Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders
+} from 'lucide-react';
+import Swal from 'sweetalert2';
+import { supabase } from '../utils/supabaseClient';
+import { SmartAvatar } from '../utils/defaultAssets';
+
+export default function LineOAManager({ clinicInfo, users = [], patients = [], onRefreshData }) {
+  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'users' | 'tools'
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [deployedData, setDeployedData] = useState(null);
+  const [loadingDeployed, setLoadingDeployed] = useState(true);
+
+  // Search & Filters for User Registry
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all'); // 'all' | 'parent' | 'staff' | 'ot' | 'admin'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive' | 'linked'
+
+  const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
+  const lineOaId = clinicInfo?.lineId || '@hugdeehome';
+  const liffLinkUrl = `${window.location.origin}/#/line-link`;
+
+  // 5 Rich Menu Specs
+  const richMenuCards = [
+    {
+      key: 'guest',
+      number: '1',
+      title: 'บุคคลทั่วไป (General Public / Guest)',
+      desc: 'สำหรับผู้ติดตามใหม่ ผู้ที่ยังไม่ลงทะเบียน หรือผู้ใช้ที่มีสถานะ Inactive',
+      alias: 'rm-guest',
+      color: '#C19B6C',
+      bgColor: '#FFFBEB',
+      borderColor: '#FDE68A',
+      isDefault: true,
+      image: '/richmenu_images/richmenu_1_guest.png',
+      buttons: ['บริการของเรา', 'ลงทะเบียนคนไข้ใหม่', 'แผนที่ & เวลาทำการ', 'ปรึกษา / ติดต่อเรา', 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', 'สิทธิประโยชน์ & คอร์ส']
+    },
+    {
+      key: 'parent',
+      number: '2',
+      title: 'ผู้ปกครอง (Parent / Guardian)',
+      desc: 'สำหรับผู้ปกครองที่มีประวัติการรักษาในระบบและผูก LINE UID แล้ว',
+      alias: 'rm-parent',
+      color: '#059669',
+      bgColor: '#ECFDF5',
+      borderColor: '#A7F3D0',
+      isDefault: false,
+      image: '/richmenu_images/richmenu_2_parent.png',
+      buttons: ['นัดหมายของน้อง', 'พัฒนาการ & แผน ITP', 'กิจกรรมฝึกที่บ้าน', 'คอร์ส & ยอดคงเหลือ', 'แจ้งเลื่อนนัด / คุยกับครู', 'โปรไฟล์น้อง / สลับบัญชี']
+    },
+    {
+      key: 'staff',
+      number: '3',
+      title: 'เจ้าหน้าที่คลินิก (Staff / Receptionist)',
+      desc: 'สำหรับฝ่ายต้อนรับ ธุรการ และคิดเงิน (สลับดูแบบ 1, 2, 3 ได้)',
+      alias: 'rm-staff',
+      color: '#0284C7',
+      bgColor: '#F0F9FF',
+      borderColor: '#BAE6FD',
+      isDefault: false,
+      image: '/richmenu_images/richmenu_3_staff.png',
+      buttons: ['ลงเวลางาน GPS', 'Check-in รับคนไข้', 'ส่ง LINE เตือนนัดกลุ่ม', 'ออกใบเสร็จ & ตัดคอร์ส', 'คนไข้ขาดการติดต่อ', 'สลับมุมมอง (1, 2, 3)']
+    },
+    {
+      key: 'ot',
+      number: '4',
+      title: 'นักกิจกรรมบำบัด (Occupational Therapist - OT)',
+      desc: 'สำหรับนักบำบัดและผู้สอน (สลับดูแบบ 1, 2, 4 ได้)',
+      alias: 'rm-ot',
+      color: '#EA580C',
+      bgColor: '#FFF7ED',
+      borderColor: '#FED7AA',
+      isDefault: false,
+      image: '/richmenu_images/richmenu_4_ot.png',
+      buttons: ['ลงเวลางาน GPS', 'ตารางเคสวันนี้', 'บันทึกผลการฝึก (OPD)', 'เป้าหมายบำบัด (ITP)', 'จัดกิจกรรมฝึกที่บ้าน', 'สลับมุมมอง (1, 2, 4)']
+    },
+    {
+      key: 'admin',
+      number: '5',
+      title: 'ผู้ดูแลระบบ (Executive Admin)',
+      desc: 'ศูนย์บัญชาการของผู้บริหาร (สลับดูได้อิสระทุกแบบ 1, 2, 3, 4, 5)',
+      alias: 'rm-admin',
+      color: '#7C3AED',
+      bgColor: '#FAF5FF',
+      borderColor: '#DDD6FE',
+      isDefault: false,
+      image: '/richmenu_images/richmenu_5_admin.png',
+      buttons: ['แดชบอร์ดภาพรวม', 'ตรวจสอบเวลาบุคลากร', 'สรุปการเงิน & Payroll', 'คนไข้ขาดการติดต่อ', 'ควบคุม LINE & ระบบ', 'สลับมุมมองอิสระทุกแบบ']
+    }
+  ];
+
+  // Fetch status from API
+  const fetchStatus = async () => {
+    setLoadingDeployed(true);
+    try {
+      const res = await fetch('/api/line-richmenu?action=list');
+      if (res.ok) {
+        const data = await res.json();
+        setDeployedData(data);
+      }
+    } catch (e) {
+      console.warn('Could not fetch rich menu status:', e);
+    } finally {
+      setLoadingDeployed(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  // 1. One-Click Deploy All 5 Menus
+  const handleDeployAll = async () => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการ Deploy Rich Menu?',
+      html: `ระบบจะดำเนินการ:
+      <ul style="text-align: left; font-size: 0.88rem; margin-top: 8px;">
+        <li>สร้าง Rich Menu 5 รูปแบบ บน LINE Official Account</li>
+        <li>อัปโหลดภาพกราฟิกความละเอียดสูง (2500x1686 px)</li>
+        <li>ตั้งค่า Aliases (rm-guest, rm-parent, rm-staff, rm-ot, rm-admin)</li>
+        <li>ตั้งค่า Rich Menu แบบที่ 1 เป็นค่าเริ่มต้นสำหรับผู้ใช้ทุกคน</li>
+      </ul>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '🚀 เริ่ม Deploy ทันที',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#7C3AED'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsDeploying(true);
+    try {
+      const res = await fetch('/api/line-richmenu?action=deploy-all', { method: 'POST' });
+      const data = await res.json();
+
+      if (res.ok) {
+        await fetchStatus();
+        Swal.fire({
+          icon: 'success',
+          title: 'Deploy สำเร็จเรียบร้อย! 🎉',
+          html: 'ติดตั้ง Rich Menu ทั้ง 5 รูปแบบขึ้นสู่ LINE Server เรียบร้อยแล้วค่ะ<br>ผู้ติดตามทุกคนจะเริ่มเห็น Rich Menu แบบใหม่ทันที',
+          confirmButtonColor: '#059669'
+        });
+      } else {
+        throw new Error(data.error || 'เกิดข้อผิดพลาดในการ Deploy');
+      }
+    } catch (err) {
+      console.error('Deploy error:', err);
+      Swal.fire({ icon: 'error', title: 'การ Deploy ขัดข้อง', text: err.message });
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  // 2. Batch Sync All Users
+  const handleSyncAllUsers = async () => {
+    const result = await Swal.fire({
+      title: 'ซิงค์สิทธิ์และตัดสิทธิ์ Inactive?',
+      text: 'ระบบจะตรวจสอบผู้ใช้ทุกคนในฐานข้อมูล: ผู้ใช้ที่เป็น Active จะได้รับ Rich Menu ตรงตามสิทธิ์ ส่วนผู้ใช้ที่มีสถานะ Inactive จะถูกตัดสิทธิ์กลับเป็นบุคคลทั่วไปทันที',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'เริ่มซิงค์ทันที',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#2563EB'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsSyncingAll(true);
+    try {
+      const res = await fetch('/api/line-richmenu?action=sync-all-users', { method: 'POST' });
+      const data = await res.json();
+
+      if (res.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'ซิงค์สำเร็จ! 🌟',
+          text: data.message || 'ซิงค์สิทธิ์ผู้ใช้งานทั้งหมดเรียบร้อยแล้ว'
+        });
+        if (onRefreshData) onRefreshData();
+      } else {
+        throw new Error(data.error || 'เกิดข้อผิดพลาดในการซิงค์');
+      }
+    } catch (err) {
+      console.error('Sync error:', err);
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  // 3. Force Switch Rich Menu for a Specific User
+  const handleForceSwitchUser = async (userRecord, targetRole) => {
+    if (!userRecord.lineUserId) {
+      Swal.fire({ icon: 'warning', title: 'ยังไม่ผูก LINE UID', text: 'ผู้ใช้งานท่านนี้ยังไม่ได้ผูกบัญชี LINE OA' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/line-richmenu?action=link-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineUserId: userRecord.lineUserId,
+          role: targetRole,
+          status: userRecord.status
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'ปรับเปลี่ยนสำเร็จ',
+          text: `เปลี่ยน Rich Menu ของคุณ ${userRecord.name} เป็น "${targetRole.toUpperCase()}" เรียบร้อยแล้ว`,
+          timer: 1800,
+          showConfirmButton: false
+        });
+      } else {
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถเปลี่ยนได้', text: data.error });
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: e.message });
+    }
+  };
+
+  // 4. Combined User Registry (Staff + Patients)
+  const combinedUserRegistry = useMemo(() => {
+    const list = [];
+
+    // Add Staff / OT / Admin
+    users.forEach(u => {
+      let r = (u.role || 'staff').toLowerCase();
+      let labelRole = u.role === 'Admin' ? 'ผู้บริหาร' : (u.role === 'OT' ? 'นักกิจกรรมบำบัด' : 'เจ้าหน้าที่');
+      list.push({
+        id: `user_${u.id || u.employeeId}`,
+        sourceType: 'user',
+        name: u.fullname || u.name,
+        code: u.employeeId || '-',
+        role: r,
+        roleLabel: labelRole,
+        phone: u.phone || '-',
+        status: u.status || 'Active',
+        lineUserId: u.lineUserId || (typeof u.avatar_file === 'string' && u.avatar_file.includes('U') ? (() => { try { return JSON.parse(u.avatar_file)?.line_user_id; } catch(e){return null;} })() : null),
+        avatarUrl: u.avatarUrl
+      });
+    });
+
+    // Add Patients (Parents)
+    patients.forEach(p => {
+      list.push({
+        id: `patient_${p.hn}`,
+        sourceType: 'patient',
+        name: `ผู้ปกครองน้อง${p.nickname || p.name} (${p.parentName || p.parent_name || 'ไม่ระบุชื่อ'})`,
+        code: `HN ${p.hn}`,
+        role: 'parent',
+        roleLabel: 'ผู้ปกครอง',
+        phone: p.phone || '-',
+        status: p.status || 'Active',
+        lineUserId: p.lineUserId || p.line_user_id || null,
+        avatarUrl: null
+      });
+    });
+
+    return list;
+  }, [users, patients]);
+
+  // Filtered User Registry
+  const filteredUsers = useMemo(() => {
+    return combinedUserRegistry.filter(u => {
+      // Role filter
+      if (roleFilter !== 'all') {
+        if (roleFilter === 'parent' && u.role !== 'parent') return false;
+        if (roleFilter === 'staff' && u.role !== 'staff') return false;
+        if (roleFilter === 'ot' && u.role !== 'ot') return false;
+        if (roleFilter === 'admin' && u.role !== 'admin') return false;
+      }
+      // Status filter
+      if (statusFilter === 'active' && u.status?.toLowerCase() === 'inactive') return false;
+      if (statusFilter === 'inactive' && u.status?.toLowerCase() !== 'inactive') return false;
+      if (statusFilter === 'linked' && !u.lineUserId) return false;
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = u.name?.toLowerCase().includes(q);
+        const matchCode = u.code?.toLowerCase().includes(q);
+        const matchPhone = u.phone?.toLowerCase().includes(q);
+        const matchUid = u.lineUserId?.toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchPhone && !matchUid) return false;
+      }
+
+      return true;
+    });
+  }, [combinedUserRegistry, roleFilter, statusFilter, searchQuery]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const total = combinedUserRegistry.length;
+    const linked = combinedUserRegistry.filter(u => !!u.lineUserId).length;
+    const parentsLinked = combinedUserRegistry.filter(u => u.role === 'parent' && !!u.lineUserId).length;
+    const staffLinked = combinedUserRegistry.filter(u => u.role !== 'parent' && !!u.lineUserId).length;
+    const inactiveCount = combinedUserRegistry.filter(u => u.status?.toLowerCase() === 'inactive').length;
+    return { total, linked, parentsLinked, staffLinked, inactiveCount };
+  }, [combinedUserRegistry]);
+
+  // Copy helper
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    Swal.fire({
+      icon: 'success',
+      title: 'คัดลอกแล้ว',
+      text: `คัดลอก ${label} เรียบร้อยแล้วค่ะ`,
+      timer: 1500,
+      showConfirmButton: false
+    });
+  };
+
+  return (
+    <div className="fade-in" style={{ padding: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
+      
+      {/* Top Banner Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)',
+        borderRadius: '24px',
+        padding: '2rem',
+        color: '#FFFFFF',
+        marginBottom: '1.75rem',
+        boxShadow: '0 10px 30px rgba(49, 46, 129, 0.25)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '9999px', backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', fontSize: '0.82rem', fontWeight: '700', marginBottom: '10px' }}>
+              <Sparkles size={16} color="#FDE047" /> ระบบบริหารจัดการ LINE Official Account & Dynamic Rich Menu
+            </div>
+            <h1 style={{ fontSize: '1.85rem', fontWeight: '800', margin: '0 0 0.5rem 0', letterSpacing: '0.3px' }}>
+              จัดการ LINE OA คลินิกฮักดีโฮม 💬
+            </h1>
+            <p style={{ margin: 0, opacity: 0.9, fontSize: '0.95rem', maxWidth: '750px', lineHeight: 1.5 }}>
+              ควบคุมการแสดงผล Rich Menu 5 รูปแบบ (บุคคลทั่วไป, ผู้ปกครอง, เจ้าหน้าที่, นักบำบัด, ผู้บริหาร) ตรวจสอบการผูก LINE UID และตัดสิทธิ์ Inactive อัตโนมัติ
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleDeployAll}
+              disabled={isDeploying}
+              className="btn"
+              style={{
+                backgroundColor: '#10B981',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '12px 20px',
+                borderRadius: '14px',
+                fontWeight: '700',
+                fontSize: '0.92rem',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <Zap size={18} />
+              {isDeploying ? 'กำลัง Deploy...' : '🚀 Deploy 5 Rich Menus'}
+            </button>
+
+            <button
+              onClick={handleSyncAllUsers}
+              disabled={isSyncingAll}
+              className="btn"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: '#FFFFFF',
+                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                padding: '12px 18px',
+                borderRadius: '14px',
+                fontWeight: '700',
+                fontSize: '0.92rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <RefreshCw size={18} className={isSyncingAll ? 'spin' : ''} />
+              {isSyncingAll ? 'กำลังซิงค์...' : '🔄 ซิงค์สิทธิ์ทุกคน'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4 Overview Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '1.25rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748B' }}>สถานะ LINE OA บอท</span>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', boxShadow: '0 0 10px #10B981' }} />
+          </div>
+          <div style={{ fontSize: '1.35rem', fontWeight: '800', color: '#0F172A' }}>{lineOaId}</div>
+          <div style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: '600', marginTop: '4px' }}>
+            ✓ พร้อมใช้งาน (Token Active)
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '1.25rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748B' }}>ผูก LINE UID แล้ว</span>
+            <Users size={18} color="#0284C7" />
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0284C7' }}>
+            {stats.linked} <span style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: '500' }}>/ {stats.total} รายการ</span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
+            คิดเป็น {Math.round((stats.linked / (stats.total || 1)) * 100)}% ของฐานข้อมูล
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '1.25rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748B' }}>ผู้ปกครองที่ผูกแล้ว</span>
+            <span style={{ fontSize: '1.2rem' }}>👶</span>
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#059669' }}>
+            {stats.parentsLinked} <span style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: '500' }}>ครอบครัว</span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '4px' }}>
+            รับการแจ้งเตือนนัด & ดูผล ITP ได้ทันที
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '1.25rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748B' }}>เจ้าหน้าที่ / นักบำบัด</span>
+            <ShieldCheck size={18} color="#7C3AED" />
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#7C3AED' }}>
+            {stats.staffLinked} <span style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: '500' }}>คน</span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: '#7C3AED', marginTop: '4px' }}>
+            พร้อมสลับมุมมอง 3-5 ระดับ
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div style={{ display: 'flex', borderBottom: '2px solid #E2E8F0', marginBottom: '1.5rem', gap: '8px' }}>
+        <button
+          onClick={() => setActiveTab('richmenus')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'richmenus' ? '3px solid #7C3AED' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'richmenus' ? '#7C3AED' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Layers size={18} /> แผงผัง Rich Menu ทั้ง 5 รูปแบบ
+        </button>
+
+        <button
+          onClick={() => setActiveTab('users')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'users' ? '3px solid #7C3AED' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'users' ? '#7C3AED' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Users size={18} /> ทะเบียนผู้ใช้งาน LINE & จัดการสิทธิ์ ({filteredUsers.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tools')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'tools' ? '3px solid #7C3AED' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'tools' ? '#7C3AED' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <QrCode size={18} /> ลิงก์เชื่อมต่อ & QR Code ให้ผู้ปกครอง
+        </button>
+      </div>
+
+      {/* TAB 1: 5 RICH MENU CARDS */}
+      {activeTab === 'richmenus' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0, color: '#0F172A' }}>
+                โครงสร้าง Rich Menu แบบ Dynamic Role-Based (5 ระดับ)
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                ขนาดภาพ 2500 x 1686 px (ตาราง 6 ช่อง: 3x2) พร้อมพิกัดสัมผัสและ Alias ในตัว
+              </p>
+            </div>
+
+            <div style={{ fontSize: '0.85rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: deployedData?.richmenus?.length >= 5 ? '#10B981' : '#F59E0B' }} />
+              สถานะบน LINE Server: <strong>{deployedData?.richmenus?.length || 0} เมนูติดตั้งแล้ว</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.25rem' }}>
+            {richMenuCards.map(menu => (
+              <div 
+                key={menu.key} 
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '20px',
+                  border: `2px solid ${menu.borderColor}`,
+                  overflow: 'hidden',
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                {/* Image Preview */}
+                <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
+                  <img 
+                    src={menu.image} 
+                    alt={menu.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    backgroundColor: menu.color,
+                    color: '#FFFFFF',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    fontSize: '0.78rem',
+                    fontWeight: '800',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                  }}>
+                    แบบที่ {menu.number}
+                  </div>
+
+                  {menu.isDefault && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      padding: '4px 12px',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                    }}>
+                      ⭐ ค่าเริ่มต้น (Default)
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Body */}
+                <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: menu.color, margin: 0 }}>
+                      {menu.title}
+                    </h3>
+                  </div>
+
+                  <p style={{ fontSize: '0.82rem', color: '#64748B', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
+                    {menu.desc}
+                  </p>
+
+                  <div style={{ backgroundColor: menu.bgColor, borderRadius: '12px', padding: '10px 12px', marginBottom: '1rem', border: `1px solid ${menu.borderColor}` }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: menu.color, marginBottom: '6px' }}>
+                      🔘 6 ปุ่มฟังก์ชันหลัก:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px', fontSize: '0.78rem', color: '#334155' }}>
+                      {menu.buttons.map((b, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ color: menu.color, fontWeight: '700' }}>{i + 1}.</span> {b}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B', borderTop: '1px solid #F1F5F9', paddingTop: '10px' }}>
+                    <span>Alias: <code style={{ backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>{menu.alias}</code></span>
+                    <a href={menu.image} target="_blank" rel="noreferrer" style={{ color: menu.color, fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      ดูภาพขนาดจริง <ArrowUpRight size={14} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: USER REGISTRY & ACCESS CONTROL */}
+      {activeTab === 'users' && (
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '1.5rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+          
+          {/* Search & Filter Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '280px' }}>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Search size={18} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อ, รหัสพนักงาน, เลข HN, หรือเบอร์โทร..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px 10px 38px',
+                    borderRadius: '12px',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '0.9rem'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                style={{ padding: '9px 12px', borderRadius: '10px', border: '1.5px solid #CBD5E1', fontSize: '0.88rem', fontWeight: '600' }}
+              >
+                <option value="all">บทบาททั้งหมด</option>
+                <option value="parent">👶 ผู้ปกครอง (Parent)</option>
+                <option value="staff">🔵 เจ้าหน้าที่ (Staff)</option>
+                <option value="ot">🟠 นักกิจกรรมบำบัด (OT)</option>
+                <option value="admin">🟣 ผู้ดูแลระบบ (Admin)</option>
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ padding: '9px 12px', borderRadius: '10px', border: '1.5px solid #CBD5E1', fontSize: '0.88rem', fontWeight: '600' }}
+              >
+                <option value="all">สถานะทั้งหมด</option>
+                <option value="linked">✓ ผูก LINE แล้ว</option>
+                <option value="active">🟢 Active เท่านั้น</option>
+                <option value="inactive">🔴 Inactive (ตัดสิทธิ์)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* User Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '2px solid #E2E8F0', color: '#475569', fontSize: '0.82rem', fontWeight: '800' }}>
+                  <th style={{ padding: '12px 14px' }}>ชื่อ-นามสกุล / ผู้รับบริการ</th>
+                  <th style={{ padding: '12px 14px' }}>รหัสประจำตัว</th>
+                  <th style={{ padding: '12px 14px' }}>บทบาท (Role)</th>
+                  <th style={{ padding: '12px 14px' }}>เบอร์โทรศัพท์</th>
+                  <th style={{ padding: '12px 14px' }}>LINE User ID</th>
+                  <th style={{ padding: '12px 14px' }}>สถานะ</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>การปรับเปลี่ยน Rich Menu</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#94A3B8' }}>
+                      <Users size={36} style={{ margin: '0 auto 10px', display: 'block', opacity: 0.5 }} />
+                      ไม่พบข้อมูลผู้ใช้งานที่ตรงตามเงื่อนไข
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map(user => {
+                    const isInactive = user.status?.toLowerCase() === 'inactive';
+                    const hasUid = !!user.lineUserId;
+
+                    return (
+                      <tr key={user.id} style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: isInactive ? '#FEF2F230' : 'transparent' }}>
+                        <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <SmartAvatar src={user.avatarUrl} name={user.name} size={32} />
+                            <div>
+                              <div>{user.name}</div>
+                              <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                {user.sourceType === 'user' ? 'พนักงานคลินิก' : 'ผู้รับบริการ'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td style={{ padding: '12px 14px', fontSize: '0.85rem', fontWeight: '600', color: '#0284C7' }}>
+                          {user.code}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            backgroundColor: user.role === 'admin' ? '#FAF5FF' : (user.role === 'ot' ? '#FFF7ED' : (user.role === 'staff' ? '#F0F9FF' : '#ECFDF5')),
+                            color: user.role === 'admin' ? '#7C3AED' : (user.role === 'ot' ? '#EA580C' : (user.role === 'staff' ? '#0284C7' : '#059669'))
+                          }}>
+                            {user.roleLabel}
+                          </span>
+                        </td>
+
+                        <td style={{ padding: '12px 14px', fontSize: '0.85rem', color: '#334155' }}>
+                          {user.phone}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {hasUid ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#059669', fontWeight: '600' }} title={user.lineUserId}>
+                              <CheckCircle2 size={14} color="#059669" /> ผูกแล้ว ({user.lineUserId.substring(0, 8)}...)
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>ยังไม่ผูก</span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px' }}>
+                          {isInactive ? (
+                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '700', backgroundColor: '#FEF2F2', color: '#DC2626' }}>
+                              Inactive (ตัดสิทธิ์)
+                            </span>
+                          ) : (
+                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '700', backgroundColor: '#F0FDF4', color: '#16A34A' }}>
+                              Active
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                          {hasUid && !isInactive ? (
+                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                              <select
+                                defaultValue=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleForceSwitchUser(user, e.target.value);
+                                    e.target.value = "";
+                                  }
+                                }}
+                                style={{ padding: '4px 8px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.78rem', cursor: 'pointer' }}
+                              >
+                                <option value="" disabled>สลับเมนู...</option>
+                                <option value="guest">🟢 1. ทั่วไป (Guest)</option>
+                                <option value="parent">🟡 2. ผู้ปกครอง (Parent)</option>
+                                <option value="staff">🔵 3. เจ้าหน้าที่ (Staff)</option>
+                                <option value="ot">🟠 4. นักบำบัด (OT)</option>
+                                <option value="admin">🟣 5. ผู้ดูแล (Admin)</option>
+                              </select>
+
+                              <button
+                                onClick={() => handleForceSwitchUser(user, 'guest')}
+                                className="btn btn-light"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#DC2626', borderColor: '#FCA5A5' }}
+                                title="ปลดสิทธิ์กลับเป็นคนทั่วไป"
+                              >
+                                <UserX size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+                              {isInactive ? 'ถูกตัดสิทธิ์แล้ว' : 'รอผู้ใช้เชื่อมต่อ'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: QR CODE & INVITATION TOOLS */}
+      {activeTab === 'tools' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+          
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '1.75rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#059669', marginBottom: '1rem' }}>
+              <QrCode size={24} />
+              <h3 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0 }}>
+                QR Code สำหรับผู้ปกครอง & พนักงาน
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              สามารถพิมพ์ QR Code นี้ไปติดที่เคาน์เตอร์ต้อนรับ หรือส่งให้ผู้ปกครองในแชท LINE เพื่อให้สแกนเชื่อมต่อและเปิดใช้งานเมนูผู้ปกครองอัตโนมัติ:
+            </p>
+
+            <div style={{ textAlign: 'center', padding: '1.5rem', backgroundColor: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0', marginBottom: '1.5rem' }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(liffLinkUrl)}`}
+                alt="QR Code Link"
+                style={{ width: '200px', height: '200px', borderRadius: '12px', border: '4px solid #FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+              />
+              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#0F172A', marginTop: '10px' }}>
+                สแกนเพื่อเชื่อมต่อระบบ LINE OA ฮักดีโฮม
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input 
+                type="text"
+                readOnly
+                value={liffLinkUrl}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.82rem', backgroundColor: '#F1F5F9' }}
+              />
+              <button
+                onClick={() => copyToClipboard(liffLinkUrl, 'ลิงก์เชื่อมต่อ')}
+                className="btn btn-primary"
+                style={{ padding: '10px 14px', borderRadius: '10px', fontWeight: '700', fontSize: '0.85rem', backgroundColor: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Copy size={16} /> คัดลอก
+              </button>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '1.75rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#7C3AED', marginBottom: '1rem' }}>
+              <ShieldAlert size={24} />
+              <h3 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0 }}>
+                นโยบายความปลอดภัย & กฎเกณฑ์ Inactive
+              </h3>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '14px', padding: '1rem' }}>
+                <div style={{ fontWeight: '800', fontSize: '0.9rem', color: '#991B1B', marginBottom: '4px' }}>
+                  🚫 กฎการตัดสิทธิ์ Inactive อัตโนมัติ (Automated Inactive Revocation)
+                </div>
+                <p style={{ fontSize: '0.82rem', color: '#7F1D1D', margin: 0, lineHeight: 1.45 }}>
+                  เมื่อใดที่พนักงานลาออก หรือผู้รับบริการพ้นสภาพการรักษา และถูกปรับสถานะเป็น <code>Inactive</code> ในระบบ ระบบจะทำการ Unlink Rich Menu ทันที และดีดผู้ใช้กลับไปเป็น <strong>บุคคลทั่วไป (Guest)</strong> เพื่อป้องกันการเข้าถึงข้อมูลภายในคลินิก 100%
+                </p>
+              </div>
+
+              <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '14px', padding: '1rem' }}>
+                <div style={{ fontWeight: '800', fontSize: '0.9rem', color: '#1E40AF', marginBottom: '4px' }}>
+                  🔄 การสลับดูเมนูข้ามระดับ (Multi-Role Switching)
+                </div>
+                <p style={{ fontSize: '0.82rem', color: '#1E3A8A', margin: 0, lineHeight: 1.45 }}>
+                  • <strong>เจ้าหน้าที่ (Staff):</strong> สลับดูได้ 3 แบบ (ทั่วไป, ผู้ปกครอง, เจ้าหน้าที่)<br />
+                  • <strong>นักบำบัด (OT):</strong> สลับดูได้ 3 แบบ (ทั่วไป, ผู้ปกครอง, นักบำบัด)<br />
+                  • <strong>ผู้ดูแล (Admin):</strong> สลับดูได้อิสระครบทั้ง 5 รูปแบบ
+                </p>
+              </div>
+
+              <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '14px', padding: '1rem' }}>
+                <div style={{ fontWeight: '800', fontSize: '0.9rem', color: '#166534', marginBottom: '4px' }}>
+                  👶 รองรับผู้ปกครองมีบุตรหลานหลายคน (Multi-Child Support)
+                </div>
+                <p style={{ fontSize: '0.82rem', color: '#14532D', margin: 0, lineHeight: 1.45 }}>
+                  หากเบอร์โทรศัพท์หนึ่งเบอร์ผูกกับเด็กมากกว่า 1 คน ในหน้า LIFF Portal ผู้ปกครองสามารถเลือกคลิกสลับดูข้อมูลของน้องแต่ละคนได้โดยอิสระ
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
