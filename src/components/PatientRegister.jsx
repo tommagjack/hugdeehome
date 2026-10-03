@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatPatientNickname, parseDateToAD } from '../utils/format';
+import ThaiDatePicker, { parseRawDateToParts } from './ThaiDatePicker';
 import { 
   UserPlus, 
   Search, 
@@ -11,7 +12,9 @@ import {
   AlertCircle,
   Upload,
   Download,
-  Plus
+  Plus,
+  Share2,
+  UserCheck
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
@@ -47,12 +50,19 @@ export default function PatientRegister({
   currentUser,
   appointments = [],
   therapists = [],
-  receipts = []
+  receipts = [],
+  initialStatusFilter = 'All'
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All'); // All, Active, Pending, Inactive
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter); // All, Active, Pending, Inactive
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (initialStatusFilter) {
+      setStatusFilter(initialStatusFilter);
+    }
+  }, [initialStatusFilter]);
 
   // ระบบตรวจสอบและปรับสถานะเป็น Inactive อัตโนมัติ: ผู้ป่วย Active ที่คอร์ส = 0 และไม่มีการนัดหมาย >= 30 วัน
   useEffect(() => {
@@ -346,6 +356,132 @@ export default function PatientRegister({
     setShowRegisterModal(false);
   };
 
+  // ฟังก์ชันแชร์ลิ้งค์แบบฟอร์มลงทะเบียนสำหรับผู้ปกครอง
+  const handleSharePatientFormLink = () => {
+    const formUrl = `${window.location.origin}${window.location.pathname}#/register-patient`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}`;
+
+    Swal.fire({
+      title: 'ลิ้งค์แบบฟอร์มลงทะเบียนผู้รับบริการ (สำหรับผู้ปกครอง)',
+      html: `
+        <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6; color: var(--dark);">
+          <p style="margin-bottom: 0.75rem;">
+            ส่งลิ้งค์หรือสแกน QR Code นี้ให้ผู้ปกครอง เพื่อกรอกข้อมูลประวัติคนไข้รายใหม่ได้ด้วยตนเองผ่านมือถือ:
+          </p>
+
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <input 
+              id="swal-form-url-input" 
+              type="text" 
+              readOnly 
+              value="${formUrl}" 
+              style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #f8fafc; font-family: monospace;"
+              onclick="this.select()"
+            />
+            <button 
+              id="swal-copy-btn" 
+              class="swal2-confirm swal2-styled" 
+              style="margin: 0; padding: 0.5rem 1rem; background-color: var(--secondary); font-size: 0.85rem;"
+            >
+              คัดลอกลิ้งค์
+            </button>
+          </div>
+
+          <div style="text-align: center; background: #f1f5f9; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; border: 1px dashed #cbd5e1;">
+            <img 
+              src="${qrUrl}" 
+              alt="QR Code สำหรับลงทะเบียน" 
+              style="width: 180px; height: 180px; border-radius: 8px; background: white; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: inline-block;" 
+            />
+            <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
+              📱 สแกน QR Code เพื่อเปิดแบบฟอร์มบนสมาร์ตโฟน
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; font-size: 0.83rem; color: #1e40af;">
+            ℹ️ <strong>สิ่งที่ระบบปกปิดจากผู้ปกครอง:</strong> ไม่แสดงเลข HN, ไม่แสดงสถานะ และไม่แสดง LINE User ID เมื่อผู้ปกครองกดยืนยันการให้เก็บข้อมูล (PDPA) และส่งแบบฟอร์มแล้ว ข้อมูลจะเข้าสู่ระบบในสถานะ <strong>Pending</strong> และมีการแจ้งเตือนที่ <strong>สัญลักษณ์กระดิ่ง</strong> เพื่อให้เจ้าหน้าที่ตรวจสอบและกด "อนุมัติ & ออกเลข HN"
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'เปิดดูตัวอย่างแบบฟอร์ม',
+      cancelButtonText: 'ปิดหน้าต่าง',
+      confirmButtonColor: 'var(--secondary)',
+      cancelButtonColor: '#94a3b8',
+      didOpen: () => {
+        const copyBtn = document.getElementById('swal-copy-btn');
+        const urlInput = document.getElementById('swal-form-url-input');
+        if (copyBtn && urlInput) {
+          copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(urlInput.value).then(() => {
+              copyBtn.innerText = '✓ คัดลอกสำเร็จ!';
+              copyBtn.style.backgroundColor = 'var(--success, #10b981)';
+              setTimeout(() => {
+                copyBtn.innerText = 'คัดลอกลิ้งค์';
+                copyBtn.style.backgroundColor = 'var(--secondary)';
+              }, 2000);
+            }).catch(() => {
+              urlInput.select();
+              document.execCommand('copy');
+              copyBtn.innerText = '✓ คัดลอกแล้ว!';
+            });
+          });
+        }
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.open(formUrl, '_blank');
+      }
+    });
+  };
+
+  // ฟังก์ชันอนุมัติผู้ป่วย Pending และออกเลข HN
+  const handleApprovePendingPatient = (p) => {
+    const nextHn = generateNextHn();
+    Swal.fire({
+      title: 'อนุมัติผู้รับบริการและออกเลข HN',
+      html: `
+        <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6;">
+          <p>คุณกำลังจะอนุมัติผู้รับบริการที่ลงทะเบียนออนไลน์เข้ามา:</p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <strong>ชื่อ-นามสกุล:</strong> ${p.title || ''}${p.firstname} ${p.lastname} (${p.nickname ? 'น้อง' + p.nickname : 'ไม่มีชื่อเล่น'})<br/>
+            <strong>ผู้ปกครอง:</strong> ${p.guardian || 'ไม่ระบุ'} | <strong>เบอร์โทร:</strong> ${p.phone || '-'}<br/>
+            <strong>รหัสชั่วคราว:</strong> <span class="badge badge-warning">${p.hn}</span>
+          </div>
+          <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; color: #065f46;">
+            <span style="font-size: 1.05rem; font-weight: 700;">เลข HN ที่จะกำหนด: <span style="color: #059669;">${nextHn}</span></span><br/>
+            <small>สถานะจะเปลี่ยนเป็น <strong>Active</strong> และบันทึกผู้เปลี่ยนสถานะเป็น <strong>${currentUser?.fullname || 'ผู้ดูแลระบบ'}</strong></small>
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: `ยืนยันอนุมัติ (ออก HN: ${nextHn})`,
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'var(--success, #10b981)',
+      cancelButtonColor: '#94a3b8'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        const approvedPatient = {
+          ...p,
+          hn: nextHn,
+          status: 'Active',
+          activatedBy: currentUser?.fullname || 'ผู้ดูแลระบบ',
+          activatedAt: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        onUpdatePatient(approvedPatient, p.hn);
+        Swal.fire({
+          icon: 'success',
+          title: 'อนุมัติเรียบร้อยแล้ว',
+          text: `ผู้รับบริการได้รับเลข HN: ${nextHn} และเปิดใช้งานสถานะ Active แล้ว`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    });
+  };
+
   // 7. บันทึกข้อมูลฟอร์ม (เพิ่ม/แก้ไข)
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -359,8 +495,19 @@ export default function PatientRegister({
       return;
     }
 
+    const existingPatient = (patients || []).find(p => p.hn === formHn);
+    const isBeingActivated = isEditing && existingPatient?.status === 'Pending' && status === 'Active';
+
+    let finalHn = formHn;
+    let oldHn = null;
+    // หากเป็นผู้ป่วย Pending ที่มีรหัสชั่วคราว PND-xxx และกำลังปรับเป็น Active ให้ออกเลข HN ถัดไปอัตโนมัติ
+    if (isEditing && formHn.startsWith('PND-') && status === 'Active') {
+      oldHn = formHn;
+      finalHn = generateNextHn();
+    }
+
     const patientData = {
-      hn: formHn,
+      hn: finalHn,
       status,
       gender,
       title,
@@ -378,17 +525,24 @@ export default function PatientRegister({
       channelsOtherDetails: selectedChannels.includes('อื่นๆ') ? channelsOtherDetails : '',
       worries,
       lineUserId,
-      created_at: isEditing ? ((patients || []).find(p => p.hn === formHn)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+      created_at: isEditing ? (existingPatient?.created_at || new Date().toISOString()) : new Date().toISOString(),
       createdBy: isEditing 
-        ? ((patients || []).find(p => p.hn === formHn)?.createdBy || '')
-        : (currentUser?.fullname || 'ผู้ดูแลระบบ')
+        ? (existingPatient?.createdBy || '')
+        : (currentUser?.fullname || 'ผู้ดูแลระบบ'),
+      activatedBy: isBeingActivated 
+        ? (currentUser?.fullname || 'ผู้ดูแลระบบ')
+        : (existingPatient?.activatedBy || (status === 'Active' ? (currentUser?.fullname || 'ผู้ดูแลระบบ') : '')),
+      activatedAt: isBeingActivated 
+        ? new Date().toISOString()
+        : (existingPatient?.activatedAt || (status === 'Active' ? new Date().toISOString() : ''))
     };
 
     if (isEditing) {
-      onUpdatePatient(patientData);
+      onUpdatePatient(patientData, oldHn || formHn);
       Swal.fire({
         icon: 'success',
         title: 'แก้ไขข้อมูลสำเร็จ',
+        text: oldHn ? `กำหนดรหัส HN: ${finalHn} เรียบร้อยแล้ว` : undefined,
         showConfirmButton: false,
         timer: 1500
       });
@@ -437,9 +591,17 @@ export default function PatientRegister({
 
     const dobText = (() => {
       if (!p.dob) return 'ไม่ได้ระบุ';
-      const d = new Date(p.dob);
-      if (isNaN(d.getTime())) return p.dob || 'ไม่ได้ระบุ';
-      return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+      const parts = parseRawDateToParts(p.dob);
+      if (parts.day && parts.month && parts.yearBE) {
+        const fullNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const m = parseInt(parts.month, 10);
+        return `${parts.day} ${fullNames[m] || parts.month} ${parts.yearBE}`;
+      }
+      const d = parseDateToAD(p.dob);
+      if (d && !isNaN(d.getTime())) {
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      return p.dob || 'ไม่ได้ระบุ';
     })();
 
     Swal.fire({
@@ -447,7 +609,7 @@ export default function PatientRegister({
       html: `
         <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6; display: flex; flex-direction: column; gap: 0.5rem; color: var(--dark)">
           <div style="border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.5rem">
-            <strong>ชื่อ-นามสกุล:</strong> ${p.title}${p.firstname} ${p.lastname} (${p.nickname ? formatPatientNickname(p.nickname) : 'ไม่มีชื่อเล่น'})<br/>
+            <strong>ชื่อ-นามสกุล:</strong> ${p.title || ''}${p.firstname} ${p.lastname} (${p.nickname ? formatPatientNickname(p.nickname) : 'ไม่มีชื่อเล่น'})<br/>
             <strong>เพศ:</strong> ${p.gender} | <strong>สถานะ:</strong> <span class="badge ${p.status === 'Active' ? 'badge-success' : p.status === 'Pending' ? 'badge-warning' : 'badge-secondary'}">${p.status}</span>
           </div>
           <div>
@@ -464,6 +626,10 @@ export default function PatientRegister({
           <div style="background-color: var(--light); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px dashed var(--border); margin-top: 0.5rem">
             <strong>อาการหรือพฤติกรรมที่กังวล:</strong><br/>
             <span style="font-style: italic; color: var(--dark-light)">${p.worries || 'ไม่มี'}</span>
+          </div>
+          <div style="border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: #475569;">
+            <strong>ผู้บันทึก/อนุมัติข้อมูล:</strong> ${p.activatedBy || p.createdBy || 'ผู้ดูแลระบบ'}<br/>
+            ${p.activatedAt ? `<strong>วันที่อนุมัติ (Active):</strong> ${new Date(p.activatedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.<br/>` : ''}
           </div>
         </div>
       `,
@@ -714,9 +880,19 @@ export default function PatientRegister({
         </h1>
         <div className="page-actions">
           {currentUser?.role !== 'OT' && (
-            <button className="btn btn-primary" onClick={() => { resetForm(); setShowRegisterModal(true); }} title="ลงทะเบียนผู้รับบริการรายใหม่">
-              <Plus size={16} /> ลงทะเบียนรายใหม่
-            </button>
+            <>
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleSharePatientFormLink} 
+                title="สร้างลิ้งค์และ QR Code แบบฟอร์มลงทะเบียนสำหรับส่งให้ผู้ปกครองกรอกออนไลน์"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Share2 size={16} /> สร้างลิ้งค์ฟอร์มผู้รับบริการ
+              </button>
+              <button className="btn btn-primary" onClick={() => { resetForm(); setShowRegisterModal(true); }} title="ลงทะเบียนผู้รับบริการรายใหม่">
+                <Plus size={16} /> ลงทะเบียนรายใหม่
+              </button>
+            </>
           )}
           {currentUser?.role === 'Admin' && (
             <>
@@ -815,16 +991,16 @@ export default function PatientRegister({
                   </div>
                 </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">วันเกิด (ค.ศ. ระบบจะแปลง พ.ศ.) <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input type="date" className="form-control" value={dob} onChange={(e) => setDob(e.target.value)} required />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">อายุคำนวณ</label>
-                    <input type="text" className="form-control" value={ageText} readOnly style={{ backgroundColor: '#f9f9f9', fontWeight: 600, color: 'var(--secondary)' }} />
-                  </div>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label">วันเกิด (พ.ศ.) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <ThaiDatePicker
+                    value={dob}
+                    onChange={(dateAD, dateBE, calculatedAge) => {
+                      setDob(dateAD);
+                      setAgeText(calculatedAge);
+                    }}
+                    required
+                  />
                 </div>
 
                 <div className="form-row">
@@ -1012,10 +1188,22 @@ export default function PatientRegister({
                       <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{p.hn}</td>
                       <td>
                         <div style={{ fontWeight: 600, color: 'var(--dark)' }}>
-                          {p.title}{p.firstname} {p.lastname}
+                          {p.title || ''}{p.firstname} {p.lastname}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', marginTop: '2px' }}>
                           {p.nickname ? formatPatientNickname(p.nickname) : '-'} ({p.gender})
+                          {p.dob && (
+                            <span style={{ marginLeft: '6px', color: '#64748b' }}>
+                              • เกิด {(() => {
+                                const parts = parseRawDateToParts(p.dob);
+                                if (parts.day && parts.month && parts.yearBE) {
+                                  const mNames = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                                  return `${parts.day} ${mNames[parseInt(parts.month, 10)] || ''} ${parts.yearBE}`;
+                                }
+                                return p.dob;
+                              })()}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td>
@@ -1089,6 +1277,18 @@ export default function PatientRegister({
                             <Eye size={16} color="var(--dark)" />
                           </button>
                           
+                          {p.status === 'Pending' && currentUser?.role !== 'OT' && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title="อนุมัติผู้รับบริการและออกเลข HN"
+                              onClick={() => handleApprovePendingPatient(p)}
+                              type="button"
+                              style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                            >
+                              <UserCheck size={16} color="var(--success, #059669)" />
+                            </button>
+                          )}
+
                           {currentUser?.role !== 'OT' && (
                             <button 
                               className="btn btn-light btn-icon-only" 

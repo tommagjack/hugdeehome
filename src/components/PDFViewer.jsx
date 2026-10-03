@@ -144,9 +144,13 @@ export default function PDFViewer({
     }, 100);
   };
 
-  // ดึงวันเกิดภาษาไทย
+  // ดึงวันเกิดภาษาไทย (รองรับทั้ง ค.ศ. และ พ.ศ.)
   const formatDateTh = (dateStr) => {
     if (!dateStr) return '-';
+    const dAD = parseDateToAD(dateStr);
+    if (dAD && !isNaN(dAD.getTime())) {
+      return dAD.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr || '-';
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -326,23 +330,32 @@ export default function PDFViewer({
           <div className="a4-receipt-signatures" style={{ marginTop: '80px' }}>
             <div className="a4-sig-line-container">
               <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600 }}>
-                {p.createdBy || ''}
+                {p.activatedBy || p.createdBy || ''}
               </div>
-              {p.createdBy ? (
-                <span className="a4-sig-label">ผู้บันทึกประวัติ</span>
+              {(p.activatedBy || p.createdBy) ? (
+                <span className="a4-sig-label">ผู้บันทึกข้อมูล</span>
               ) : (
-                <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้บันทึกประวัติ</span>
+                <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้บันทึกข้อมูล</span>
               )}
               <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>
-                {p.createdBy ? `( ${p.createdBy} )` : ''}
+                {(p.activatedBy || p.createdBy) ? `( ${p.activatedBy || p.createdBy} )` : ''}
               </span>
               <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '3px', color: '#444' }}>
-                วันที่บันทึกข้อมูล: {recordedDateStr}
+                วันที่บันทึกข้อมูล: {p.activatedAt ? formatDateTh(p.activatedAt) : recordedDateStr}
               </span>
             </div>
             <div className="a4-sig-line-container">
-              <div className="a4-sig-line"></div>
-              <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้ปกครอง / พยาน</span>
+              <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600 }}>
+                {p.guardian || ''}
+              </div>
+              {p.guardian ? (
+                <span className="a4-sig-label">ผู้ปกครอง / ผู้ให้ข้อมูล</span>
+              ) : (
+                <span className="a4-sig-label">ลงชื่อ.............................................................. ผู้ปกครอง / พยาน</span>
+              )}
+              <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>
+                {p.guardian ? `( ${p.guardian} )` : ''}
+              </span>
               <span className="a4-sig-label" style={{ fontSize: '9px', marginTop: '2px' }}>(ผู้ให้ข้อมูลประวัติการรักษาเบื้องต้น)</span>
             </div>
           </div>

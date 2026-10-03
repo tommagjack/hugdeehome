@@ -540,7 +540,7 @@ const TABLE_COLUMNS = {
     'hn', 'title', 'firstname', 'lastname', 'nickname', 'dob', 
     'gender', 'guardian', 'phone', 'status', 'allergies',
     'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries',
-    'allergies_details', 'created_by', 'line_user_id'
+    'allergies_details', 'created_by', 'line_user_id', 'activated_by', 'activated_at'
   ],
   attendance: [
     'id', 'employee_id', 'employee_name', 'date', 'time', 'type',

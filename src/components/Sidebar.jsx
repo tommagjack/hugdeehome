@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount, pendingUsersCount }) {
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount, pendingUsersCount, pendingPatientsCount = 0 }) {
   
   const toggleCollapse = () => {
     const newVal = !collapsed;
@@ -194,7 +194,26 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                         }}
                         title={item.label}
                       >
-                        <IconComponent size={20} className="menu-icon" />
+                        {item.id === 'patients' && pendingPatientsCount > 0 && (
+                          <span className="menu-badge" style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            backgroundColor: 'var(--warning, #f59e0b)',
+                            color: 'white',
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            borderRadius: '10px',
+                            minWidth: '16px',
+                            height: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                            zIndex: 10,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }}>{pendingPatientsCount}</span>
+                        )}
                         {item.id === 'appointments' && overdueCount > 0 && (
                           <span className="menu-badge" style={{
                             position: 'absolute',
@@ -277,6 +296,21 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                         >
                           <IconComponent size={20} className="menu-icon" />
                           <span className="menu-text">{item.label}</span>
+                          {item.id === 'patients' && pendingPatientsCount > 0 && (
+                            <span className="menu-badge" style={{
+                              marginLeft: 'auto',
+                              backgroundColor: 'var(--warning, #f59e0b)',
+                              color: 'white',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              borderRadius: '10px',
+                              padding: '2px 6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1
+                            }}>{pendingPatientsCount}</span>
+                          )}
                           {item.id === 'appointments' && overdueCount > 0 && (
                             <span className="menu-badge" style={{
                               marginLeft: 'auto',

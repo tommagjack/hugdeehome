@@ -21,6 +21,7 @@ import ReferralLetter from './components/ReferralLetter';
 import GuestRegister from './components/GuestRegister';
 import CheckIn from './components/CheckIn';
 import UserProfile from './components/UserProfile';
+import ParentPatientRegister from './components/ParentPatientRegister';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
@@ -1142,6 +1143,14 @@ export default function App() {
     window.location.pathname === '/checkin' ||
     window.location.search.includes('checkin')
   );
+  // สถานะเปิดหน้าแบบฟอร์มลงทะเบียนผู้รับบริการสำหรับผู้ปกครอง (สาธารณะ)
+  const [isPatientRegisterPage, setIsPatientRegisterPage] = useState(() => 
+    window.location.hash === '#/register-patient' || 
+    window.location.hash === '#/patient-form' ||
+    window.location.pathname === '/register-patient' ||
+    window.location.search.includes('register-patient')
+  );
+  const [patientStatusFilter, setPatientStatusFilter] = useState('All');
 
   useEffect(() => {
     const handleHash = () => {
@@ -1150,6 +1159,12 @@ export default function App() {
         window.location.hash === '#/checkin' || 
         window.location.pathname === '/checkin' ||
         window.location.search.includes('checkin')
+      );
+      setIsPatientRegisterPage(
+        window.location.hash === '#/register-patient' || 
+        window.location.hash === '#/patient-form' ||
+        window.location.pathname === '/register-patient' ||
+        window.location.search.includes('register-patient')
       );
     };
     window.addEventListener('hashchange', handleHash);
@@ -1227,66 +1242,124 @@ export default function App() {
     return users.filter(u => u && u.status === 'Pending').length;
   }, [users]);
 
-  const handleShowOverdueAlert = () => {
-    if (overdueCount === 0) {
+  const pendingPatients = useMemo(() => {
+    return (patients || []).filter(p => p && p.status === 'Pending');
+  }, [patients]);
+  const pendingPatientsCount = pendingPatients.length;
+
+  const totalNotificationsCount = overdueCount + pendingPatientsCount;
+
+  const handleShowNotifications = () => {
+    if (totalNotificationsCount === 0) {
       Swal.fire({
         icon: 'success',
-        title: 'ไม่มีนัดหมายค้างสถานะ',
-        text: 'รายการนัดหมายทั้งหมดได้รับการปรับปรุงเป็นปัจจุบันเรียบร้อยแล้ว',
+        title: 'ไม่มีรายการแจ้งเตือนค้าง',
+        text: 'ไม่มีนัดหมายค้างสถานะ และไม่มีผู้รับบริการที่รอการอนุมัติ',
         confirmButtonColor: 'var(--secondary)'
       });
       return;
     }
 
-    const listHtml = overdueAppointments.map(app => {
-      const patientName = app.patientName || `HN: ${app.hn}`;
-      return `
-        <div style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+    let htmlContent = '';
+
+    // ส่วนที่ 1: ผู้รับบริการที่ลงทะเบียนรออนุมัติ / ออกเลข HN
+    if (pendingPatientsCount > 0) {
+      const pendingListHtml = pendingPatients.map(p => `
+        <div style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;">
           <div>
-            <strong>${patientName}</strong><br/>
-            <small style="color: #888;">วันที่นัด: ${app.date} | เวลา: ${app.timeSlot || '-'}</small>
+            <strong style="color: #1e293b;">${p.title || ''}${p.firstname} ${p.lastname}</strong> 
+            <span style="color: #64748b;">(${p.nickname ? formatPatientNickname(p.nickname) : 'ไม่มีชื่อเล่น'})</span><br/>
+            <small style="color: #64748b;">ผู้ปกครอง: ${p.guardian || 'ไม่ระบุ'} | โทร: ${p.phone || '-'}</small>
           </div>
-          <span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid #ffeeba;">
-            ${app.status}
+          <span style="background: #fef3c7; color: #b45309; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid #fde68a;">
+            รอออก HN
           </span>
         </div>
+      `).join('');
+
+      htmlContent += `
+        <div style="margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="color: #b45309; font-size: 0.95rem;">
+              📋 ผู้รับบริการรออนุมัติ / รอออก HN (${pendingPatientsCount} ราย)
+            </strong>
+          </div>
+          <div style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 0.5rem; background-color: #fffbeb;">
+            ${pendingListHtml}
+          </div>
+        </div>
       `;
-    }).join('');
+    }
+
+    // ส่วนที่ 2: นัดหมายค้างสถานะ
+    if (overdueCount > 0) {
+      const overdueListHtml = overdueAppointments.map(app => {
+        const patientName = app.patientName || `HN: ${app.hn}`;
+        return `
+          <div style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;">
+            <div>
+              <strong style="color: #1e293b;">${patientName}</strong><br/>
+              <small style="color: #64748b;">วันที่นัด: ${app.date} | เวลา: ${app.timeSlot || '-'}</small>
+            </div>
+            <span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid #fca5a5;">
+              ${app.status}
+            </span>
+          </div>
+        `;
+      }).join('');
+
+      htmlContent += `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="color: #b91c1c; font-size: 0.95rem;">
+              ⚠️ นัดหมายค้างสถานะ (${overdueCount} รายการ)
+            </strong>
+          </div>
+          <div style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 0.5rem; background-color: #fef2f2;">
+            ${overdueListHtml}
+          </div>
+        </div>
+      `;
+    }
 
     Swal.fire({
-      title: `พบนัดหมายค้างสถานะ (${overdueCount} รายการ)`,
+      title: `รายการแจ้งเตือนค้างดำเนินการ (${totalNotificationsCount})`,
       html: `
-        <p style="font-size: 0.85rem; color: #dc3545; text-align: left; margin-bottom: 0.75rem; font-weight: 600;">
-          * ตรวจพบรายการนัดหมายที่เลยกำหนดวันนัดแล้ว แต่สถานะยังเป็น "จองแล้ว" หรือ "ยืนยันแล้ว"
-        </p>
-        <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0 0.5rem; background-color: #fdfdfd;">
-          ${listHtml}
+        <div style="font-family: var(--font-family); text-align: left;">
+          ${htmlContent}
         </div>
-        <p style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; text-align: left;">
-          กรุณากดปุ่มด้านล่างเพื่อไปที่หน้า <strong>ตารางนัดหมาย</strong> เพื่อเปลี่ยนสถานะเป็น <strong>"รับบริการแล้ว"</strong> หรือ <strong>"ยกเลิก"</strong> ให้ถูกต้องครับ
-        </p>
       `,
-      confirmButtonText: 'ไปหน้าตารางนัดหมาย',
+      showDenyButton: pendingPatientsCount > 0,
+      showConfirmButton: overdueCount > 0,
       showCancelButton: true,
-      cancelButtonText: 'ปิดหน้าต่าง',
-      confirmButtonColor: 'var(--secondary)',
-      cancelButtonColor: '#aaa'
+      denyButtonText: 'ไปหน้าทะเบียนผู้รับบริการ (อนุมัติ)',
+      confirmButtonText: 'ไปหน้าตารางนัดหมาย',
+      cancelButtonText: 'ปิด',
+      denyButtonColor: 'var(--secondary)',
+      confirmButtonColor: 'var(--primary)',
+      cancelButtonColor: '#94a3b8'
     }).then((result) => {
-      if (result.isConfirmed) {
+      if (result.isDenied) {
+        setPatientStatusFilter('Pending');
+        setActiveTab('patients');
+      } else if (result.isConfirmed) {
         setActiveTab('appointments');
       }
     });
   };
 
+  const handleShowOverdueAlert = handleShowNotifications;
+
   // --- ฟังก์ชันดำเนินงาน DB (สืบทอดไปให้ลูกๆ) ---
   const handleAddPatient = (data) => {
     setPatients([...patients, data]);
-    logActivity(`เพิ่มผู้รับบริการใหม่ HN: ${data.hn} (${data.title}${data.firstname} ${data.lastname} - น้อง${data.nickname})`);
+    logActivity(`เพิ่มผู้รับบริการใหม่ HN: ${data.hn} (${data.title || ''}${data.firstname} ${data.lastname} - น้อง${data.nickname})`);
   };
 
-  const handleUpdatePatient = (data) => {
-    setPatients(patients.map(p => p.hn === data.hn ? data : p));
-    logActivity(`แก้ไขข้อมูลผู้รับบริการ HN: ${data.hn} (${data.title}${data.firstname} ${data.lastname})`);
+  const handleUpdatePatient = (data, oldHn) => {
+    const targetHn = oldHn || data.hn;
+    setPatients(patients.map(p => p.hn === targetHn ? data : p));
+    logActivity(`แก้ไขข้อมูลผู้รับบริการ HN: ${data.hn} (${data.title || ''}${data.firstname} ${data.lastname})`);
   };
 
   const handleDeletePatient = (hn) => {
@@ -1866,6 +1939,18 @@ export default function App() {
     );
   }
 
+  // 12. รันหน้าลงทะเบียนผู้รับบริการสำหรับผู้ปกครอง (สาธารณะ) เข้าได้เลยไม่ต้องผ่านเมนู Sidebar และ Login
+  if (isPatientRegisterPage) {
+    return (
+      <ParentPatientRegister 
+        clinicInfo={clinicInfo}
+        onRegister={(newPendingPatient) => {
+          setPatients(prev => [newPendingPatient, ...prev]);
+        }}
+      />
+    );
+  }
+
   // รันวิวล็อกอินถ้าผู้ใช้งานยังไม่ได้ลงชื่อเข้าใช้ระบบ
   if (!currentUser) {
     return (
@@ -2156,6 +2241,7 @@ export default function App() {
         onCloseMobile={() => setMobileSidebarOpen(false)}
         overdueCount={overdueCount}
         pendingUsersCount={pendingUsersCount}
+        pendingPatientsCount={pendingPatientsCount}
       />
 
       {/* ม่านฉากหลังเมื่อสไลด์เมนูมือถือเปิด */}
@@ -2177,7 +2263,7 @@ export default function App() {
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.src = DEFAULT_CLINIC_LOGO;
-              }}
+              }} 
             />
           </div>
           <span className="mobile-brand-title">
@@ -2191,9 +2277,9 @@ export default function App() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะบนมือถือ */}
+          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะและผู้รับบริการรออนุมัติบนมือถือ */}
           <button
-            onClick={handleShowOverdueAlert}
+            onClick={handleShowNotifications}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -2204,17 +2290,17 @@ export default function App() {
               border: '1px solid var(--border)',
               backgroundColor: 'white',
               cursor: 'pointer',
-              color: overdueCount > 0 ? 'var(--danger, #dc3545)' : '#666'
+              color: totalNotificationsCount > 0 ? (pendingPatientsCount > 0 ? 'var(--warning, #f59e0b)' : 'var(--danger, #dc3545)') : '#666'
             }}
-            title={`นัดหมายค้างสถานะ ${overdueCount} รายการ`}
+            title={`การแจ้งเตือน (${totalNotificationsCount} รายการ${pendingPatientsCount > 0 ? ` : รออนุมัติ ${pendingPatientsCount}` : ''}${overdueCount > 0 ? ` : นัดหมายค้าง ${overdueCount}` : ''})`}
           >
             <Bell size={16} />
-            {overdueCount > 0 && (
+            {totalNotificationsCount > 0 && (
               <span style={{
                 position: 'absolute',
                 top: '-4px',
                 right: '-4px',
-                backgroundColor: 'var(--danger, #dc3545)',
+                backgroundColor: pendingPatientsCount > 0 ? 'var(--warning, #f59e0b)' : 'var(--danger, #dc3545)',
                 color: 'white',
                 fontSize: '0.6rem',
                 fontWeight: 700,
@@ -2224,7 +2310,7 @@ export default function App() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
-              }}>{overdueCount}</span>
+              }}>{totalNotificationsCount}</span>
             )}
           </button>
           <div className="user-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setActiveTab('profile')}>
@@ -2286,9 +2372,9 @@ export default function App() {
             </button>
           )}
 
-          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะแบบโกลบอล */}
+          {/* ปุ่มกระดิ่งแจ้งเตือนนัดหมายค้างสถานะและผู้รับบริการรออนุมัติแบบโกลบอล */}
           <button
-            onClick={handleShowOverdueAlert}
+            onClick={handleShowNotifications}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -2300,19 +2386,19 @@ export default function App() {
               backgroundColor: 'white',
               boxShadow: 'var(--shadow-sm)',
               cursor: 'pointer',
-              color: overdueCount > 0 ? 'var(--danger, #dc3545)' : '#666',
+              color: totalNotificationsCount > 0 ? (pendingPatientsCount > 0 ? 'var(--warning, #f59e0b)' : 'var(--danger, #dc3545)') : '#666',
               transition: 'all 0.2s',
               flexShrink: 0
             }}
-            title={`นัดหมายค้างสถานะ ${overdueCount} รายการ`}
+            title={`การแจ้งเตือน (${totalNotificationsCount} รายการ${pendingPatientsCount > 0 ? ` : รออนุมัติ ${pendingPatientsCount}` : ''}${overdueCount > 0 ? ` : นัดหมายค้าง ${overdueCount}` : ''})`}
           >
             <Bell size={15} />
-            {overdueCount > 0 && (
+            {totalNotificationsCount > 0 && (
               <span style={{
                 position: 'absolute',
                 top: '-4px',
                 right: '-4px',
-                backgroundColor: 'var(--danger, #dc3545)',
+                backgroundColor: pendingPatientsCount > 0 ? 'var(--warning, #f59e0b)' : 'var(--danger, #dc3545)',
                 color: 'white',
                 fontSize: '0.6rem',
                 fontWeight: 700,
@@ -2322,7 +2408,7 @@ export default function App() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
-              }}>{overdueCount}</span>
+              }}>{totalNotificationsCount}</span>
             )}
           </button>
 
@@ -2423,6 +2509,7 @@ export default function App() {
             appointments={appointments}
             therapists={therapists}
             receipts={receipts}
+            initialStatusFilter={patientStatusFilter}
           />
         )}
 
