@@ -10,9 +10,11 @@ import { supabase } from '../utils/supabaseClient';
 import { SmartAvatar } from '../utils/defaultAssets';
 
 export default function LineOAManager({ clinicInfo, users = [], patients = [], onRefreshData }) {
-  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'users' | 'tools'
+  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'customizer' | 'users' | 'tools'
+  const [selectedConfigMenu, setSelectedConfigMenu] = useState('guest');
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [deployedData, setDeployedData] = useState(null);
   const [loadingDeployed, setLoadingDeployed] = useState(true);
 
@@ -25,59 +27,104 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   const lineOaId = clinicInfo?.lineId || '@hugdeehome';
   const liffLinkUrl = `${window.location.origin}/#/line-link`;
 
+  const DEFAULT_CONFIGS = {
+    guest: [
+      { slot: 1, label: 'บริการของเรา', type: 'uri', value: '?action=services' },
+      { slot: 2, label: 'ลงทะเบียนคนไข้ใหม่', type: 'uri', value: '?action=register-patient' },
+      { slot: 3, label: 'แผนที่คลินิก', type: 'uri', value: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
+      { slot: 4, label: 'โทรติดต่อคลินิก', type: 'uri', value: 'tel:{phone}' },
+      { slot: 5, label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', type: 'uri', value: '?action=line-link' },
+      { slot: 6, label: 'โปรโมชัน & แพ็กเกจคอร์ส', type: 'message', value: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
+    ],
+    parent: [
+      { slot: 1, label: 'นัดหมายของน้อง', type: 'uri', value: '?action=parent-appointments' },
+      { slot: 2, label: 'พัฒนาการ & แผน ITP', type: 'uri', value: '?action=parent-itp' },
+      { slot: 3, label: 'กิจกรรมฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
+      { slot: 4, label: 'คอร์ส & ยอดคงเหลือ & แต้มสะสม', type: 'uri', value: '?action=parent-courses' },
+      { slot: 5, label: 'แจ้งเลื่อนนัด / คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' },
+      { slot: 6, label: 'โปรไฟล์น้อง / สลับบัญชี', type: 'uri', value: '?action=line-link' }
+    ],
+    staff: [
+      { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
+      { slot: 2, label: 'Check-in รับคนไข้', type: 'uri', value: '?action=reception-intake' },
+      { slot: 3, label: 'ส่ง LINE เตือนนัดกลุ่ม', type: 'uri', value: '?action=batch-reminders' },
+      { slot: 4, label: 'ออกใบเสร็จ & ตัดคอร์ส', type: 'uri', value: '?action=receipts' },
+      { slot: 5, label: 'คนไข้ขาดการติดต่อ', type: 'uri', value: '?action=dormant-tracker' },
+      { slot: 6, label: 'สลับมุมมอง (1, 3)', type: 'uri', value: '?action=menu-switch&role=staff' }
+    ],
+    ot: [
+      { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
+      { slot: 2, label: 'ตารางเคสของฉันวันนี้', type: 'uri', value: '?action=my-cases' },
+      { slot: 3, label: 'บันทึกผลการฝึก (OPD)', type: 'uri', value: '?action=opd-soap' },
+      { slot: 4, label: 'เป้าหมายบำบัด (ITP)', type: 'uri', value: '?action=itp-tracker' },
+      { slot: 5, label: 'กิจกรรมฝึกที่บ้าน', type: 'uri', value: '?action=home-program-planner' },
+      { slot: 6, label: 'สลับมุมมอง (1, 4)', type: 'uri', value: '?action=menu-switch&role=ot' }
+    ],
+    admin: [
+      { slot: 1, label: 'แดชบอร์ดภาพรวมคลินิก', type: 'uri', value: '?action=dashboard' },
+      { slot: 2, label: 'ตรวจสอบเวลาบุคลากร', type: 'uri', value: '?action=staff-attendance' },
+      { slot: 3, label: 'สรุปการเงิน & Payroll', type: 'uri', value: '?action=financial-payroll' },
+      { slot: 4, label: 'คนไข้ขาดการติดต่อ', type: 'uri', value: '?action=dormant-tracker' },
+      { slot: 5, label: 'ควบคุม LINE & ระบบ', type: 'uri', value: '?action=line-manager' },
+      { slot: 6, label: 'สลับมุมมองอิสระทุกแบบ', type: 'uri', value: '?action=menu-switch&role=admin' }
+    ]
+  };
+
+  const [customConfigs, setCustomConfigs] = useState(DEFAULT_CONFIGS);
+
   // 5 Rich Menu Specs
   const richMenuCards = [
     {
       key: 'guest',
       number: '1',
       title: 'บุคคลทั่วไป (General Public / Guest)',
-      desc: 'สำหรับผู้ติดตามใหม่ ผู้ที่ยังไม่ลงทะเบียน หรือผู้ใช้ที่มีสถานะ Inactive',
+      desc: 'สำหรับผู้ติดตามใหม่ ผู้ที่ยังไม่ลงทะเบียน หรือผู้ใช้ที่มีสถานะ Inactive (ไม่แสดงแต้มสะสม)',
       alias: 'rm-guest',
       color: '#C19B6C',
       bgColor: '#FFFBEB',
       borderColor: '#FDE68A',
       isDefault: true,
       image: '/richmenu_images/richmenu_1_guest.png',
-      buttons: ['บริการของเรา', 'ลงทะเบียนคนไข้ใหม่', 'แผนที่ & เวลาทำการ', 'ปรึกษา / ติดต่อเรา', 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', 'สิทธิประโยชน์ & คอร์ส']
+      buttons: ['บริการของเรา', 'ลงทะเบียนคนไข้ใหม่', 'แผนที่คลินิก', 'โทรติดต่อคลินิก', 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', 'โปรโมชัน & แพ็กเกจคอร์ส']
     },
     {
       key: 'parent',
       number: '2',
       title: 'ผู้ปกครอง (Parent / Guardian)',
-      desc: 'สำหรับผู้ปกครองที่มีประวัติการรักษาในระบบและผูก LINE UID แล้ว',
+      desc: 'สำหรับผู้ปกครองที่มีประวัติการรักษาในระบบ (แสดงแต้มสะสมร่วมกับคอร์ส & ยอดคงเหลือ)',
       alias: 'rm-parent',
       color: '#059669',
       bgColor: '#ECFDF5',
       borderColor: '#A7F3D0',
       isDefault: false,
       image: '/richmenu_images/richmenu_2_parent.png',
-      buttons: ['นัดหมายของน้อง', 'พัฒนาการ & แผน ITP', 'กิจกรรมฝึกที่บ้าน', 'คอร์ส & ยอดคงเหลือ', 'แจ้งเลื่อนนัด / คุยกับครู', 'โปรไฟล์น้อง / สลับบัญชี']
+      buttons: ['นัดหมายของน้อง', 'พัฒนาการ & แผน ITP', 'กิจกรรมฝึกที่บ้าน', 'คอร์ส ยอดคงเหลือ & แต้มสะสม', 'แจ้งเลื่อนนัด / คุยกับครู', 'โปรไฟล์น้อง / สลับบัญชี']
     },
     {
       key: 'staff',
       number: '3',
       title: 'เจ้าหน้าที่คลินิก (Staff / Receptionist)',
-      desc: 'สำหรับฝ่ายต้อนรับ ธุรการ และคิดเงิน (สลับดูแบบ 1, 2, 3 ได้)',
+      desc: 'สำหรับฝ่ายต้อนรับ ธุรการ และคิดเงิน (สลับดูแบบที่ 1 และ 3 ได้)',
       alias: 'rm-staff',
       color: '#0284C7',
       bgColor: '#F0F9FF',
       borderColor: '#BAE6FD',
       isDefault: false,
       image: '/richmenu_images/richmenu_3_staff.png',
-      buttons: ['ลงเวลางาน GPS', 'Check-in รับคนไข้', 'ส่ง LINE เตือนนัดกลุ่ม', 'ออกใบเสร็จ & ตัดคอร์ส', 'คนไข้ขาดการติดต่อ', 'สลับมุมมอง (1, 2, 3)']
+      buttons: ['ลงเวลางาน GPS', 'Check-in รับคนไข้', 'ส่ง LINE เตือนนัดกลุ่ม', 'ออกใบเสร็จ & ตัดคอร์ส', 'คนไข้ขาดการติดต่อ', 'สลับมุมมอง (1, 3)']
     },
     {
       key: 'ot',
       number: '4',
       title: 'นักกิจกรรมบำบัด (Occupational Therapist - OT)',
-      desc: 'สำหรับนักบำบัดและผู้สอน (สลับดูแบบ 1, 2, 4 ได้)',
+      desc: 'สำหรับนักบำบัดและผู้สอน (สลับดูแบบที่ 1 และ 4 ได้)',
       alias: 'rm-ot',
       color: '#EA580C',
       bgColor: '#FFF7ED',
       borderColor: '#FED7AA',
       isDefault: false,
       image: '/richmenu_images/richmenu_4_ot.png',
-      buttons: ['ลงเวลางาน GPS', 'ตารางเคสวันนี้', 'บันทึกผลการฝึก (OPD)', 'เป้าหมายบำบัด (ITP)', 'จัดกิจกรรมฝึกที่บ้าน', 'สลับมุมมอง (1, 2, 4)']
+      buttons: ['ลงเวลางาน GPS', 'ตารางเคสวันนี้', 'บันทึกผลการฝึก (OPD)', 'เป้าหมายบำบัด (ITP)', 'จัดกิจกรรมฝึกที่บ้าน', 'สลับมุมมอง (1, 4)']
     },
     {
       key: 'admin',
@@ -94,7 +141,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     }
   ];
 
-  // Fetch status from API
+  // Fetch status and custom configs from API
   const fetchStatus = async () => {
     setLoadingDeployed(true);
     try {
@@ -110,9 +157,89 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     }
   };
 
+  const fetchConfig = async () => {
+    try {
+      const res = await fetch('/api/line-richmenu?action=get-config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setCustomConfigs(data.config);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch custom configs:', e);
+    }
+  };
+
   useEffect(() => {
     fetchStatus();
+    fetchConfig();
   }, []);
+
+  // Update slot field
+  const handleSlotChange = (menuKey, slotIndex, field, value) => {
+    setCustomConfigs(prev => {
+      const currentList = prev[menuKey] ? [...prev[menuKey]] : [...(DEFAULT_CONFIGS[menuKey] || [])];
+      if (!currentList[slotIndex]) {
+        currentList[slotIndex] = { slot: slotIndex + 1, label: '', type: 'uri', value: '' };
+      }
+      currentList[slotIndex] = { ...currentList[slotIndex], [field]: value };
+      return {
+        ...prev,
+        [menuKey]: currentList
+      };
+    });
+  };
+
+  // Reset to default
+  const handleResetConfig = (menuKey) => {
+    Swal.fire({
+      title: 'ยืนยันการคืนค่าเริ่มต้น?',
+      text: `คืนค่าปุ่มกดของเมนู ${menuKey.toUpperCase()} กลับเป็นค่าเริ่มต้นของระบบ`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'คืนค่าเริ่มต้น',
+      cancelButtonText: 'ยกเลิก'
+    }).then(res => {
+      if (res.isConfirmed) {
+        setCustomConfigs(prev => ({
+          ...prev,
+          [menuKey]: [...DEFAULT_CONFIGS[menuKey]]
+        }));
+        Swal.fire({ icon: 'success', title: 'คืนค่าสำเร็จ', timer: 1200, showConfirmButton: false });
+      }
+    });
+  };
+
+  // Save config to backend
+  const handleSaveConfig = async (shouldDeploy = false) => {
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch('/api/line-richmenu?action=save-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: customConfigs })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'บันทึกการตั้งค่าไม่สำเร็จ');
+
+      if (shouldDeploy) {
+        await handleDeployAll();
+      } else {
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกการตั้งค่าสำเร็จ! 💾',
+          text: 'บันทึกการปรับแต่งปุ่มเมนูเรียบร้อยแล้ว หากต้องการให้มีผลบน LINE ทันที ให้กดปุ่ม Deploy',
+          timer: 2200,
+          showConfirmButton: false
+        });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   // 1. One-Click Deploy All 5 Menus
   const handleDeployAll = async () => {
@@ -451,7 +578,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div style={{ display: 'flex', borderBottom: '2px solid #E2E8F0', marginBottom: '1.5rem', gap: '8px' }}>
+      <div style={{ display: 'flex', borderBottom: '2px solid #E2E8F0', marginBottom: '1.5rem', gap: '8px', flexWrap: 'wrap' }}>
         <button
           onClick={() => setActiveTab('richmenus')}
           style={{
@@ -469,6 +596,25 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
           }}
         >
           <Layers size={18} /> แผงผัง Rich Menu ทั้ง 5 รูปแบบ
+        </button>
+
+        <button
+          onClick={() => setActiveTab('customizer')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'customizer' ? '3px solid #7C3AED' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'customizer' ? '#7C3AED' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Sliders size={18} /> ปรับแต่งปุ่มกดเมนู (Menu Customizer)
         </button>
 
         <button
@@ -519,7 +665,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                 โครงสร้าง Rich Menu แบบ Dynamic Role-Based (5 ระดับ)
               </h2>
               <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                ขนาดภาพ 2500 x 1686 px (ตาราง 6 ช่อง: 3x2) พร้อมพิกัดสัมผัสและ Alias ในตัว
+                ขนาดภาพ 2500 x 1686 px (ตาราง 6 ช่อง: 3x2) พร้อมพิกัดสัมผัสและ Alias ในตัว สามารถกำหนดปุ่มได้อิสระ
               </p>
             </div>
 
@@ -530,96 +676,436 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.25rem' }}>
-            {richMenuCards.map(menu => (
-              <div 
-                key={menu.key} 
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '20px',
-                  border: `2px solid ${menu.borderColor}`,
-                  overflow: 'hidden',
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                {/* Image Preview */}
-                <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
-                  <img 
-                    src={menu.image} 
-                    alt={menu.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    backgroundColor: menu.color,
-                    color: '#FFFFFF',
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '0.78rem',
-                    fontWeight: '800',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                  }}>
-                    แบบที่ {menu.number}
-                  </div>
+            {richMenuCards.map(menu => {
+              const activeButtons = customConfigs[menu.key]?.map(s => s.label) || menu.buttons;
 
-                  {menu.isDefault && (
+              return (
+                <div 
+                  key={menu.key} 
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '20px',
+                    border: `2px solid ${menu.borderColor}`,
+                    overflow: 'hidden',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  {/* Image Preview */}
+                  <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
+                    <img 
+                      src={menu.image} 
+                      alt={menu.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
                     <div style={{
                       position: 'absolute',
                       top: '12px',
-                      right: '12px',
-                      backgroundColor: '#10B981',
+                      left: '12px',
+                      backgroundColor: menu.color,
                       color: '#FFFFFF',
                       padding: '4px 12px',
                       borderRadius: '9999px',
-                      fontSize: '0.75rem',
-                      fontWeight: '700',
+                      fontSize: '0.78rem',
+                      fontWeight: '800',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                     }}>
-                      ⭐ ค่าเริ่มต้น (Default)
+                      แบบที่ {menu.number}
                     </div>
-                  )}
-                </div>
 
-                {/* Card Body */}
-                <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: menu.color, margin: 0 }}>
-                      {menu.title}
-                    </h3>
+                    {menu.isDefault && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        backgroundColor: '#10B981',
+                        color: '#FFFFFF',
+                        padding: '4px 12px',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                      }}>
+                        ⭐ ค่าเริ่มต้น (Default)
+                      </div>
+                    )}
                   </div>
 
-                  <p style={{ fontSize: '0.82rem', color: '#64748B', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
-                    {menu.desc}
-                  </p>
-
-                  <div style={{ backgroundColor: menu.bgColor, borderRadius: '12px', padding: '10px 12px', marginBottom: '1rem', border: `1px solid ${menu.borderColor}` }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: menu.color, marginBottom: '6px' }}>
-                      🔘 6 ปุ่มฟังก์ชันหลัก:
+                  {/* Card Body */}
+                  <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: menu.color, margin: 0 }}>
+                        {menu.title}
+                      </h3>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px', fontSize: '0.78rem', color: '#334155' }}>
-                      {menu.buttons.map((b, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ color: menu.color, fontWeight: '700' }}>{i + 1}.</span> {b}
-                        </div>
+
+                    <p style={{ fontSize: '0.82rem', color: '#64748B', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
+                      {menu.desc}
+                    </p>
+
+                    <div style={{ backgroundColor: menu.bgColor, borderRadius: '12px', padding: '10px 12px', marginBottom: '1rem', border: `1px solid ${menu.borderColor}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: menu.color }}>
+                          🔘 6 ปุ่มฟังก์ชันหลัก:
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                          (ปรับแต่งได้)
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px', fontSize: '0.78rem', color: '#334155' }}>
+                        {activeButtons.map((b, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: menu.color, fontWeight: '700' }}>{i + 1}.</span> {b}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B', borderTop: '1px solid #F1F5F9', paddingTop: '10px', gap: '8px' }}>
+                      <button
+                        onClick={() => {
+                          setSelectedConfigMenu(menu.key);
+                          setActiveTab('customizer');
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '10px',
+                          border: `1.5px solid ${menu.color}`,
+                          backgroundColor: '#FFFFFF',
+                          color: menu.color,
+                          fontWeight: '700',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Sliders size={13} /> กำหนดปุ่มกด
+                      </button>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>Alias: <code style={{ backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>{menu.alias}</code></span>
+                        <a href={menu.image} target="_blank" rel="noreferrer" style={{ color: menu.color, fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          ดูภาพจริง <ArrowUpRight size={14} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: CUSTOMIZER */}
+      {activeTab === 'customizer' && (
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '1.75rem', border: '1px solid #E2E8F0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '1.25rem' }}>
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: '800', color: '#7C3AED', backgroundColor: '#FAF5FF', padding: '4px 10px', borderRadius: '9999px', marginBottom: '6px' }}>
+                <Sliders size={14} /> ยืดหยุ่นในการอัปเดตและปรับแต่งในอนาคต
+              </div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: '800', margin: 0, color: '#0F172A' }}>
+                กำหนดปุ่มและคำสั่ง Rich Menu (Custom Action Manager)
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '4px 0 0 0' }}>
+                เลือกแบบเมนูที่ต้องการปรับแต่ง แล้วกำหนดชื่อปุ่ม ประเภทคำสั่ง (เปิดหน้าเว็บ/LIFF หรือส่งข้อความแชท) และปลายทางของปุ่มทั้ง 6 ตำแหน่ง
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => handleResetConfig(selectedConfigMenu)}
+                className="btn btn-light"
+                style={{ padding: '9px 14px', borderRadius: '10px', fontSize: '0.85rem', fontWeight: '600', color: '#64748B', border: '1px solid #CBD5E1' }}
+              >
+                ↺ คืนค่าเริ่มต้นแบบนี้
+              </button>
+              <button
+                onClick={() => handleSaveConfig(false)}
+                disabled={isSavingConfig}
+                className="btn"
+                style={{
+                  backgroundColor: '#4338CA',
+                  color: '#FFFFFF',
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  border: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                💾 {isSavingConfig ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+              </button>
+              <button
+                onClick={() => handleSaveConfig(true)}
+                disabled={isSavingConfig || isDeploying}
+                className="btn"
+                style={{
+                  backgroundColor: '#10B981',
+                  color: '#FFFFFF',
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  border: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                🚀 {isDeploying ? 'กำลัง Deploy...' : 'บันทึก & Deploy ขึ้น LINE'}
+              </button>
+            </div>
+          </div>
+
+          {/* Menu Selector Buttons */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            {richMenuCards.map(menu => {
+              const isSelected = selectedConfigMenu === menu.key;
+              return (
+                <button
+                  key={menu.key}
+                  onClick={() => setSelectedConfigMenu(menu.key)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '12px',
+                    border: isSelected ? `2px solid ${menu.color}` : '1px solid #CBD5E1',
+                    backgroundColor: isSelected ? menu.bgColor : '#FFFFFF',
+                    color: isSelected ? menu.color : '#475569',
+                    fontWeight: '800',
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span>แบบที่ {menu.number}:</span>
+                  <span>{menu.title.split(' ')[0]}</span>
+                  {menu.isDefault && <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#10B981', color: '#FFF' }}>Default</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Helper Banner */}
+          <div style={{ backgroundColor: '#F8FAFC', borderRadius: '14px', padding: '1rem', border: '1px solid #E2E8F0', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ fontSize: '0.85rem', color: '#475569' }}>
+              💡 <strong>เทคนิค:</strong> พิกัดปุ่มใน LINE Rich Menu จะเรียงจาก <strong>ซ้ายบน → ขวาบน</strong> (ช่อง 1, 2, 3) และ <strong>ซ้ายล่าง → ขวาล่าง</strong> (ช่อง 4, 5, 6)
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+              หากกำหนดประเภทเป็น <strong>"เปิดลิงก์ URL/LIFF"</strong> สามารถใส่ Path สั้น เช่น <code>?action=services</code> หรือ URL เต็มได้
+            </div>
+          </div>
+
+          {/* 6 Grid Slots (3 Columns x 2 Rows) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+            {([0, 1, 2, 3, 4, 5]).map(index => {
+              const currentSlot = customConfigs[selectedConfigMenu]?.[index] || {
+                slot: index + 1,
+                label: `ปุ่มที่ ${index + 1}`,
+                type: 'uri',
+                value: ''
+              };
+
+              const slotPositions = [
+                'ช่อง 1 (ซ้ายบน)',
+                'ช่อง 2 (กลางบน)',
+                'ช่อง 3 (ขวาบน)',
+                'ช่อง 4 (ซ้ายล่าง)',
+                'ช่อง 5 (กลางล่าง)',
+                'ช่อง 6 (ขวาล่าง)'
+              ];
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '800', color: '#6D28D9', backgroundColor: '#FAF5FF', padding: '3px 10px', borderRadius: '8px' }}>
+                      🔘 {slotPositions[index]}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+                      Slot #{index + 1}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                      ชื่อปุ่มที่แสดง (Label):
+                    </label>
+                    <input
+                      type="text"
+                      value={currentSlot.label || ''}
+                      onChange={(e) => handleSlotChange(selectedConfigMenu, index, 'label', e.target.value)}
+                      placeholder="เช่น นัดหมายของน้อง"
+                      maxLength={25}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.88rem',
+                        fontWeight: '600',
+                        color: '#0F172A'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                        ประเภทคำสั่ง (Action Type):
+                      </label>
+                      <select
+                        value={currentSlot.type || 'uri'}
+                        onChange={(e) => handleSlotChange(selectedConfigMenu, index, 'type', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '10px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          backgroundColor: '#F8FAFC'
+                        }}
+                      >
+                        <option value="uri">🔗 เปิดลิงก์ URL หรือหน้าจอ LIFF Portal</option>
+                        <option value="message">💬 ส่งข้อความแชทอัตโนมัติ (Text Message)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                        {currentSlot.type === 'message' ? 'ข้อความแชทที่จะส่ง:' : 'ปลายทางคำสั่ง (URL / Action Path):'}
+                      </label>
+                      <input
+                        type="text"
+                        value={currentSlot.value || ''}
+                        onChange={(e) => handleSlotChange(selectedConfigMenu, index, 'value', e.target.value)}
+                        placeholder={currentSlot.type === 'message' ? 'ระบุข้อความที่ส่งเข้าแชท...' : 'เช่น ?action=services หรือ https://...'}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.85rem',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preset quick picks */}
+                  <div style={{ marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: '600', marginBottom: '4px' }}>
+                      เลือกด่วน (Quick Presets):
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'ลงเวลางาน', type: 'uri', value: '?action=checkin' },
+                        { label: 'แผน ITP', type: 'uri', value: '?action=parent-itp' },
+                        { label: 'นัดหมาย', type: 'uri', value: '?action=parent-appointments' },
+                        { label: 'ยอด & แต้ม', type: 'uri', value: '?action=parent-courses' },
+                        { label: 'ฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
+                        { label: 'Check-in เคาน์เตอร์', type: 'uri', value: '?action=reception-intake' },
+                        { label: 'เตือนนัดกลุ่ม', type: 'uri', value: '?action=batch-reminders' },
+                        { label: 'สลับมุมมอง', type: 'uri', value: `?action=menu-switch&role=${selectedConfigMenu}` },
+                        { label: 'คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' }
+                      ].map((preset, pIdx) => (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => {
+                            handleSlotChange(selectedConfigMenu, index, 'label', preset.label);
+                            handleSlotChange(selectedConfigMenu, index, 'type', preset.type);
+                            handleSlotChange(selectedConfigMenu, index, 'value', preset.value);
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.72rem',
+                            border: '1px solid #E2E8F0',
+                            backgroundColor: '#F8FAFC',
+                            color: '#475569',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + {preset.label}
+                        </button>
                       ))}
                     </div>
                   </div>
-
-                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748B', borderTop: '1px solid #F1F5F9', paddingTop: '10px' }}>
-                    <span>Alias: <code style={{ backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>{menu.alias}</code></span>
-                    <a href={menu.image} target="_blank" rel="noreferrer" style={{ color: menu.color, fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      ดูภาพขนาดจริง <ArrowUpRight size={14} />
-                    </a>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+
+          {/* Footer Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #F1F5F9', paddingTop: '1.25rem' }}>
+            <button
+              onClick={() => handleResetConfig(selectedConfigMenu)}
+              className="btn btn-light"
+              style={{ padding: '10px 18px', borderRadius: '12px', fontSize: '0.88rem', fontWeight: '600' }}
+            >
+              ↺ คืนค่าเริ่มต้นแบบนี้
+            </button>
+            <button
+              onClick={() => handleSaveConfig(false)}
+              disabled={isSavingConfig}
+              className="btn"
+              style={{
+                backgroundColor: '#4338CA',
+                color: '#FFFFFF',
+                padding: '10px 20px',
+                borderRadius: '12px',
+                fontSize: '0.88rem',
+                fontWeight: '700',
+                border: 'none'
+              }}
+            >
+              💾 {isSavingConfig ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าปุ่ม'}
+            </button>
+            <button
+              onClick={() => handleSaveConfig(true)}
+              disabled={isSavingConfig || isDeploying}
+              className="btn"
+              style={{
+                backgroundColor: '#10B981',
+                color: '#FFFFFF',
+                padding: '10px 22px',
+                borderRadius: '12px',
+                fontSize: '0.88rem',
+                fontWeight: '700',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
+              }}
+            >
+              🚀 {isDeploying ? 'กำลัง Deploy...' : 'บันทึก & Deploy ขึ้น LINE ทันที'}
+            </button>
           </div>
         </div>
       )}
@@ -873,9 +1359,9 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                   🔄 การสลับดูเมนูข้ามระดับ (Multi-Role Switching)
                 </div>
                 <p style={{ fontSize: '0.82rem', color: '#1E3A8A', margin: 0, lineHeight: 1.45 }}>
-                  • <strong>เจ้าหน้าที่ (Staff):</strong> สลับดูได้ 3 แบบ (ทั่วไป, ผู้ปกครอง, เจ้าหน้าที่)<br />
-                  • <strong>นักบำบัด (OT):</strong> สลับดูได้ 3 แบบ (ทั่วไป, ผู้ปกครอง, นักบำบัด)<br />
-                  • <strong>ผู้ดูแล (Admin):</strong> สลับดูได้อิสระครบทั้ง 5 รูปแบบ
+                  • <strong>เจ้าหน้าที่ (Staff):</strong> สลับดูได้ 2 แบบ (แบบที่ 1 บุคคลทั่วไป ↔ แบบที่ 3 เจ้าหน้าที่)<br />
+                  • <strong>นักบำบัด (OT):</strong> สลับดูได้ 2 แบบ (แบบที่ 1 บุคคลทั่วไป ↔ แบบที่ 4 นักกิจกรรมบำบัด)<br />
+                  • <strong>ผู้ดูแล (Admin):</strong> สลับดูได้อิสระครบทั้ง 5 รูปแบบ (1, 2, 3, 4, 5)
                 </p>
               </div>
 

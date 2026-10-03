@@ -537,22 +537,24 @@ export default function LineLinkPortal({ clinicInfo, users = [], patients = [] }
                 >
                   🟢 1. ทั่วไป
                 </button>
-                <button
-                  disabled={isSwitchingMenu}
-                  onClick={() => handleSwitchMenu('parent')}
-                  style={{
-                    padding: '10px 8px',
-                    borderRadius: '12px',
-                    border: currentMenuRole === 'parent' ? '2px solid #059669' : '1px solid #E2E8F0',
-                    backgroundColor: currentMenuRole === 'parent' ? '#ECFDF5' : '#FFFFFF',
-                    color: currentMenuRole === 'parent' ? '#047857' : '#64748B',
-                    fontWeight: '700',
-                    fontSize: '0.82rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  🟡 2. ผู้ปกครอง
-                </button>
+                {((linkedUser.role || '').toLowerCase() === 'admin') && (
+                  <button
+                    disabled={isSwitchingMenu}
+                    onClick={() => handleSwitchMenu('parent')}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '12px',
+                      border: currentMenuRole === 'parent' ? '2px solid #059669' : '1px solid #E2E8F0',
+                      backgroundColor: currentMenuRole === 'parent' ? '#ECFDF5' : '#FFFFFF',
+                      color: currentMenuRole === 'parent' ? '#047857' : '#64748B',
+                      fontWeight: '700',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🟡 2. ผู้ปกครอง
+                  </button>
+                )}
 
                 {(['staff', 'admin'].includes((linkedUser.role || '').toLowerCase())) && (
                   <button

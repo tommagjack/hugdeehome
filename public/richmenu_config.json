@@ -1,0 +1,42 @@
+{
+  "guest": [
+    { "slot": 1, "label": "บริการของเรา", "type": "uri", "value": "?action=services" },
+    { "slot": 2, "label": "ลงทะเบียนคนไข้ใหม่", "type": "uri", "value": "?action=register-patient" },
+    { "slot": 3, "label": "แผนที่คลินิก", "type": "uri", "value": "https://maps.google.com/?q=Hug+Dee+Home+Clinic" },
+    { "slot": 4, "label": "โทรติดต่อคลินิก", "type": "uri", "value": "tel:{phone}" },
+    { "slot": 5, "label": "เชื่อมต่อบัญชี / ตรวจสิทธิ์", "type": "uri", "value": "?action=line-link" },
+    { "slot": 6, "label": "โปรโมชัน & แพ็กเกจคอร์ส", "type": "message", "value": "สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎" }
+  ],
+  "parent": [
+    { "slot": 1, "label": "นัดหมายของน้อง", "type": "uri", "value": "?action=parent-appointments" },
+    { "slot": 2, "label": "พัฒนาการ & แผน ITP", "type": "uri", "value": "?action=parent-itp" },
+    { "slot": 3, "label": "กิจกรรมฝึกที่บ้าน", "type": "uri", "value": "?action=parent-homeprogram" },
+    { "slot": 4, "label": "คอร์ส ยอดคงเหลือ & แต้มสะสม", "type": "uri", "value": "?action=parent-courses" },
+    { "slot": 5, "label": "แจ้งเลื่อนนัด / คุยกับครู", "type": "message", "value": "ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎" },
+    { "slot": 6, "label": "โปรไฟล์น้อง / สลับบัญชี", "type": "uri", "value": "?action=line-link" }
+  ],
+  "staff": [
+    { "slot": 1, "label": "ลงเวลางาน GPS", "type": "uri", "value": "?action=checkin" },
+    { "slot": 2, "label": "Check-in รับคนไข้", "type": "uri", "value": "?action=reception-intake" },
+    { "slot": 3, "label": "ส่ง LINE เตือนนัดกลุ่ม", "type": "uri", "value": "?action=batch-reminders" },
+    { "slot": 4, "label": "ออกใบเสร็จ & ตัดคอร์ส", "type": "uri", "value": "?action=receipts" },
+    { "slot": 5, "label": "คนไข้ขาดการติดต่อ", "type": "uri", "value": "?action=dormant-tracker" },
+    { "slot": 6, "label": "สลับมุมมอง (1, 3)", "type": "uri", "value": "?action=menu-switch&role=staff" }
+  ],
+  "ot": [
+    { "slot": 1, "label": "ลงเวลางาน GPS", "type": "uri", "value": "?action=checkin" },
+    { "slot": 2, "label": "ตารางเคสของฉันวันนี้", "type": "uri", "value": "?action=my-cases" },
+    { "slot": 3, "label": "บันทึกผลการฝึก (OPD)", "type": "uri", "value": "?action=opd-soap" },
+    { "slot": 4, "label": "เป้าหมายบำบัด (ITP)", "type": "uri", "value": "?action=itp-tracker" },
+    { "slot": 5, "label": "กิจกรรมฝึกที่บ้าน", "type": "uri", "value": "?action=home-program-planner" },
+    { "slot": 6, "label": "สลับมุมมอง (1, 4)", "type": "uri", "value": "?action=menu-switch&role=ot" }
+  ],
+  "admin": [
+    { "slot": 1, "label": "แดชบอร์ดภาพรวมคลินิก", "type": "uri", "value": "?action=dashboard" },
+    { "slot": 2, "label": "ตรวจสอบเวลาบุคลากร", "type": "uri", "value": "?action=staff-attendance" },
+    { "slot": 3, "label": "สรุปการเงิน & Payroll", "type": "uri", "value": "?action=financial-payroll" },
+    { "slot": 4, "label": "คนไข้ขาดการติดต่อ", "type": "uri", "value": "?action=dormant-tracker" },
+    { "slot": 5, "label": "ควบคุม LINE & ระบบ", "type": "uri", "value": "?action=line-manager" },
+    { "slot": 6, "label": "สลับมุมมองอิสระทุกแบบ", "type": "uri", "value": "?action=menu-switch&role=admin" }
+  ]
+}

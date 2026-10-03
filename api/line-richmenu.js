@@ -129,9 +129,66 @@ export default async function handler(req, res) {
       });
     }
 
+    // 1.1 ACTION: GET BUTTON CONFIG
+    if (action === 'get-config') {
+      const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
+      if (fs.existsSync(cfgPath)) {
+        try {
+          const cfgData = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+          return res.status(200).json({ success: true, config: cfgData });
+        } catch (e) {
+          return res.status(500).json({ error: 'Failed to read config: ' + e.message });
+        }
+      }
+      return res.status(404).json({ error: 'Config file not found' });
+    }
+
+    // 1.2 ACTION: SAVE BUTTON CONFIG
+    if (action === 'save-config') {
+      const { config } = req.body || {};
+      if (!config) {
+        return res.status(400).json({ error: 'Missing config payload' });
+      }
+      const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
+      fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
+      return res.status(200).json({ success: true, message: 'บันทึกการตั้งค่าปุ่ม Rich Menu สำเร็จ' });
+    }
+
     // 2. ACTION: DEPLOY ALL 5 RICH MENUS
     if (action === 'deploy-all') {
       console.log('Deploying all 5 Rich Menus to LINE...');
+
+      let customConfig = null;
+      try {
+        const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
+        if (fs.existsSync(cfgPath)) {
+          customConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+        }
+      } catch (e) {
+        console.warn('Could not read richmenu_config.json:', e);
+      }
+
+      const resolveSlotAction = (slot, fallbackAction) => {
+        if (!slot) return fallbackAction;
+        if (slot.type === 'message') {
+          return {
+            type: 'message',
+            label: slot.label || fallbackAction.label,
+            text: slot.value || fallbackAction.text || slot.label
+          };
+        }
+        let rawVal = slot.value || '';
+        rawVal = rawVal.replace('{phone}', phone);
+        let finalUri = rawVal;
+        if (!rawVal.startsWith('http://') && !rawVal.startsWith('https://') && !rawVal.startsWith('tel:')) {
+          finalUri = `${liffBase}${rawVal.startsWith('?') ? rawVal : ('?' + rawVal)}`;
+        }
+        return {
+          type: 'uri',
+          label: slot.label || fallbackAction.label,
+          uri: finalUri
+        };
+      };
 
       const menuConfigs = [
         {
@@ -215,6 +272,15 @@ export default async function handler(req, res) {
           ]
         }
       ];
+
+      // Override with customConfig if present
+      if (customConfig) {
+        menuConfigs.forEach(cfg => {
+          if (Array.isArray(customConfig[cfg.key])) {
+            cfg.actions = customConfig[cfg.key].map((slot, idx) => resolveSlotAction(slot, cfg.actions[idx]));
+          }
+        });
+      }
 
       const deployedResults = {};
 
@@ -420,8 +486,8 @@ export default async function handler(req, res) {
           userStatus = uData[0].status || 'active';
           const r = (uData[0].role || '').toLowerCase();
           if (r === 'admin') allowedRoles = ['guest', 'parent', 'staff', 'ot', 'admin'];
-          else if (r === 'ot') allowedRoles = ['guest', 'parent', 'ot', 'staff'];
-          else if (r === 'staff') allowedRoles = ['guest', 'parent', 'staff'];
+          else if (r === 'ot') allowedRoles = ['guest', 'ot'];
+          else if (r === 'staff') allowedRoles = ['guest', 'staff'];
         }
       }
 
