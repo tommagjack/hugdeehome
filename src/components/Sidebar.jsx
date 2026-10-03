@@ -194,6 +194,8 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                         }}
                         title={item.label}
                       >
+                        <IconComponent size={20} className="menu-icon" />
+                        <span className="menu-text">{item.label}</span>
                         {item.id === 'patients' && pendingPatientsCount > 0 && (
                           <span className="menu-badge" style={{
                             position: 'absolute',
