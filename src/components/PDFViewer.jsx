@@ -345,8 +345,16 @@ export default function PDFViewer({
               </span>
             </div>
             <div className="a4-sig-line-container">
-              <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600 }}>
-                {p.guardian || ''}
+              <div className="a4-sig-line" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '3px', fontWeight: 600, minHeight: '40px' }}>
+                {(p.guardianSignature || p.guardian_signature) ? (
+                  <img 
+                    src={p.guardianSignature || p.guardian_signature} 
+                    alt="ลายมือชื่อผู้ปกครอง" 
+                    style={{ maxHeight: '42px', maxWidth: '140px', objectFit: 'contain' }} 
+                  />
+                ) : (
+                  p.guardian || ''
+                )}
               </div>
               {p.guardian ? (
                 <span className="a4-sig-label">ผู้ปกครอง / ผู้ให้ข้อมูล</span>

@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 public/uploads/
+*.cjs
+sheets_backup.json
+test_upsert_log.js

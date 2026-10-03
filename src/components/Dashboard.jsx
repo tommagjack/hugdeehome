@@ -7,20 +7,30 @@ import {
   CircleDollarSign, 
   AlertTriangle,
   ChevronRight,
-  Tag
+  Tag,
+  UserX,
+  Phone,
+  MessageSquare,
+  Clock,
+  Calendar,
+  CheckCircle,
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { formatPatientNickname, formatTherapistName, getLocalDateString } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, getLocalDateString, formatDateBE } from '../utils/format';
 
 export default function Dashboard({ 
   patients, 
+  setPatients,
   appointments, 
   receipts, 
   therapists, 
   onUpdateAppointmentStatus,
   currentUser,
   holidays = [],
-  promotions = []
+  promotions = [],
+  setActiveTab
 }) {
   const todayLocalDateString = getLocalDateString(new Date());
 
@@ -324,6 +334,148 @@ export default function Dashboard({
       position: 'top-end',
       showConfirmButton: false,
       timer: 1500
+    });
+  };
+
+  // คำนวณเคสที่ขาดการติดต่อ (Dormant Patients >= 30 วัน)
+  const [dormantPage, setDormantPage] = useState(1);
+  const [dormantFilter, setDormantFilter] = useState('all'); // 'all', 'has_course', 'over_60'
+  const [dormantSearch, setDormantSearch] = useState('');
+
+  const dormantPatients = useMemo(() => {
+    if (!activePatients || activePatients.length === 0) return [];
+    const today = new Date();
+
+    return activePatients.map(patient => {
+      // 1. ตรวจสอบยอดซื้อและยอดใช้คอร์ส
+      const purchasedReceipts = (receipts || []).filter(r => String(r.hn) === String(patient.hn) && r.status !== 'ยกเลิก');
+      let totalPurchased = 0;
+      purchasedReceipts.forEach(r => {
+        (r.items || []).forEach(item => {
+          if (item.type === 'course' || (item.name && item.name.includes('คอร์ส'))) {
+            totalPurchased += (item.qty || 1) * (item.sessionsPerUnit || item.sessions || 1);
+          }
+        });
+      });
+      const totalUsed = (appointments || []).filter(app => String(app.hn) === String(patient.hn) && (app.status === 'รับบริการแล้ว' || app.status === 'มาแล้ว') && app.type === 'ฝึกกระตุ้นพัฒนาการ').length;
+      const balance = Math.max(0, totalPurchased - totalUsed);
+
+      // 2. หานัดหมายในอนาคตที่ยังไม่ยกเลิก
+      const upcoming = (appointments || []).filter(app => {
+        const appDate = app.date ? getLocalDateString(app.date) : '';
+        return String(app.hn) === String(patient.hn) && appDate >= todayLocalDateString && app.status !== 'ยกเลิก';
+      });
+      if (upcoming.length > 0) return null;
+
+      // 3. หาวันที่มารับบริการครั้งล่าสุด
+      const attendedAppointments = (appointments || []).filter(app => String(app.hn) === String(patient.hn) && (app.status === 'รับบริการแล้ว' || app.status === 'มาแล้ว'));
+      let lastDate = null;
+      let lastType = 'visit';
+      if (attendedAppointments.length > 0) {
+        attendedAppointments.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        lastDate = attendedAppointments[0].date ? getLocalDateString(attendedAppointments[0].date) : null;
+      } else if (patient.created_at) {
+        lastDate = getLocalDateString(new Date(patient.created_at));
+        lastType = 'register';
+      }
+
+      if (!lastDate) return null;
+
+      const diffTime = today.getTime() - new Date(lastDate).getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 30) {
+        return {
+          hn: patient.hn,
+          name: `${patient.title || ''}${patient.firstname} ${patient.lastname}`,
+          nickname: patient.nickname,
+          phone: patient.phone || patient.guardianPhone || '',
+          guardian: patient.guardian || patient.parentName || 'ผู้ปกครอง',
+          lastVisitDate: lastDate,
+          lastType,
+          daysInactive: diffDays,
+          balance,
+          hasBalance: balance > 0,
+          followUpNote: patient.followUpNote || '',
+          followUpDate: patient.followUpDate || ''
+        };
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (b.hasBalance !== a.hasBalance) return (b.hasBalance ? 1 : 0) - (a.hasBalance ? 1 : 0);
+      return b.daysInactive - a.daysInactive;
+    });
+  }, [activePatients, receipts, appointments, todayLocalDateString]);
+
+  const filteredDormant = useMemo(() => {
+    return dormantPatients.filter(item => {
+      if (dormantFilter === 'has_course' && !item.hasBalance) return false;
+      if (dormantFilter === 'over_60' && item.daysInactive < 60) return false;
+      if (dormantSearch.trim()) {
+        const q = dormantSearch.toLowerCase().trim();
+        const matchHn = String(item.hn).toLowerCase().includes(q);
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchNick = item.nickname && item.nickname.toLowerCase().includes(q);
+        const matchPhone = item.phone && item.phone.includes(q);
+        if (!matchHn && !matchName && !matchNick && !matchPhone) return false;
+      }
+      return true;
+    });
+  }, [dormantPatients, dormantFilter, dormantSearch]);
+
+  const dormantPerPage = 10;
+  const maxDormantPages = useMemo(() => Math.ceil(filteredDormant.length / dormantPerPage) || 1, [filteredDormant]);
+  const paginatedDormant = useMemo(() => {
+    const startIndex = (dormantPage - 1) * dormantPerPage;
+    return filteredDormant.slice(startIndex, startIndex + dormantPerPage);
+  }, [filteredDormant, dormantPage]);
+
+  React.useEffect(() => {
+    setDormantPage(1);
+  }, [dormantFilter, dormantSearch]);
+
+  const handleFollowUpNote = (dormantItem) => {
+    Swal.fire({
+      title: `บันทึกการติดตาม น้อง${formatPatientNickname(dormantItem.nickname)}`,
+      html: `
+        <div style="font-family: var(--font-family); text-align: left; font-size: 0.9rem; line-height: 1.5;">
+          <p>HN: <strong>${dormantItem.hn}</strong> | ขาดการติดต่อ: <strong style="color: var(--danger)">${dormantItem.daysInactive} วัน</strong></p>
+          <p>คอร์สคงเหลือ: <strong>${dormantItem.balance} ครั้ง</strong> | เบอร์โทร: <strong>${dormantItem.phone || '-'}</strong></p>
+          <label style="font-weight: 600; display: block; margin-top: 0.8rem; margin-bottom: 0.3rem;">ผลการติดต่อ / การประสานงาน:</label>
+          <textarea id="swal-followup-note" class="form-control" rows="3" placeholder="เช่น โทรคุยกับคุณแม่แล้ว แจ้งว่าติดสอบกลางภาค จะกลับมานัดใหม่ช่วงต้นเดือนหน้า...">${dormantItem.followUpNote || ''}</textarea>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'var(--secondary)',
+      preConfirm: () => {
+        const note = document.getElementById('swal-followup-note')?.value || '';
+        return note;
+      }
+    }).then((res) => {
+      if (res.isConfirmed && setPatients) {
+        const todayStr = getLocalDateString(new Date());
+        setPatients(prev => prev.map(p => {
+          if (String(p.hn) === String(dormantItem.hn)) {
+            return {
+              ...p,
+              followUpNote: res.value,
+              followUpDate: todayStr
+            };
+          }
+          return p;
+        }));
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกสำเร็จ',
+          text: 'บันทึกผลการติดตามเรียบร้อยแล้ว',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      }
     });
   };
 
@@ -759,6 +911,219 @@ export default function Dashboard({
             )}
           </div>
         </div>
+      </div>
+
+      {/* 7. ระบบติดตามผู้รับบริการที่ขาดการติดต่อ (Dormant / Retention Follow-up) */}
+      <div className="card-3xl" style={{ marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{ backgroundColor: '#fee2e2', padding: '0.4rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <UserX size={20} color="var(--danger)" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+                ติดตามผู้รับบริการที่ขาดการติดต่อ (Retention Follow-up)
+              </h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--dark-light)', margin: 0, marginTop: '2px' }}>
+                แสดงผู้รับบริการสถานะ Active ที่ไม่ได้มาฝึกเกิน 30 วัน และยังไม่มีนัดหมายใหม่ (เพื่อโทร/ทักติดตามฟื้นฟูพัฒนาการอย่างต่อเนื่อง)
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Search */}
+            <div style={{ position: 'relative', width: '200px' }}>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="ค้นหา HN, ชื่อเล่น, โทร..."
+                value={dormantSearch}
+                onChange={(e) => setDormantSearch(e.target.value)}
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
+              />
+            </div>
+
+            {/* Filter buttons */}
+            <div className="toggle-filter-group" style={{ margin: 0 }}>
+              <button 
+                type="button"
+                className={`toggle-filter-btn ${dormantFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setDormantFilter('all')}
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+              >
+                ทั้งหมด ({dormantPatients.length})
+              </button>
+              <button 
+                type="button"
+                className={`toggle-filter-btn ${dormantFilter === 'has_course' ? 'active' : ''}`}
+                onClick={() => setDormantFilter('has_course')}
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', color: '#ea580c' }}
+              >
+                มีคอร์สคงเหลือ ({dormantPatients.filter(d => d.hasBalance).length})
+              </button>
+              <button 
+                type="button"
+                className={`toggle-filter-btn ${dormantFilter === 'over_60' ? 'active' : ''}`}
+                onClick={() => setDormantFilter('over_60')}
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', color: '#dc2626' }}
+              >
+                เกิน 60 วัน ({dormantPatients.filter(d => d.daysInactive >= 60).length})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {filteredDormant.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--success)', fontSize: '0.95rem' }}>
+            ✓ ยอดเยี่ยม! ไม่มีผู้รับบริการที่ขาดการติดต่อเกินเกณฑ์ที่เลือก
+          </div>
+        ) : (
+          <>
+            <div className="table-container" style={{ margin: 0 }}>
+              <table className="hdh-table" style={{ fontSize: '0.85rem' }}>
+                <thead>
+                  <tr>
+                    <th>ผู้รับบริการ</th>
+                    <th>ผู้ปกครอง / เบอร์ติดต่อ</th>
+                    <th style={{ textAlign: 'center' }}>ขาดการติดต่อ</th>
+                    <th style={{ textAlign: 'center' }}>คอร์สคงเหลือ</th>
+                    <th>บันทึกการติดตามล่าสุด</th>
+                    <th style={{ textAlign: 'center', width: '170px' }}>การดำเนินการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedDormant.map((item) => (
+                    <tr key={item.hn}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>
+                          น้อง{formatPatientNickname(item.nickname)} ({item.name})
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>
+                          HN: {item.hn}
+                        </div>
+                      </td>
+                      <td>
+                        <div>{item.guardian}</div>
+                        {item.phone ? (
+                          <a 
+                            href={`tel:${item.phone}`} 
+                            style={{ fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="คลิกเพื่อโทรออก"
+                          >
+                            <Phone size={12} /> {item.phone}
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>ไม่มีเบอร์โทร</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span 
+                          className="badge" 
+                          style={{ 
+                            backgroundColor: item.daysInactive >= 60 ? '#fee2e2' : '#fef3c7',
+                            color: item.daysInactive >= 60 ? '#b91c1c' : '#b45309',
+                            fontWeight: 700,
+                            padding: '0.3rem 0.6rem',
+                            borderRadius: '12px'
+                          }}
+                        >
+                          {item.daysInactive} วัน
+                        </span>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--dark-light)', marginTop: '2px' }}>
+                          {item.lastType === 'visit' ? `มาล่าสุด ${formatDateBE(item.lastVisitDate)}` : `ลงทะเบียน ${formatDateBE(item.lastVisitDate)}`}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {item.balance > 0 ? (
+                          <span className="badge badge-warning" style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}>
+                            เหลือ {item.balance} ครั้ง
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>0 ครั้ง</span>
+                        )}
+                      </td>
+                      <td>
+                        {item.followUpNote ? (
+                          <div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--dark)' }}>{item.followUpNote}</div>
+                            {item.followUpDate && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--dark-light)' }}>
+                                ติดตามเมื่อ: {formatDateBE(item.followUpDate)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>ยังไม่มีบันทึก</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                          {item.phone && (
+                            <a 
+                              href={`tel:${item.phone}`} 
+                              className="btn btn-sm btn-light btn-icon-only"
+                              title="โทรติดต่อผู้ปกครอง"
+                              style={{ color: '#16a34a', borderColor: '#bbf7d0' }}
+                            >
+                              <Phone size={14} />
+                            </a>
+                          )}
+                          <button 
+                            type="button"
+                            className="btn btn-sm btn-light btn-icon-only"
+                            onClick={() => handleFollowUpNote(item)}
+                            title="บันทึกผลการติดตาม / การประสานงาน"
+                            style={{ color: 'var(--secondary)' }}
+                          >
+                            <MessageSquare size={14} />
+                          </button>
+                          {setActiveTab && (
+                            <button 
+                              type="button"
+                              className="btn btn-sm btn-light btn-icon-only"
+                              onClick={() => setActiveTab('appointments')}
+                              title="ไปหน้าตารางนัดหมายเพื่อนัดคิว"
+                            >
+                              <Calendar size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {maxDormantPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '0.5rem' }}>
+                <button 
+                  className="btn btn-light" 
+                  disabled={dormantPage === 1}
+                  onClick={() => setDormantPage(dormantPage - 1)}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                  type="button"
+                >
+                  ก่อนหน้า
+                </button>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{dormantPage} / {maxDormantPages}</span>
+                <button 
+                  className="btn btn-light" 
+                  disabled={dormantPage === maxDormantPages}
+                  onClick={() => setDormantPage(dormantPage + 1)}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                  type="button"
+                >
+                  ถัดไป
+                </button>
+              </div>
+            )}
+
+            <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)', textAlign: 'right', marginTop: '0.5rem' }}>
+              แสดง {filteredDormant.length === 0 ? 0 : (dormantPage - 1) * dormantPerPage + 1} - {Math.min(dormantPage * dormantPerPage, filteredDormant.length)} จากทั้งหมด {filteredDormant.length} รายการ
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

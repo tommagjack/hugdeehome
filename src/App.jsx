@@ -18,6 +18,7 @@ import SalarySettings from './components/SalarySettings';
 import PDFViewer from './components/PDFViewer';
 import Transactions from './components/Transactions';
 import OPD from './components/OPD';
+import ITPTracker from './components/ITPTracker';
 import ReferralLetter from './components/ReferralLetter';
 import GuestRegister from './components/GuestRegister';
 import CheckIn from './components/CheckIn';
@@ -160,6 +161,7 @@ export default function App() {
   const [referrals, setReferrals] = useState(() => db.getReferrals());
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
   const [attendance, setAttendance] = useState(() => db.getAttendance());
+  const [itpGoals, setItpGoals] = useState(() => db.getItpGoals());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [patientStatusFilter, setPatientStatusFilter] = useState('All');
 
@@ -183,6 +185,7 @@ export default function App() {
   const lastReferralsRef = useRef(referrals);
   const lastAssessmentTemplatesRef = useRef(assessmentTemplates);
   const lastAttendanceRef = useRef(attendance);
+  const lastItpGoalsRef = useRef(itpGoals);
 
   const refreshAllLocalStates = () => {
     setClinicInfo(db.getClinicInfo());
@@ -204,6 +207,7 @@ export default function App() {
     setReferrals(db.getReferrals());
     setAssessmentTemplates(db.getAssessmentTemplates());
     setAttendance(db.getAttendance());
+    setItpGoals(db.getItpGoals());
   };
 
   // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
@@ -508,7 +512,8 @@ export default function App() {
       services: { pk: 'code', setState: setServices, ref: lastServicesRef, dbSet: db.setServices },
       assessment_templates: { pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates },
       attendance: { pk: 'id', setState: setAttendance, ref: lastAttendanceRef, dbSet: db.setAttendance },
-      payrolls: { pk: 'id', setState: setPayrolls, ref: lastPayrollsRef, dbSet: db.setPayrolls }
+      payrolls: { pk: 'id', setState: setPayrolls, ref: lastPayrollsRef, dbSet: db.setPayrolls },
+      itp_goals: { pk: 'id', setState: setItpGoals, ref: lastItpGoalsRef, dbSet: db.setItpGoals }
     };
 
     const mapDatabaseRowToState = (row) => {
@@ -912,6 +917,10 @@ export default function App() {
   useEffect(() => {
     handleSyncDelta('hdh_attendance', 'id', attendance, lastAttendanceRef, db.setAttendance);
   }, [attendance]);
+
+  useEffect(() => {
+    handleSyncDelta('hdh_itp_goals', 'id', itpGoals, lastItpGoalsRef, db.setItpGoals);
+  }, [itpGoals]);
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
 
@@ -1557,6 +1566,30 @@ export default function App() {
       });
     } else {
       setReferrals(val);
+    }
+  };
+
+  const handleSetItpGoals = (val) => {
+    if (typeof val === 'function') {
+      setItpGoals(prev => {
+        const next = val(prev);
+        if (next.length > prev.length) {
+          const added = next.find(n => !prev.some(p => p.id === n.id));
+          if (added) logActivity(`เพิ่มเป้าหมายแผน ITP: ${added.title?.slice(0, 30)}... (HN: ${added.hn})`);
+        } else if (next.length < prev.length) {
+          const deleted = prev.find(p => !next.some(n => n.id === p.id));
+          if (deleted) logActivity(`ลบเป้าหมายแผน ITP ID: ${deleted.id} (HN: ${deleted.hn})`);
+        } else {
+          const edited = next.find(n => {
+            const old = prev.find(p => p.id === n.id);
+            return old && JSON.stringify(old) !== JSON.stringify(n);
+          });
+          if (edited) logActivity(`อัปเดตเป้าหมายแผน ITP: ${edited.title?.slice(0, 30)}... ความคืบหน้า ${edited.progress}% (HN: ${edited.hn})`);
+        }
+        return next;
+      });
+    } else {
+      setItpGoals(val);
     }
   };
 
@@ -2538,6 +2571,7 @@ export default function App() {
           {activeTab === 'dashboard' && (
           <Dashboard 
             patients={patients} 
+            setPatients={setPatients}
             appointments={appointments} 
             receipts={receipts} 
             therapists={therapists}
@@ -2545,6 +2579,7 @@ export default function App() {
             currentUser={currentUser}
             holidays={holidays}
             promotions={promotions}
+            setActiveTab={setActiveTab}
           />
         )}
 
@@ -2611,6 +2646,7 @@ export default function App() {
               setPrintView({ show: true, type, data });
             }}
             currentUser={currentUser}
+            clinicInfo={clinicInfo}
           />
         )}
 
@@ -2624,6 +2660,17 @@ export default function App() {
               setPrintView({ show: true, type: 'referral', data });
             }}
             currentUser={currentUser}
+          />
+        )}
+
+        {activeTab === 'itp' && (
+          <ITPTracker 
+            patients={patients}
+            therapists={therapists}
+            itpGoals={itpGoals}
+            setItpGoals={handleSetItpGoals}
+            currentUser={currentUser}
+            clinicInfo={clinicInfo}
           />
         )}
 

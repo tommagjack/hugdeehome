@@ -15,10 +15,12 @@ import {
   X,
   Check,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Home
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
+import HomeProgramModal from './HomeProgramModal';
 
 export default function OPD({
   patients,
@@ -26,12 +28,14 @@ export default function OPD({
   opdRecords,
   setOpdRecords,
   onPrintOPD,
-  currentUser
+  currentUser,
+  clinicInfo
 }) {
   const isAdmin = currentUser?.role === 'Admin';
   const [selectedHn, setSelectedHn] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [patientStatusFilter, setPatientStatusFilter] = useState('ทั้งหมด'); // 'ทั้งหมด', 'Active', 'Inactive'
+  const [showHomeProgramModal, setShowHomeProgramModal] = useState(false);
   
   // สถานะแบ่งหน้าของตารางประวัติ
   const [currentPage, setCurrentPage] = useState(1);
@@ -796,6 +800,14 @@ export default function OPD({
                 
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowHomeProgramModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#d97706', borderColor: '#d97706', color: 'white' }}
+                    title="สร้างใบกิจกรรมฝึกที่บ้าน (Home Program) ส่งให้ผู้ปกครอง"
+                  >
+                    <Home size={14} /> กิจกรรมฝึกที่บ้าน (Home Program)
+                  </button>
+                  <button 
                     className="btn btn-light" 
                     onClick={() => onPrintOPD('opd_form', { patient: activePatient, history: [] })}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
@@ -1053,6 +1065,17 @@ export default function OPD({
           </div>
         )}
       </div>
+
+      {/* Modal สร้างกิจกรรมฝึกที่บ้าน (Home Program) */}
+      {showHomeProgramModal && activePatient && (
+        <HomeProgramModal
+          isOpen={showHomeProgramModal}
+          onClose={() => setShowHomeProgramModal(false)}
+          patient={activePatient}
+          therapistName={currentUser?.fullname || currentUser?.nickname || formTherapist}
+          clinicInfo={clinicInfo}
+        />
+      )}
     </div>
   );
 }

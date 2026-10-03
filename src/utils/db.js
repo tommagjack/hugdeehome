@@ -21,6 +21,7 @@ const KEYS = {
   REFERRALS: 'hdh_referrals',
   ASSESSMENT_TEMPLATES: 'hdh_assessment_templates',
   ATTENDANCE: 'hdh_attendance',
+  ITP_GOALS: 'hdh_itp_goals',
 };
 
 // ฟังก์ชันคัดกรองข้อมูลไฟล์เอกสารขนาดใหญ่ (เช่น เอกสารบัตรประชาชน, ทะเบียนบ้าน, ใบประกอบวิชาชีพ) ออกจาก LocalStorage เพื่อแก้ปัญหา QuotaExceededError
@@ -307,6 +308,9 @@ export const db = {
   getReferrals: () => get(KEYS.REFERRALS, []),
   setReferrals: (data) => set(KEYS.REFERRALS, data),
 
+  getItpGoals: () => get(KEYS.ITP_GOALS, []),
+  setItpGoals: (data) => set(KEYS.ITP_GOALS, data),
+
   getAssessmentTemplates: () => {
     const data = get(KEYS.ASSESSMENT_TEMPLATES, mock.INITIAL_ASSESSMENT_TEMPLATES);
     if (Array.isArray(data)) {
@@ -461,6 +465,7 @@ export const TABLE_MAP = {
   'hdh_referrals': 'referrals',
   'hdh_assessment_templates': 'assessment_templates',
   'hdh_attendance': 'attendance',
+  'hdh_itp_goals': 'itp_goals',
 };
 
 // --- คอลัมน์ที่รองรับในแต่ละตารางฐานข้อมูล Supabase เพื่อป้องกันปัญหาส่งฟิลด์ส่วนเกิน ---

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ThaiDatePicker, { calculateAgeFromParts, parseRawDateToParts } from './ThaiDatePicker';
+import SignaturePad from './SignaturePad';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 import { supabase } from '../utils/supabaseClient';
 import { broadcastChange } from '../utils/realtime';
@@ -40,6 +41,7 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
   const [selectedChannels, setSelectedChannels] = useState([]);
   const [channelsOtherDetails, setChannelsOtherDetails] = useState('');
   const [worries, setWorries] = useState('');
+  const [guardianSignature, setGuardianSignature] = useState('');
 
   // Consent & Review state
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -141,7 +143,9 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
       channelsOtherDetails: selectedChannels.includes('อื่นๆ') ? channelsOtherDetails.trim() : '',
       worries: worries.trim(),
       line_user_id: '',
-      lineUserId: ''
+      lineUserId: '',
+      guardian_signature: guardianSignature || '',
+      guardianSignature: guardianSignature || ''
     };
 
     try {
@@ -256,6 +260,7 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
     setSelectedChannels([]);
     setChannelsOtherDetails('');
     setWorries('');
+    setGuardianSignature('');
     setIsSubmittedSuccess(false);
   };
 
@@ -761,7 +766,7 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
                 border: '1px solid #fed7aa',
                 borderRadius: '14px',
                 padding: '1rem',
-                marginBottom: '1.5rem'
+                marginBottom: '1.25rem'
               }}>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', fontSize: '0.85rem', color: '#7c2d12', lineHeight: 1.5 }}>
                   <input 
@@ -774,6 +779,16 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
                     <strong>ข้าพเจ้ายินยอมให้คลินิกบ้านฮักดีจัดเก็บและประมวลผลข้อมูล:</strong> ข้าพเจ้ายืนยันว่าข้อมูลข้างต้นเป็นความจริง และยินยอมให้คลินิกบันทึก รวบรวม และประมวลผลข้อมูลส่วนบุคคลและข้อมูลสุขภาพดังกล่าว เพื่อประโยชน์ในการติดต่อ นัดหมาย ตรวจประเมิน และวางแผนการบำบัดรักษาฟื้นฟูพัฒนาการ
                   </span>
                 </label>
+              </div>
+
+              {/* ลายมือชื่อสดบนหน้าจอ */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <SignaturePad 
+                  value={guardianSignature} 
+                  onChange={setGuardianSignature} 
+                  title="ลายมือชื่อผู้ปกครอง / ผู้ให้ข้อมูล (ใช้นิ้วมือหรือปากกาเซ็นสดบนหน้าจอ)"
+                  height={130}
+                />
               </div>
 
               {/* ปุ่มการทำงาน */}

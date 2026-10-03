@@ -15,7 +15,9 @@ import {
   Upload,
   Download,
   Plus,
-  MessageCircle
+  MessageCircle,
+  Send,
+  Bell
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
@@ -499,6 +501,172 @@ export default function Appointments({
     }
   };
 
+  // Helper สำหรับวันที่วันพรุ่งนี้
+  const getTomorrowDateStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const [showBatchLineModal, setShowBatchLineModal] = useState(false);
+  const [batchTargetDate, setBatchTargetDate] = useState(getTomorrowDateStr);
+  const [batchSelectedIds, setBatchSelectedIds] = useState([]);
+  const [isBatchSending, setIsBatchSending] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, success: 0, fail: 0, notLinked: 0 });
+
+  const tomorrowCount = useMemo(() => {
+    const tomorrowStr = getTomorrowDateStr();
+    return (appointments || []).filter(app => {
+      const appDateStr = app.date ? getLocalDateString(app.date) : '';
+      return appDateStr === tomorrowStr && app.status !== 'ยกเลิก';
+    }).length;
+  }, [appointments]);
+
+  const targetDateAppointments = useMemo(() => {
+    const dateStr = batchTargetDate || getTomorrowDateStr();
+    return (appointments || [])
+      .filter(app => {
+        const appDateStr = app.date ? getLocalDateString(app.date) : '';
+        return appDateStr === dateStr && app.status !== 'ยกเลิก';
+      })
+      .map(app => {
+        const patient = (patients || []).find(p => String(p.hn) === String(app.hn));
+        const therapist = (therapists || []).find(t => t.id === app.therapistId);
+        const hasLine = !!(patient && (patient.lineUserId || patient.line_user_id));
+        return {
+          ...app,
+          patient,
+          nickname: patient ? (patient.nickname || patient.firstname) : 'ผู้รับบริการ',
+          fullName: patient ? `${patient.title || ''}${patient.firstname} ${patient.lastname}` : 'ไม่พบข้อมูล',
+          therapistName: therapist ? (therapist.nickname || therapist.fullname) : 'ครูผู้บำบัด',
+          hasLine
+        };
+      })
+      .sort((a, b) => String(a.timeSlot).localeCompare(String(b.timeSlot)));
+  }, [appointments, patients, therapists, batchTargetDate]);
+
+  const handleOpenBatchModal = (targetDate = null) => {
+    const dateToUse = targetDate || getTomorrowDateStr();
+    setBatchTargetDate(dateToUse);
+    const dayApps = (appointments || []).filter(app => {
+      const appDateStr = app.date ? getLocalDateString(app.date) : '';
+      return appDateStr === dateToUse && app.status !== 'ยกเลิก';
+    });
+    setBatchSelectedIds(dayApps.map(a => a.id));
+    setShowBatchLineModal(true);
+  };
+
+  const handleStartBatchSend = async () => {
+    const targets = targetDateAppointments.filter(app => batchSelectedIds.includes(app.id));
+    if (targets.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ยังไม่ได้เลือกรายการ',
+        text: 'กรุณาเลือกอย่างน้อย 1 รายการเพื่อส่งข้อความ',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    const liffId = clinicInfo?.liffId;
+    if (!liffId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ระบบ LINE ยังไม่ได้ตั้งค่า',
+        text: 'กรุณากรอก LINE LIFF ID ในหน้าตั้งค่าระบบก่อนใช้งาน',
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+
+    setIsBatchSending(true);
+    setBatchProgress({ current: 0, total: targets.length, success: 0, fail: 0, notLinked: 0 });
+
+    let successCount = 0;
+    let failCount = 0;
+    let notLinkedCount = 0;
+    let currentAppList = [...(appointments || [])];
+
+    for (let i = 0; i < targets.length; i++) {
+      const app = targets[i];
+      setBatchProgress(prev => ({ ...prev, current: i + 1 }));
+
+      const dateStr = formatDateBE(app.date);
+      const timeStr = app.timeSlot || '';
+
+      try {
+        const response = await fetch('/api/send-line-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'appointment',
+            appId: app.id,
+            patientHn: app.hn,
+            nickname: app.nickname,
+            date: dateStr,
+            time: timeStr,
+            therapist: app.therapistName
+          })
+        });
+
+        if (!response.ok) throw new Error('API Error');
+        const resData = await response.json();
+
+        if (resData.success) {
+          successCount++;
+          const targetIdx = currentAppList.findIndex(a => a.id === app.id);
+          if (targetIdx !== -1) {
+            currentAppList[targetIdx] = {
+              ...currentAppList[targetIdx],
+              lastLineRemindedAt: new Date().toISOString()
+            };
+          }
+        } else if (resData.status === 'not_linked') {
+          notLinkedCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        console.error('Batch send error for app:', app.id, err);
+        failCount++;
+      }
+
+      setBatchProgress(prev => ({
+        ...prev,
+        success: successCount,
+        fail: failCount,
+        notLinked: notLinkedCount
+      }));
+
+      // หน่วงเวลา 250ms เพื่อความเสถียร
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    setIsBatchSending(false);
+    if (setAppointments && successCount > 0) {
+      setAppointments(currentAppList);
+    }
+
+    Swal.fire({
+      icon: successCount > 0 ? 'success' : 'info',
+      title: 'ส่งแจ้งเตือนกลุ่มเสร็จสิ้น',
+      html: `
+        <div style="font-family: var(--font-family); text-align: left; font-size: 0.95rem; line-height: 1.6;">
+          <p>ผลการส่งแจ้งเตือนนัดหมาย:</p>
+          <ul style="padding-left: 1.25rem;">
+            <li style="color: #16a34a; font-weight: 600;">ส่งเข้า LINE สำเร็จ: ${successCount} คน</li>
+            ${notLinkedCount > 0 ? `<li style="color: #d97706; font-weight: 600;">ยังไม่ได้ผูกสิทธิ์ LINE: ${notLinkedCount} คน (แนะนำโทรติดต่อ)</li>` : ''}
+            ${failCount > 0 ? `<li style="color: #dc2626; font-weight: 600;">เกิดข้อผิดพลาดในการส่ง: ${failCount} คน</li>` : ''}
+          </ul>
+        </div>
+      `,
+      confirmButtonColor: 'var(--secondary)'
+    });
+  };
+
   // 7. รายการนัดหมายทั้งหมดที่จะแสดงในตารางพร้อมตัวกรอง
   const filteredAppointments = useMemo(() => {
     let list = appointments || [];
@@ -731,6 +899,16 @@ export default function Appointments({
           ตารางนัดหมายและการตรวจสอบคิว
         </h1>
         <div className="page-actions">
+          {currentUser?.role !== 'OT' && (
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => handleOpenBatchModal()} 
+              title="ส่งการ์ดแจ้งเตือนนัดหมายวันพรุ่งนี้ผ่าน LINE OA รวมทุกคนในคลิกเดียว"
+              style={{ backgroundColor: '#10b981', borderColor: '#10b981', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <MessageCircle size={16} /> ส่ง LINE เตือนวันพรุ่งนี้ ({tomorrowCount})
+            </button>
+          )}
           {currentUser?.role !== 'OT' && (
             <button className="btn btn-primary" onClick={() => { setEditingAppointmentId(null); setSelectedHn(''); setSelectedTimeSlot(''); setAppointmentType('ฝึกกระตุ้นพัฒนาการ'); setShowBookingModal(true); }}>
               <Plus size={16} /> จองคิวใหม่
@@ -974,6 +1152,255 @@ export default function Appointments({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ส่ง LINE เตือนนัดหมายแบบกลุ่ม */}
+      {showBatchLineModal && (
+        <div className="modal-overlay">
+          <div className="modal-content-wrapper" style={{ maxWidth: '780px', width: '95%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ backgroundColor: '#e2f0d9', padding: '0.4rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MessageCircle size={20} color="#16a34a" />
+                </div>
+                <div>
+                  <h3 style={{ fontWeight: 700, margin: 0 }}>
+                    ส่งแจ้งเตือนนัดหมายผ่าน LINE OA (แบบกลุ่ม)
+                  </h3>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>
+                    ส่งการ์ดนัดหมายเข้าห้องแชท LINE ผู้ปกครองล่วงหน้าในคลิกเดียว
+                  </div>
+                </div>
+              </div>
+              <button 
+                className="close-modal-btn" 
+                onClick={() => !isBatchSending && setShowBatchLineModal(false)}
+                disabled={isBatchSending}
+                type="button"
+              >×</button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '72vh', overflowY: 'auto' }}>
+              {/* เลือกวันที่เป้าหมาย */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', backgroundColor: 'var(--light)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Calendar size={18} color="var(--primary)" />
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>วันที่นัดหมาย:</span>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={batchTargetDate}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setBatchTargetDate(newDate);
+                      const dayApps = (appointments || []).filter(app => {
+                        const appDateStr = app.date ? getLocalDateString(app.date) : '';
+                        return appDateStr === newDate && app.status !== 'ยกเลิก';
+                      });
+                      setBatchSelectedIds(dayApps.map(a => a.id));
+                    }}
+                    style={{ width: '150px', padding: '0.35rem 0.6rem' }}
+                    disabled={isBatchSending}
+                  />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--dark-light)', fontWeight: 500 }}>
+                    ({formatDateBE(batchTargetDate)})
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button 
+                    type="button" 
+                    className={`btn btn-sm ${batchTargetDate === getTomorrowDateStr() ? 'btn-secondary' : 'btn-light'}`}
+                    onClick={() => {
+                      const tomorrow = getTomorrowDateStr();
+                      setBatchTargetDate(tomorrow);
+                      const dayApps = (appointments || []).filter(app => {
+                        const appDateStr = app.date ? getLocalDateString(app.date) : '';
+                        return appDateStr === tomorrow && app.status !== 'ยกเลิก';
+                      });
+                      setBatchSelectedIds(dayApps.map(a => a.id));
+                    }}
+                    disabled={isBatchSending}
+                  >
+                    วันพรุ่งนี้
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`btn btn-sm ${batchTargetDate === getLocalDateString(new Date()) ? 'btn-secondary' : 'btn-light'}`}
+                    onClick={() => {
+                      const today = getLocalDateString(new Date());
+                      setBatchTargetDate(today);
+                      const dayApps = (appointments || []).filter(app => {
+                        const appDateStr = app.date ? getLocalDateString(app.date) : '';
+                        return appDateStr === today && app.status !== 'ยกเลิก';
+                      });
+                      setBatchSelectedIds(dayApps.map(a => a.id));
+                    }}
+                    disabled={isBatchSending}
+                  >
+                    วันนี้
+                  </button>
+                </div>
+              </div>
+
+              {/* การ์ดสถิติความพร้อม */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>นัดหมายทั้งหมด</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--dark)' }}>{targetDateAppointments.length}</div>
+                </div>
+                <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#166534' }}>ผูก LINE แล้ว (ส่งได้)</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#16a34a' }}>
+                    {targetDateAppointments.filter(a => a.hasLine).length}
+                  </div>
+                </div>
+                <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fffbeb', border: '1px solid #fde68a', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#92400e' }}>ยังไม่ผูก LINE</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#d97706' }}>
+                    {targetDateAppointments.filter(a => !a.hasLine).length}
+                  </div>
+                </div>
+                <div style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#5b21b6' }}>เลือกส่งครั้งนี้</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#7c3aed' }}>
+                    {batchSelectedIds.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* แถบความคืบหน้าขณะกำลังส่ง */}
+              {isBatchSending && (
+                <div style={{ padding: '1rem', backgroundColor: '#e0f2fe', borderRadius: 'var(--radius-md)', border: '1px solid #bae6fd' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                    <span>กำลังส่งข้อความเตือน... ({batchProgress.current} / {batchProgress.total})</span>
+                    <span>{batchProgress.total > 0 ? Math.round((batchProgress.current / batchProgress.total) * 100) : 0}%</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: `${batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0}%`, height: '100%', backgroundColor: '#0284c7', transition: 'width 0.3s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ สำเร็จ: {batchProgress.success}</span>
+                    <span style={{ color: '#d97706', fontWeight: 600 }}>⚠ ยังไม่ผูก LINE: {batchProgress.notLinked}</span>
+                    <span style={{ color: '#dc2626', fontWeight: 600 }}>✕ ล้มเหลว: {batchProgress.fail}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* ตารางเลือกรายชื่อ */}
+              <div className="table-container" style={{ margin: 0, maxHeight: '320px', overflowY: 'auto' }}>
+                <table className="hdh-table" style={{ fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={targetDateAppointments.length > 0 && batchSelectedIds.length === targetDateAppointments.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setBatchSelectedIds(targetDateAppointments.map(a => a.id));
+                            } else {
+                              setBatchSelectedIds([]);
+                            }
+                          }}
+                          disabled={isBatchSending || targetDateAppointments.length === 0}
+                        />
+                      </th>
+                      <th>เวลา</th>
+                      <th>ผู้รับบริการ</th>
+                      <th>ครูผู้บำบัด</th>
+                      <th style={{ textAlign: 'center' }}>สถานะ LINE</th>
+                      <th style={{ textAlign: 'center' }}>สถานะการเตือน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {targetDateAppointments.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--dark-light)' }}>
+                          ไม่มีนัดหมายในวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      targetDateAppointments.map(app => {
+                        const isChecked = batchSelectedIds.includes(app.id);
+                        return (
+                          <tr key={app.id} style={{ backgroundColor: isChecked ? '#f8fafc' : 'transparent' }}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setBatchSelectedIds(prev => [...prev, app.id]);
+                                  } else {
+                                    setBatchSelectedIds(prev => prev.filter(id => id !== app.id));
+                                  }
+                                }}
+                                disabled={isBatchSending}
+                              />
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{app.timeSlot}</td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>น้อง{app.nickname} ({app.fullName})</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {app.hn}</div>
+                            </td>
+                            <td>{app.therapistName}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {app.hasLine ? (
+                                <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                                  ✓ ผูก LINE แล้ว
+                                </span>
+                              ) : (
+                                <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>
+                                  ยังไม่ผูก LINE
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center', fontSize: '0.75rem' }}>
+                              {app.lastLineRemindedAt ? (
+                                <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                                  เตือนแล้ว {new Date(app.lastLineRemindedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--dark-light)' }}>ยังไม่ส่ง</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--dark-light)' }}>
+                เลือกแล้ว <strong style={{ color: 'var(--primary)' }}>{batchSelectedIds.length}</strong> จาก {targetDateAppointments.length} รายการ
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-light" 
+                  onClick={() => setShowBatchLineModal(false)}
+                  disabled={isBatchSending}
+                >
+                  ปิด
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={handleStartBatchSend}
+                  disabled={isBatchSending || batchSelectedIds.length === 0}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                >
+                  <MessageCircle size={16} />
+                  {isBatchSending ? 'กำลังส่งข้อมูล...' : `ส่งการ์ดแจ้งเตือน (${batchSelectedIds.length})`}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
