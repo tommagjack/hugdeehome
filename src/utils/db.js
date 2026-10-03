@@ -441,7 +441,7 @@ export const sendAttendanceLineNotification = async (payload, extraOptions = {})
 };
 
 // --- ตารางแปลงชื่อคีย์เป็นชื่อตารางใน Supabase ---
-const TABLE_MAP = {
+export const TABLE_MAP = {
   'hdh_clinic_info': 'clinic_info',
   'hdh_users': 'users',
   'hdh_therapists': 'therapists',

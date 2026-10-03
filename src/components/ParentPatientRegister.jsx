@@ -17,6 +17,7 @@ import Swal from 'sweetalert2';
 import ThaiDatePicker, { calculateAgeFromParts, parseRawDateToParts } from './ThaiDatePicker';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 import { supabase } from '../utils/supabaseClient';
+import { broadcastChange } from '../utils/realtime';
 
 export default function ParentPatientRegister({ clinicInfo, onRegister }) {
   // Form states
@@ -205,7 +206,21 @@ export default function ParentPatientRegister({ clinicInfo, onRegister }) {
         }
       }
 
-      // 3. Inform parent React app via callback to update local state immediately
+      // 3. ส่งสัญญาณ Realtime Broadcast ไปยังทุกหน้าจอและทุกอุปกรณ์ของคลินิกทันที
+      try {
+        await broadcastChange({
+          table: 'patients',
+          action: 'INSERT',
+          record: patientRecord,
+          toUpsert: [patientRecord],
+          pk: 'hn',
+          sender: 'parent'
+        });
+      } catch (broadcastErr) {
+        console.warn('Realtime broadcast error from parent form:', broadcastErr);
+      }
+
+      // 4. Inform parent React app via callback to update local state immediately
       if (onRegister) {
         onRegister(patientRecord);
       }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl, cleanUsersData } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse } from './utils/db';
 import { supabase } from './utils/supabaseClient';
+import { getRealtimeChannel, broadcastChange, removeRealtimeChannel, REALTIME_CHANNEL_NAME } from './utils/realtime';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PatientRegister from './components/PatientRegister';
@@ -158,6 +159,8 @@ export default function App() {
   const [referrals, setReferrals] = useState(() => db.getReferrals());
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
   const [attendance, setAttendance] = useState(() => db.getAttendance());
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [patientStatusFilter, setPatientStatusFilter] = useState('All');
 
   // Refs for tracking the last synced database state to perform delta sync (only syncing inserts, updates, and deletes)
   const lastClinicInfoRef = useRef(clinicInfo);
@@ -437,89 +440,7 @@ export default function App() {
     }
   }, [users, currentUser]);
 
-  // 1.2 ระบบสมัครติดตามอัปเดตเรียลไทม์ (Supabase Real-time Subscriptions)
-  useEffect(() => {
-    if (isSyncing || !hasLoadedRef.current) return;
 
-    // ตารางหลักที่จำแนกไอดีและฟังก์ชันสเตท
-    const tablesToSubscribe = [
-      { name: 'patients', pk: 'hn', setState: setPatients, dbSet: db.setPatients, ref: lastPatientsRef },
-      { name: 'appointments', pk: 'id', setState: setAppointments, dbSet: db.setAppointments, ref: lastAppointmentsRef },
-      { name: 'receipts', pk: 'id', setState: setReceipts, dbSet: db.setReceipts, ref: lastReceiptsRef },
-      { name: 'assessments', pk: 'id', setState: setAssessments, dbSet: db.setAssessments, ref: lastAssessmentsRef },
-      { name: 'opd_records', pk: 'id', setState: setOpdRecords, dbSet: db.setOpdRecords, ref: lastOpdRecordsRef }
-    ];
-
-    const toCamelCase = (str) => {
-      if (str === 'snap_iv') return 'snapIV';
-      return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
-    };
-
-    const safeJsonParse = (val) => {
-      if (typeof val === 'string') {
-        let trimmed = val.trim();
-        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-          try { trimmed = JSON.parse(trimmed); } catch (e) {}
-        }
-        if (typeof trimmed === 'string') {
-          if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-            try { return JSON.parse(trimmed); } catch (e) { return val; }
-          }
-        } else {
-          return trimmed;
-        }
-      }
-      return val;
-    };
-
-    const subscriptions = tablesToSubscribe.map(table => {
-      return supabase
-        .channel(`public:${table.name}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: table.name }, payload => {
-          const { eventType, new: newRow, old: oldRow } = payload;
-
-          const mapRow = (row) => {
-            if (!row) return null;
-            const mapped = {};
-            for (const k in row) {
-              mapped[toCamelCase(k)] = safeJsonParse(row[k]);
-            }
-            return mapped;
-          };
-
-          const mappedNewRow = mapRow(newRow);
-          const mappedOldRow = mapRow(oldRow);
-
-          table.setState(prevList => {
-            const list = Array.isArray(prevList) ? prevList : [];
-            let updatedList = [...list];
-
-            if (eventType === 'INSERT') {
-              const exists = list.some(item => item[table.pk] === mappedNewRow[table.pk]);
-              if (!exists) {
-                updatedList = [...list, mappedNewRow];
-              }
-            } else if (eventType === 'UPDATE') {
-              updatedList = list.map(item => item[table.pk] === mappedNewRow[table.pk] ? mappedNewRow : item);
-            } else if (eventType === 'DELETE') {
-              const deletePkValue = mappedOldRow ? mappedOldRow[table.pk] : (payload.errors ? null : oldRow[table.pk]);
-              if (deletePkValue) {
-                updatedList = list.filter(item => item[table.pk] !== deletePkValue);
-              }
-            }
-
-            table.dbSet(updatedList);
-            table.ref.current = updatedList;
-            return updatedList;
-          });
-        })
-        .subscribe();
-    });
-
-    return () => {
-      subscriptions.forEach(sub => supabase.removeChannel(sub));
-    };
-  }, [isSyncing]);
 
   // 1.3 ระบบประมวลผลคิวค้างซิงค์ (Retry Pending Syncs Queue)
   const processPendingSyncs = async (currentQueue = pendingSyncs) => {
@@ -565,51 +486,28 @@ export default function App() {
     return () => window.removeEventListener('online', handleOnline);
   }, [pendingSyncs]);
 
-  // 1.4 ระบบซิงค์ข้อมูลแบบเรียลไทม์ผ่าน Supabase Realtime (Instant Sync Across Devices)
+  // 1.4 ระบบซิงค์ข้อมูลแบบเรียลไทม์ข้ามทุกอุปกรณ์และเบราว์เซอร์ทันที (Multi-Device Instant Real-Time Sync)
   useEffect(() => {
-    if (!currentUser) return;
+    console.log("Initializing Supabase Unified Realtime (Broadcast + Postgres CDC) for instant sync across devices...");
 
-    console.log("Initializing Supabase Realtime channels for instant synchronization...");
-
-    const tablesToListen = [
-      { table: 'patients', pk: 'hn', setState: setPatients, ref: lastPatientsRef, dbSet: db.setPatients },
-      { table: 'appointments', pk: 'id', setState: setAppointments, ref: lastAppointmentsRef, dbSet: db.setAppointments },
-      { table: 'receipts', pk: 'id', setState: setReceipts, ref: lastReceiptsRef, dbSet: db.setReceipts },
-      { table: 'referrals', pk: 'id', setState: setReferrals, ref: lastReferralsRef, dbSet: db.setReferrals },
-      { table: 'opd_records', pk: 'id', setState: setOpdRecords, ref: lastOpdRecordsRef, dbSet: db.setOpdRecords },
-      { table: 'assessments', pk: 'id', setState: setAssessments, ref: lastAssessmentsRef, dbSet: db.setAssessments },
-      { table: 'transactions', pk: 'id', setState: setTransactions, ref: lastTransactionsRef, dbSet: db.setTransactions },
-      { table: 'promotions', pk: 'code', setState: setPromotions, ref: lastPromotionsRef, dbSet: db.setPromotions },
-      { table: 'rewards', pk: 'code', setState: setRewards, ref: lastRewardsRef, dbSet: db.setRewards },
-      { table: 'bank_accounts', pk: 'id', setState: setBankAccounts, ref: lastBankAccountsRef, dbSet: db.setBankAccounts },
-      { table: 'holidays', pk: 'id', setState: setHolidays, ref: lastHolidaysRef, dbSet: db.setHolidays },
-      { table: 'users', pk: 'username', setState: setUsers, ref: lastUsersRef, dbSet: db.setUsers },
-      { table: 'therapists', pk: 'id', setState: setTherapists, ref: lastTherapistsRef, dbSet: db.setTherapists },
-      { table: 'services', pk: 'code', setState: setServices, ref: lastServicesRef, dbSet: db.setServices },
-      { table: 'assessment_templates', pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates },
-      { table: 'attendance', pk: 'id', setState: setAttendance, ref: lastAttendanceRef, dbSet: db.setAttendance }
-    ];
-
-    const toCamelCase = (str) => {
-      if (str === 'snap_iv') return 'snapIV';
-      return str.replace(/_([a-z])/g, g => g[1].toUpperCase());
-    };
-
-    const safeJsonParse = (val) => {
-      if (typeof val === 'string') {
-        let trimmed = val.trim();
-        if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-          try { trimmed = JSON.parse(trimmed); } catch (e) {}
-        }
-        if (typeof trimmed === 'string') {
-          if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-            try { return JSON.parse(trimmed); } catch (e) { return val; }
-          }
-        } else {
-          return trimmed;
-        }
-      }
-      return val;
+    const tablesConfigMap = {
+      patients: { pk: 'hn', setState: setPatients, ref: lastPatientsRef, dbSet: db.setPatients },
+      appointments: { pk: 'id', setState: setAppointments, ref: lastAppointmentsRef, dbSet: db.setAppointments },
+      receipts: { pk: 'id', setState: setReceipts, ref: lastReceiptsRef, dbSet: db.setReceipts },
+      referrals: { pk: 'id', setState: setReferrals, ref: lastReferralsRef, dbSet: db.setReferrals },
+      opd_records: { pk: 'id', setState: setOpdRecords, ref: lastOpdRecordsRef, dbSet: db.setOpdRecords },
+      assessments: { pk: 'id', setState: setAssessments, ref: lastAssessmentsRef, dbSet: db.setAssessments },
+      transactions: { pk: 'id', setState: setTransactions, ref: lastTransactionsRef, dbSet: db.setTransactions },
+      promotions: { pk: 'code', setState: setPromotions, ref: lastPromotionsRef, dbSet: db.setPromotions },
+      rewards: { pk: 'code', setState: setRewards, ref: lastRewardsRef, dbSet: db.setRewards },
+      bank_accounts: { pk: 'id', setState: setBankAccounts, ref: lastBankAccountsRef, dbSet: db.setBankAccounts },
+      holidays: { pk: 'id', setState: setHolidays, ref: lastHolidaysRef, dbSet: db.setHolidays },
+      users: { pk: 'username', setState: setUsers, ref: lastUsersRef, dbSet: db.setUsers },
+      therapists: { pk: 'id', setState: setTherapists, ref: lastTherapistsRef, dbSet: db.setTherapists },
+      services: { pk: 'code', setState: setServices, ref: lastServicesRef, dbSet: db.setServices },
+      assessment_templates: { pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates },
+      attendance: { pk: 'id', setState: setAttendance, ref: lastAttendanceRef, dbSet: db.setAttendance },
+      payrolls: { pk: 'id', setState: setPayrolls, ref: lastPayrollsRef, dbSet: db.setPayrolls }
     };
 
     const mapDatabaseRowToState = (row) => {
@@ -621,62 +519,179 @@ export default function App() {
       return mapped;
     };
 
-    const channels = tablesToListen.map(t => {
-      return supabase
-        .channel(`realtime-${t.table}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: t.table
-          },
-          (payload) => {
-            console.log(`[Realtime postgres_changes] Table ${t.table}:`, payload.eventType, payload.new, payload.old);
-            
-            t.setState(currentState => {
-              let updatedList = Array.isArray(currentState) ? [...currentState] : [];
-              const pk = t.pk;
+    const applyIncomingDelta = (tableName, { toUpsert = [], toDelete = [], pk, record, sender }) => {
+      const config = tablesConfigMap[tableName];
+      if (!config) {
+        if (tableName === 'clinic_info' && record) {
+          setClinicInfo(record);
+          db.setClinicInfo(record);
+          lastClinicInfoRef.current = record;
+        } else if (tableName === 'salary_rules' && record) {
+          setSalaryRules(record);
+          db.setSalaryRules(record);
+          lastSalaryRulesRef.current = record;
+        }
+        return;
+      }
 
-              if (payload.eventType === 'INSERT') {
-                const newRecord = mapDatabaseRowToState(payload.new);
-                if (newRecord) {
-                  const exists = updatedList.some(item => item && String(item[pk]) === String(newRecord[pk]));
-                  if (!exists) {
-                    updatedList.push(newRecord);
-                  }
-                }
-              } else if (payload.eventType === 'UPDATE') {
-                const updatedRecord = mapDatabaseRowToState(payload.new);
-                if (updatedRecord) {
-                  updatedList = updatedList.map(item => 
-                    (item && String(item[pk]) === String(updatedRecord[pk])) ? updatedRecord : item
-                  );
-                }
-              } else if (payload.eventType === 'DELETE') {
-                const deletedRecord = payload.old;
-                if (deletedRecord && deletedRecord[pk] !== undefined && deletedRecord[pk] !== null) {
-                  updatedList = updatedList.filter(item => 
-                    item && String(item[pk]) !== String(deletedRecord[pk])
-                  );
-                }
+      const targetPk = pk || config.pk;
+      let upsertItems = Array.isArray(toUpsert) ? [...toUpsert] : [];
+      if (record && upsertItems.length === 0 && (!toDelete || toDelete.length === 0)) {
+        upsertItems = [record];
+      }
+
+      config.setState(currentState => {
+        let updatedList = Array.isArray(currentState) ? [...currentState] : [];
+        let hasChanges = false;
+
+        // 1. จัดการลบข้อมูล (Delete)
+        if (toDelete && toDelete.length > 0) {
+          const deleteIds = new Set(toDelete.map(d => typeof d === 'object' ? String(d[targetPk]) : String(d)));
+          const beforeLen = updatedList.length;
+          updatedList = updatedList.filter(item => item && !deleteIds.has(String(item[targetPk])));
+          if (updatedList.length !== beforeLen) hasChanges = true;
+        }
+
+        // 2. จัดการเพิ่มหรืออัปเดตข้อมูล (Upsert)
+        if (upsertItems && upsertItems.length > 0) {
+          upsertItems.forEach(newItem => {
+            if (!newItem || newItem[targetPk] === undefined || newItem[targetPk] === null) return;
+            const idx = updatedList.findIndex(item => item && String(item[targetPk]) === String(newItem[targetPk]));
+            if (idx >= 0) {
+              if (!isObjectEqual(updatedList[idx], newItem)) {
+                updatedList[idx] = newItem;
+                hasChanges = true;
               }
+            } else {
+              updatedList.push(newItem);
+              hasChanges = true;
+            }
+          });
+        }
 
-              // บันทึกความเปลี่ยนแปลงลงใน LocalStorage
-              t.dbSet(updatedList);
-              // อัปเดต Ref ทันทีเพื่อป้องกันไม่ให้ handleSyncDelta ตรวจเจอความต่างแล้วเขียนกลับ Supabase ซ้ำ
-              t.ref.current = updatedList;
+        if (!hasChanges) return currentState;
 
-              return updatedList;
+        // บันทึกลง LocalStorage และอัปเดต Ref ทันทีเพื่อป้องกันไม่ให้ handleSyncDelta วนลูปส่งกลับไปอีก
+        config.dbSet(updatedList);
+        config.ref.current = updatedList;
+
+        return updatedList;
+      });
+
+      // หากมีผู้ปกครองลงทะเบียนใหม่ผ่านแบบฟอร์มภายนอก (sender: 'parent')
+      if (tableName === 'patients' && sender === 'parent') {
+        const p = upsertItems[0] || record;
+        if (p) {
+          Swal.fire({
+            icon: 'info',
+            title: '📋 มีผู้ปกครองลงทะเบียนใหม่!',
+            html: `
+              <div style="text-align: left; font-size: 0.95rem;">
+                <strong>${p.title || ''}${p.firstname} ${p.lastname}</strong> (น้อง${p.nickname ? p.nickname : 'ไม่มีชื่อเล่น'})<br/>
+                <span style="color: #64748b;">ผู้ปกครอง: ${p.guardian || '-'} | โทร: ${p.phone || '-'}</span><br/>
+                <span style="color: #d97706; font-weight: bold; margin-top: 4px; display: inline-block;">สถานะ: รอตรวจสอบและออกรหัส HN</span>
+              </div>
+            `,
+            confirmButtonText: 'ไปหน้าอนุมัติผู้รับบริการ',
+            confirmButtonColor: 'var(--primary)',
+            showCancelButton: true,
+            cancelButtonText: 'ปิด',
+            cancelButtonColor: '#94a3b8'
+          }).then(res => {
+            if (res.isConfirmed) {
+              setPatientStatusFilter('Pending');
+              setActiveTab('patients');
+            }
+          });
+
+          // Safety-net: ให้เครื่องเจ้าหน้าที่ที่ล็อกอินอยู่ช่วยซิงค์ข้อมูลนี้ขึ้น Supabase เพื่อความชัวร์ 100%
+          if (currentUser) {
+            syncDeltaToSupabase('hdh_patients', { toUpsert: [p] }).catch(err => {
+              console.warn('Safety-net patient sync error:', err);
             });
           }
-        )
-        .subscribe();
+        }
+      }
+    };
+
+    // เชื่อมต่อช่องสัญญาณ Supabase Realtime กลาง
+    const channel = getRealtimeChannel();
+
+    // 1. สมัครรับสัญญาณ Realtime Broadcast (ข้อความส่งตรงข้ามเครื่องและเบราว์เซอร์ทันที <100ms)
+    channel.on('broadcast', { event: 'data_changed' }, ({ payload }) => {
+      console.log('[Realtime Broadcast Received]', payload);
+      if (!payload || !payload.table) return;
+      applyIncomingDelta(payload.table, payload);
     });
 
+    // 2. สมัครรับสัญญาณ Postgres CDC (การแก้ไขโดยตรงในฐานข้อมูล Supabase)
+    const tablesList = Object.keys(tablesConfigMap);
+    tablesList.forEach(tbl => {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: tbl },
+        (payload) => {
+          console.log(`[Realtime Postgres Change] Table ${tbl}:`, payload.eventType);
+          const config = tablesConfigMap[tbl];
+          if (!config) return;
+          const pk = config.pk;
+          const mappedNewRow = payload.new ? mapDatabaseRowToState(payload.new) : null;
+          const mappedOldRow = payload.old ? mapDatabaseRowToState(payload.old) : null;
+
+          if (payload.eventType === 'INSERT' && mappedNewRow) {
+            applyIncomingDelta(tbl, { toUpsert: [mappedNewRow], pk, sender: 'supabase_cdc' });
+          } else if (payload.eventType === 'UPDATE' && mappedNewRow) {
+            applyIncomingDelta(tbl, { toUpsert: [mappedNewRow], pk, sender: 'supabase_cdc' });
+          } else if (payload.eventType === 'DELETE') {
+            const deletePkVal = mappedOldRow ? mappedOldRow[pk] : (payload.old ? payload.old[pk] : null);
+            if (deletePkVal) {
+              applyIncomingDelta(tbl, { toDelete: [deletePkVal], pk, sender: 'supabase_cdc' });
+            }
+          }
+        }
+      );
+    });
+
+    channel.subscribe((status) => {
+      console.log(`[Realtime Status]: ${status}`);
+    });
+
+    // 3. ระบบตรวจจับการปลุกหน้าจอ/สลับแท็บกลับมา (Visibility Change & Focus & Polling Fallback)
+    const handleWakeUp = async () => {
+      console.log('[Realtime] Device/Tab became active. Verifying sync...');
+      if (!isSyncing && hasLoadedRef.current && currentUser) {
+        try {
+          await syncFromSupabase();
+          refreshAllLocalStates();
+        } catch (e) {
+          console.warn('[Realtime] Sync on wake-up error:', e);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleWakeUp();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWakeUp);
+
+    const pollingInterval = setInterval(() => {
+      if (document.visibilityState === 'visible' && !isSyncing && hasLoadedRef.current && currentUser) {
+        syncFromSupabase().then(() => {
+          refreshAllLocalStates();
+        }).catch(() => {});
+      }
+    }, 30000);
+
     return () => {
-      console.log("Cleaning up Supabase Realtime channels...");
-      channels.forEach(ch => ch.unsubscribe());
+      console.log("Cleaning up Supabase Realtime channels and listeners...");
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWakeUp);
+      clearInterval(pollingInterval);
+      removeRealtimeChannel();
     };
   }, [currentUser]);
 
@@ -728,6 +743,20 @@ export default function App() {
 
     if (toUpsert.length > 0 || toDelete.length > 0) {
       const delta = { toUpsert, toDelete };
+
+      // ส่งสัญญาณ Realtime Broadcast แจ้งเตือนทุกเครื่องทันที (<100ms)
+      const tableName = TABLE_MAP[key];
+      if (tableName) {
+        broadcastChange({
+          table: tableName,
+          action: 'SYNC_DELTA',
+          toUpsert,
+          toDelete,
+          pk,
+          sender: currentUser?.username
+        });
+      }
+
       try {
         await syncDeltaToSupabase(key, delta, true);
       } catch (error) {
@@ -773,6 +802,18 @@ export default function App() {
 
     if (!isObjectEqual(oldValue, newValue)) {
       const delta = { toUpsert: [newValue] };
+
+      // ส่งสัญญาณ Realtime Broadcast สำหรับตารางตั้งค่า
+      const tableName = TABLE_MAP[key];
+      if (tableName) {
+        broadcastChange({
+          table: tableName,
+          action: 'CONFIG_UPDATE',
+          record: newValue,
+          sender: currentUser?.username
+        });
+      }
+
       try {
         await syncDeltaToSupabase(key, delta, true);
       } catch (error) {
@@ -1150,7 +1191,7 @@ export default function App() {
     window.location.pathname === '/register-patient' ||
     window.location.search.includes('register-patient')
   );
-  const [patientStatusFilter, setPatientStatusFilter] = useState('All');
+
 
   useEffect(() => {
     const handleHash = () => {
@@ -1174,9 +1215,6 @@ export default function App() {
       window.removeEventListener('popstate', handleHash);
     };
   }, []);
-
-  // แท็บหน้าจอหลักที่แสดง (SPA Router)
-  const [activeTab, setActiveTab] = useState('dashboard');
 
   // 4. บันทึกข้อมูลคลังสินค้า POS Cart ชั่วคราว (สำหรับดึงบิลร่างกลับมาแก้ไข)
   const [posSelectedHn, setPosSelectedHn] = useState('');

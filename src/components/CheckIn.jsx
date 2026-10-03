@@ -8,6 +8,7 @@ import {
 import Swal from 'sweetalert2';
 import { db, syncDeltaToSupabase, sendAttendanceLineNotification, saveEmployeeLineUser, toCamelCase, safeJsonParse } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
+import { broadcastChange } from '../utils/realtime';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 
 // ฟังก์ชันแปลงวันที่แบบไทย (พ.ศ.)
@@ -596,6 +597,20 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
         }
       } catch (err) {
         console.warn('Could not sync attendance to Supabase immediately (offline or table not ready):', err);
+      }
+
+      // ส่งสัญญาณ Realtime Broadcast แจ้งเตือนทุกเครื่องทันที
+      try {
+        await broadcastChange({
+          table: 'attendance',
+          action: 'INSERT',
+          record: newRecord,
+          toUpsert: [newRecord],
+          pk: 'id',
+          sender: empClean || 'checkin_device'
+        });
+      } catch (bcErr) {
+        console.warn('Realtime broadcast error from checkin:', bcErr);
       }
 
       // 5. ส่งการแจ้งเตือนเข้า LINE OA (ถ้าผูกไว้)
