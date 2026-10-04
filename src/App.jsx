@@ -2832,12 +2832,12 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'lineManager' && currentUser.role === 'Admin' && (
+        {activeTab === 'lineManager' && ['Admin', 'admin'].includes(currentUser?.role) && (
           <LineOAManager 
             clinicInfo={clinicInfo}
             users={users}
             patients={patients}
-            onRefreshData={fetchData}
+            onRefreshData={refreshAllLocalStates}
           />
         )}
 

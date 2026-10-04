@@ -360,32 +360,46 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   // 4. Combined User Registry (Staff + Patients)
   const combinedUserRegistry = useMemo(() => {
     const list = [];
+    const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
+    const safePatients = Array.isArray(patients) ? patients.filter(Boolean) : [];
 
     // Add Staff / OT / Admin
-    users.forEach(u => {
+    safeUsers.forEach(u => {
       let r = (u.role || 'staff').toLowerCase();
       let labelRole = u.role === 'Admin' ? 'ผู้บริหาร' : (u.role === 'OT' ? 'นักกิจกรรมบำบัด' : 'เจ้าหน้าที่');
+      
+      let lineUid = u.lineUserId || null;
+      if (!lineUid && u.avatar_file) {
+        if (typeof u.avatar_file === 'object' && u.avatar_file !== null) {
+          lineUid = u.avatar_file.line_user_id || null;
+        } else if (typeof u.avatar_file === 'string' && u.avatar_file.includes('U')) {
+          try {
+            lineUid = JSON.parse(u.avatar_file)?.line_user_id || null;
+          } catch(e) {}
+        }
+      }
+
       list.push({
-        id: `user_${u.id || u.employeeId}`,
+        id: `user_${u.id || u.employeeId || u.username || Math.random()}`,
         sourceType: 'user',
-        name: u.fullname || u.name,
+        name: u.fullname || u.name || u.username || 'เจ้าหน้าที่',
         code: u.employeeId || '-',
         role: r,
         roleLabel: labelRole,
         phone: u.phone || '-',
         status: u.status || 'Active',
-        lineUserId: u.lineUserId || (typeof u.avatar_file === 'string' && u.avatar_file.includes('U') ? (() => { try { return JSON.parse(u.avatar_file)?.line_user_id; } catch(e){return null;} })() : null),
-        avatarUrl: u.avatarUrl
+        lineUserId: lineUid,
+        avatarUrl: u.avatarUrl || null
       });
     });
 
     // Add Patients (Parents)
-    patients.forEach(p => {
+    safePatients.forEach(p => {
       list.push({
-        id: `patient_${p.hn}`,
+        id: `patient_${p.hn || Math.random()}`,
         sourceType: 'patient',
-        name: `ผู้ปกครองน้อง${p.nickname || p.name} (${p.parentName || p.parent_name || 'ไม่ระบุชื่อ'})`,
-        code: `HN ${p.hn}`,
+        name: `ผู้ปกครองน้อง${p.nickname || p.name || 'ผู้รับบริการ'} (${p.parentName || p.parent_name || 'ไม่ระบุชื่อ'})`,
+        code: p.hn ? `HN ${p.hn}` : '-',
         role: 'parent',
         roleLabel: 'ผู้ปกครอง',
         phone: p.phone || '-',
@@ -677,7 +691,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.25rem' }}>
             {richMenuCards.map(menu => {
-              const activeButtons = customConfigs[menu.key]?.map(s => s.label) || menu.buttons;
+              const activeButtons = (customConfigs?.[menu.key] || DEFAULT_CONFIGS[menu.key] || []).map(s => s.label) || menu.buttons;
 
               return (
                 <div 
@@ -914,7 +928,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
           {/* 6 Grid Slots (3 Columns x 2 Rows) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
             {([0, 1, 2, 3, 4, 5]).map(index => {
-              const currentSlot = customConfigs[selectedConfigMenu]?.[index] || {
+              const currentSlot = customConfigs?.[selectedConfigMenu]?.[index] || DEFAULT_CONFIGS[selectedConfigMenu]?.[index] || {
                 slot: index + 1,
                 label: `ปุ่มที่ ${index + 1}`,
                 type: 'uri',
