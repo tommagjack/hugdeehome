@@ -501,7 +501,9 @@ export default function ReceiptPOS({
       try {
         const parsed = JSON.parse(b.discountReason);
         if (Array.isArray(parsed)) discountsList = parsed;
-      } catch (e) {}
+      } catch {
+        /* ignore parse error */
+      }
     }
     let discAmt = 0;
     if (discountsList.length > 0) {
@@ -754,9 +756,8 @@ export default function ReceiptPOS({
       return;
     }
 
-    const timestamp = Date.now();
     const newDisc = {
-      id: `DISC_${timestamp}`,
+      id: `DISC_${additionalDiscounts.length + 1}_${val}`,
       reason: newDiscountReason.trim(),
       type: newDiscountType,
       value: val
@@ -802,7 +803,9 @@ export default function ReceiptPOS({
           try {
             const parsed = JSON.parse(b.discountReason);
             if (Array.isArray(parsed)) bDiscounts = parsed;
-          } catch (e) {}
+          } catch {
+            /* ignore parse error */
+          }
         }
         if (bDiscounts.length === 0 && Number(b.discountValue) > 0) {
           bDiscounts = [{
@@ -813,7 +816,7 @@ export default function ReceiptPOS({
           }];
         }
 
-        const bUpdatedDiscounts = [...bDiscounts, { ...newDisc, id: `DISC_${timestamp}_${idx}` }];
+        const bUpdatedDiscounts = [...bDiscounts, { ...newDisc, id: `DISC_${bDiscounts.length + 1}_${idx}` }];
 
         const bCart = b.cart || [];
         const flatSub = bCart
@@ -909,7 +912,9 @@ export default function ReceiptPOS({
           try {
             const parsed = JSON.parse(b.discountReason);
             if (Array.isArray(parsed)) bDiscounts = parsed;
-          } catch (e) {}
+          } catch {
+            /* ignore parse error */
+          }
         }
 
         const bFiltered = bDiscounts.filter(d => d.id !== id && d.reason !== discToDelete.reason);
@@ -1053,7 +1058,9 @@ export default function ReceiptPOS({
     try {
       const parsed = JSON.parse(discountReason);
       if (Array.isArray(parsed)) return parsed;
-    } catch (e) {}
+    } catch {
+      /* ignore parse error */
+    }
     if (Number(discountValue) > 0) {
       return [{ id: 'legacy', reason: discountReason || 'ส่วนลดพิเศษ', type: discountType, value: Number(discountValue) }];
     }
@@ -1289,7 +1296,7 @@ export default function ReceiptPOS({
       const finalItems = cart.map(item => {
         const isPercent = (item.description || '').includes('[price_type:percent]');
         const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
-        const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
+        const cleanName = item.name.replace(/\([\d.]+%\)$/, '').trim();
         const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
 
         return {
@@ -1540,7 +1547,7 @@ export default function ReceiptPOS({
       const finalItems = tab.cart.map(item => {
         const isPercent = (item.description || '').includes('[price_type:percent]');
         const calculatedPrice = isPercent ? ((item.price / 100) * flatSub) : item.price;
-        const cleanName = item.name.replace(/\([\d.]+\%\)$/, '').trim();
+        const cleanName = item.name.replace(/\([\d.]+%\)$/, '').trim();
         const displayName = isPercent ? `${cleanName} (${item.price}%)` : cleanName;
 
         return {

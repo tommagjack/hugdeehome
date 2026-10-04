@@ -55,7 +55,7 @@ export const parseRawDateToParts = (rawDate) => {
 
   const str = String(rawDate).trim();
   // Format YYYY-MM-DD or YYYY/MM/DD
-  const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  const ymdMatch = str.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
   if (ymdMatch) {
     let year = parseInt(ymdMatch[1], 10);
     const month = parseInt(ymdMatch[2], 10);
@@ -65,7 +65,7 @@ export const parseRawDateToParts = (rawDate) => {
   }
 
   // Format DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
   if (dmyMatch) {
     const day = parseInt(dmyMatch[1], 10);
     const month = parseInt(dmyMatch[2], 10);

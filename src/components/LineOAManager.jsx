@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  MessageSquare, Smartphone, Users, ShieldCheck, RefreshCw, 
-  Send, ExternalLink, QrCode, Copy, Check, AlertCircle, 
-  Search, Filter, ChevronRight, Zap, CheckCircle2, UserX,
+  Users, ShieldCheck, RefreshCw, 
+  QrCode, Copy, 
+  Search, Zap, CheckCircle2, UserX,
   Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders,
-  Upload, Download, Maximize2, RotateCcw, Image as ImageIcon
+  Upload, Download, Maximize2, RotateCcw
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { supabase } from '../utils/supabaseClient';
 import { SmartAvatar } from '../utils/defaultAssets';
 
 export default function LineOAManager({ clinicInfo, users = [], patients = [], onRefreshData }) {
@@ -149,7 +148,6 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
   // Fetch status and custom configs from API
   const fetchStatus = async () => {
-    setLoadingDeployed(true);
     try {
       const res = await fetch('/api/line-richmenu?action=list');
       if (res.ok) {
@@ -181,8 +179,16 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   };
 
   useEffect(() => {
-    fetchStatus();
-    fetchConfig();
+    let active = true;
+    async function loadData() {
+      if (active) {
+        await Promise.all([fetchStatus(), fetchConfig()]);
+      }
+    }
+    loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Process uploaded image with Client-Side 2500x1686 Auto-Resizer
@@ -465,7 +471,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     const safePatients = Array.isArray(patients) ? patients.filter(Boolean) : [];
 
     // Add Staff / OT / Admin
-    safeUsers.forEach(u => {
+    safeUsers.forEach((u, idx) => {
       let r = (u.role || 'staff').toLowerCase();
       let labelRole = u.role === 'Admin' ? 'ผู้บริหาร' : (u.role === 'OT' ? 'นักกิจกรรมบำบัด' : 'เจ้าหน้าที่');
       
@@ -476,12 +482,14 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         } else if (typeof u.avatar_file === 'string' && u.avatar_file.includes('U')) {
           try {
             lineUid = JSON.parse(u.avatar_file)?.line_user_id || null;
-          } catch(e) {}
+          } catch {
+            lineUid = null;
+          }
         }
       }
 
       list.push({
-        id: `user_${u.id || u.employeeId || u.username || Math.random()}`,
+        id: `user_${u.id || u.employeeId || u.username || idx}`,
         sourceType: 'user',
         name: u.fullname || u.name || u.username || 'เจ้าหน้าที่',
         code: u.employeeId || '-',
@@ -495,9 +503,9 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     });
 
     // Add Patients (Parents)
-    safePatients.forEach(p => {
+    safePatients.forEach((p, idx) => {
       list.push({
-        id: `patient_${p.hn || Math.random()}`,
+        id: `patient_${p.hn || idx}`,
         sourceType: 'patient',
         name: `ผู้ปกครองน้อง${p.nickname || p.name || 'ผู้รับบริการ'} (${p.parentName || p.parent_name || 'ไม่ระบุชื่อ'})`,
         code: p.hn ? `HN ${p.hn}` : '-',
@@ -786,7 +794,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
             <div style={{ fontSize: '0.85rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: deployedData?.richmenus?.length >= 5 ? '#10B981' : '#F59E0B' }} />
-              สถานะบน LINE Server: <strong>{deployedData?.richmenus?.length || 0} เมนูติดตั้งแล้ว</strong>
+              สถานะบน LINE Server: <strong>{loadingDeployed ? 'กำลังตรวจสอบ...' : `${deployedData?.richmenus?.length || 0} เมนูติดตั้งแล้ว`}</strong>
             </div>
           </div>
 
@@ -1734,6 +1742,9 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
               >
                 <Copy size={16} /> คัดลอก
               </button>
+            </div>
+            <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#64748B' }}>
+              LIFF ID: <code>{liffId}</code> | LINE OA ID: <code>{lineOaId}</code>
             </div>
           </div>
 

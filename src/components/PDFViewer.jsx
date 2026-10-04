@@ -557,7 +557,7 @@ export default function PDFViewer({
           )}
 
           {/* ส่วนที่ 4: ความเห็นเพิ่มเติม */}
-          <h3 className="a4-table-title">ส่วนที่ {sectionCounter++}: ความเห็นเพิ่มเติมของนักกิจกรรมบำบัด</h3>
+          <h3 className="a4-table-title">ส่วนที่ {sectionCounter}: ความเห็นเพิ่มเติมของนักกิจกรรมบำบัด</h3>
           <div className="a4-text-area-box" style={{ minHeight: '80px', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
             {item.comment || '-'}
           </div>
@@ -693,8 +693,8 @@ export default function PDFViewer({
                         <tbody>
                           {temp.categories.map(cat => {
                             const score = tScores[cat.id] || 0;
-                            let displayValue = '';
-                            let colorVal = 'inherit';
+                            let displayValue;
+                            let colorVal;
                             if (isDev4) {
                               const catQs = temp.questions.filter(q => q.categoryId === cat.id);
                               const firstQ = catQs[0];
@@ -961,7 +961,9 @@ export default function PDFViewer({
           discountsList = parsed;
           isMultiple = true;
         }
-      } catch (e) {}
+      } catch {
+        /* ignore parse error */
+      }
     }
 
     let discountAmount = 0;

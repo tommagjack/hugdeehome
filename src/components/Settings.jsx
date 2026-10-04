@@ -1027,7 +1027,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
   const handleSaveBank = (e) => {
     e.preventDefault();
     const newBank = {
-      id: editingBankId || 'B' + (bankAccounts.length + 1) + Math.floor(Math.random() * 10),
+      id: editingBankId || 'B' + (bankAccounts.length + 1),
       bankName,
       accountNo: bankAccountNo,
       accountName: bankAccountName
@@ -1083,7 +1083,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
     }
 
     const newTherapist = {
-      id: editingTherapistId || 'T' + (therapists.length + 1) + Math.floor(Math.random() * 10),
+      id: editingTherapistId || 'T' + (therapists.length + 1),
       nickname: therapistNickname,
       fullname: therapistFullname,
       licenseNo: therapistLicense,

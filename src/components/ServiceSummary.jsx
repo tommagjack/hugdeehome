@@ -794,7 +794,9 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
 
         try {
           await syncDeltaToSupabase('hdh_attendance', { toDelete: logsToDelete });
-        } catch (e) {}
+        } catch {
+          /* ignore sync error */
+        }
       }
 
       // 2. อัปเดต State และ LocalStorage

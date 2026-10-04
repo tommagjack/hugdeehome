@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { initDatabase, db, syncFromSupabase, syncToSupabase, syncDeltaToSupabase, getGasUrl, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncDeltaToSupabase, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse } from './utils/db';
 import { supabase } from './utils/supabaseClient';
-import { getRealtimeChannel, broadcastChange, removeRealtimeChannel, REALTIME_CHANNEL_NAME } from './utils/realtime';
+import { getRealtimeChannel, broadcastChange, removeRealtimeChannel } from './utils/realtime';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PatientRegister from './components/PatientRegister';
@@ -73,11 +73,13 @@ export default function App() {
     const saved = localStorage.getItem('hdh_logged_in_user');
     return saved ? JSON.parse(saved) : null;
   });
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [pendingSyncs, setPendingSyncs] = useState(() => {
     try {
       const saved = localStorage.getItem('hdh_pending_syncs');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -122,7 +124,7 @@ export default function App() {
         if (parsed.password === '123') {
           localStorage.removeItem('hdh_admin_override');
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem('hdh_admin_override');
       }
     }
@@ -234,6 +236,57 @@ export default function App() {
     setPromotions(prev => [...prev, newLog]);
   };
 
+  const handleLogout = async () => {
+    logActivity('ออกจากระบบ');
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
+    setCurrentUser(null);
+    localStorage.removeItem('hdh_logged_in_user');
+    setLoginUsername('');
+    setLoginPassword('');
+  };
+
+  const triggerDirectMigration = async () => {
+    Swal.fire({
+      title: 'กำลังโอนย้ายข้อมูล...',
+      html: '<div id="migration-status" style="font-size: 0.95rem; margin-top: 0.5rem;">กำลังเตรียมโอนย้าย...</div>',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const { migrateLocalToSupabase } = await import('./utils/db');
+      await migrateLocalToSupabase((tableName, index, total) => {
+        const statusEl = document.getElementById('migration-status');
+        if (statusEl) {
+          statusEl.innerHTML = `กำลังอัปโหลด <strong>${tableName}</strong> (${index + 1}/${total})...`;
+        }
+      });
+
+      Swal.fire({
+        icon: 'success',
+        title: 'โอนย้ายข้อมูลสำเร็จ!',
+        text: 'ข้อมูลในเครื่องของคุณออนไลน์เรียบร้อยแล้ว',
+        confirmButtonColor: 'var(--secondary)'
+      }).then(() => {
+        window.location.reload();
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        icon: 'error',
+        title: 'การโอนย้ายข้อมูลล้มเหลว',
+        text: error.message || 'เกิดข้อผิดพลาดในการโอนย้ายข้อมูล',
+        confirmButtonColor: 'var(--secondary)'
+      });
+    }
+  };
+
   // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
   useEffect(() => {
     const runInitialSync = async () => {
@@ -282,44 +335,6 @@ export default function App() {
           timer: 2500
         });
       }
-      
-      const triggerDirectMigration = async () => {
-        Swal.fire({
-          title: 'กำลังโอนย้ายข้อมูล...',
-          html: '<div id="migration-status" style="font-size: 0.95rem; margin-top: 0.5rem;">กำลังเตรียมโอนย้าย...</div>',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          }
-        });
-
-        try {
-          const { migrateLocalToSupabase } = await import('./utils/db');
-          await migrateLocalToSupabase((tableName, index, total) => {
-            const statusEl = document.getElementById('migration-status');
-            if (statusEl) {
-              statusEl.innerHTML = `กำลังอัปโหลด <strong>${tableName}</strong> (${index + 1}/${total})...`;
-            }
-          });
-
-          Swal.fire({
-            icon: 'success',
-            title: 'โอนย้ายข้อมูลสำเร็จ!',
-            text: 'ข้อมูลในเครื่องของคุณออนไลน์เรียบร้อยแล้ว',
-            confirmButtonColor: 'var(--secondary)'
-          }).then(() => {
-            window.location.reload();
-          });
-        } catch (error) {
-          console.error(error);
-          Swal.fire({
-            icon: 'error',
-            title: 'การโอนย้ายข้อมูลล้มเหลว',
-            text: error.message || 'เกิดข้อผิดพลาดในการโอนย้ายข้อมูล',
-            confirmButtonColor: 'var(--secondary)'
-          });
-        }
-      };
 
       try {
         const success = await syncFromSupabase();
@@ -926,9 +941,6 @@ export default function App() {
 
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
 
-  const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-
   // Password reset states
   const [forgotPasswordStep, setForgotPasswordStep] = useState(null); // null, 'contact', 'reset'
   const [resetUsername, setResetUsername] = useState('');
@@ -1164,19 +1176,6 @@ export default function App() {
     if (updatedUser.username === 'admin') {
       localStorage.setItem('hdh_admin_override', JSON.stringify(updatedUser));
     }
-  };
-
-  const handleLogout = async () => {
-    logActivity('ออกจากระบบ');
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error('Sign out error:', err);
-    }
-    setCurrentUser(null);
-    localStorage.removeItem('hdh_logged_in_user');
-    setLoginUsername('');
-    setLoginPassword('');
   };
 
   // ดึงค่าการยุบ Sidebar จาก LocalStorage
@@ -1689,7 +1688,7 @@ export default function App() {
 
       return {
         code: item.code,
-        name: item.name.replace(/\([\d.]+\%\)$/, '').trim(),
+        name: item.name.replace(/\([\d.]+%\)$/, '').trim(),
         price: restoredPrice,
         quantity: item.quantity,
         category: item.type || (orig ? orig.category : 'บริการ'),

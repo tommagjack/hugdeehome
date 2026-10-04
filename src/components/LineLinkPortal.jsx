@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Smartphone, User, CheckCircle2, AlertCircle, ArrowRight, 
-  RotateCcw, ShieldCheck, Heart, Sparkles, LogOut, Check,
-  Users, Calendar, Baby, RefreshCw
+  Smartphone, ShieldCheck, Heart, LogOut, Check, RefreshCw
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../utils/supabaseClient';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 
-export default function LineLinkPortal({ clinicInfo, users = [], patients = [] }) {
+export default function LineLinkPortal({ clinicInfo }) {
   const [liffProfile, setLiffProfile] = useState(null);
   const [liffError, setLiffError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,50 +35,8 @@ export default function LineLinkPortal({ clinicInfo, users = [], patients = [] }
 
   const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
 
-  // 1. Initialize LIFF
-  useEffect(() => {
-    let isMounted = true;
-
-    async function initLiff() {
-      try {
-        if (window.liff) {
-          await window.liff.init({ liffId });
-          if (window.liff.isLoggedIn()) {
-            const profile = await window.liff.getProfile();
-            if (isMounted) {
-              setLiffProfile(profile);
-              setManualUid(profile.userId);
-              await checkExistingBinding(profile.userId);
-            }
-          } else {
-            // If in external browser, try login or allow manual UID
-            if (window.liff.isInClient()) {
-              window.liff.login();
-            } else {
-              setLoading(false);
-            }
-          }
-        } else {
-          setLoading(false);
-        }
-      } catch (err) {
-        console.warn('LIFF init warning:', err);
-        if (isMounted) {
-          setLiffError(err.message);
-          setLoading(false);
-        }
-      }
-    }
-
-    initLiff();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [liffId]);
-
-  // 2. Check if this LINE UID is already linked in Supabase
-  const checkExistingBinding = async (targetUid) => {
+  // 1. Check if this LINE UID is already linked in Supabase
+  const checkExistingBinding = useCallback(async (targetUid) => {
     if (!targetUid) {
       setLoading(false);
       return;
@@ -122,7 +78,49 @@ export default function LineLinkPortal({ clinicInfo, users = [], patients = [] }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // 2. Initialize LIFF
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initLiff() {
+      try {
+        if (window.liff) {
+          await window.liff.init({ liffId });
+          if (window.liff.isLoggedIn()) {
+            const profile = await window.liff.getProfile();
+            if (isMounted) {
+              setLiffProfile(profile);
+              setManualUid(profile.userId);
+              await checkExistingBinding(profile.userId);
+            }
+          } else {
+            // If in external browser, try login or allow manual UID
+            if (window.liff.isInClient()) {
+              window.liff.login();
+            } else {
+              setLoading(false);
+            }
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('LIFF init warning:', err);
+        if (isMounted) {
+          setLiffError(err.message);
+          setLoading(false);
+        }
+      }
+    }
+
+    initLiff();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [liffId, checkExistingBinding]);
 
   // 3. Handle Parent Binding
   const handleBindParent = async (e) => {
@@ -411,6 +409,20 @@ export default function LineLinkPortal({ clinicInfo, users = [], patients = [] }
 
       <div style={{ maxWidth: '520px', margin: '-1.5rem auto 0', padding: '0 1rem' }}>
         
+        {/* Error notification if LIFF fails */}
+        {liffError && (
+          <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: '16px', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⚠️ ไม่สามารถเชื่อมต่อกับ LINE SDK ได้: {liffError}</span>
+          </div>
+        )}
+
+        {/* Loading state indicator */}
+        {loading && (
+          <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', borderRadius: '16px', padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <RefreshCw className="animate-spin" size={16} /> กำลังตรวจสอบข้อมูลและสิทธิ์...
+          </div>
+        )}
+
         {/* User LINE Profile Card */}
         <div style={{
           backgroundColor: '#FFFFFF',

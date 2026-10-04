@@ -262,7 +262,9 @@ export default function CourseBalance({
         if (Array.isArray(parsed)) {
           return parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
         }
-      } catch (e) {}
+      } catch {
+        /* ignore parse error */
+      }
       return reason;
     };
 
@@ -277,7 +279,7 @@ export default function CourseBalance({
             return;
           }
 
-          let sessions = item.quantity;
+          let sessions;
           let typeLabel = 'ซื้อคอร์สบริการ';
           let direction = 'in';
 

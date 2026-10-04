@@ -35,7 +35,7 @@ export const cleanUsersData = (usersList) => {
       if (cleaned[field]) {
         let doc = cleaned[field];
         if (typeof doc === 'string') {
-          try { doc = JSON.parse(doc); } catch(e) {}
+          try { doc = JSON.parse(doc); } catch { /* ignore invalid json */ }
         }
         if (doc && typeof doc === 'object') {
           const docCopy = { ...doc };
@@ -54,7 +54,7 @@ export const cleanUsersData = (usersList) => {
     if (cleaned.avatarFile) {
       let avFile = cleaned.avatarFile;
       if (typeof avFile === 'string') {
-        try { avFile = JSON.parse(avFile); } catch(e) {}
+        try { avFile = JSON.parse(avFile); } catch { /* ignore invalid json */ }
       }
       if (avFile && typeof avFile === 'object') {
         cleaned.avatarFile = { ...avFile, data: '' };
@@ -100,7 +100,9 @@ export const initDatabase = (forceReset = false) => {
       const parsed = JSON.parse(currentUsers);
       const cleaned = cleanUsersData(parsed);
       localStorage.setItem(KEYS.USERS, JSON.stringify(cleaned));
-    } catch(e) {}
+    } catch {
+      /* ignore invalid JSON */
+    }
   }
   if (!localStorage.getItem(KEYS.ASSESSMENT_TEMPLATES)) {
     localStorage.setItem(KEYS.ASSESSMENT_TEMPLATES, JSON.stringify(mock.INITIAL_ASSESSMENT_TEMPLATES));
@@ -376,7 +378,9 @@ export const saveEmployeeLineUser = async (employeeId, lineUserId) => {
     // พยายามอัปเดต line_user_id ตรงๆ
     try {
       await supabase.from('users').update({ line_user_id: lineUserId || null }).or(`employee_id.eq.${empClean},username.eq.${empClean}`);
-    } catch (e1) {}
+    } catch {
+      /* ignore column error */
+    }
     // และอัปเดต avatar_file สำรอง
     await supabase.from('users').update({ avatar_file: avatarPayload }).or(`employee_id.eq.${empClean},username.eq.${empClean}`);
   } catch (err) {
@@ -386,7 +390,9 @@ export const saveEmployeeLineUser = async (employeeId, lineUserId) => {
   // ส่ง custom event แจ้งเตือนคอมโพเนนต์ต่างๆ ในหน้าจอ
   try {
     window.dispatchEvent(new CustomEvent('hdh_line_user_updated', { detail: { employeeId: empClean, lineUserId } }));
-  } catch (e) {}
+  } catch {
+    /* ignore event dispatch error */
+  }
 
   return true;
 };
@@ -427,7 +433,9 @@ export const sendAttendanceLineNotification = async (payload, extraOptions = {})
         if (clinic && (clinic.lineChannelAccessToken || clinic.line_channel_access_token)) {
           finalBody.channelAccessToken = clinic.lineChannelAccessToken || clinic.line_channel_access_token;
         }
-      } catch (e) {}
+      } catch {
+        /* ignore parse error */
+      }
     }
 
     const res = await fetch('/api/send-line-message', {
@@ -570,7 +578,7 @@ export const safeJsonParse = (val) => {
     if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
       try {
         trimmed = JSON.parse(trimmed);
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -657,11 +665,7 @@ export const syncFromSupabase = async () => {
       const pk = getPrimaryKey(tableName);
 
       if (pk) {
-        // 1. อ่านข้อมูลเดิมใน LocalStorage ก่อนโดนทับ
-        const localRaw = localStorage.getItem(key);
-        const localList = localRaw ? JSON.parse(localRaw) : [];
-
-        // 2. ดึงข้อมูลจาก pendingSyncs
+        // 1. ดึงข้อมูลจาก pendingSyncs
         const tableSyncs = pendingSyncs.filter(item => item && item.key === key);
         const upsertMap = new Map();
         const deleteSet = new Set();
@@ -887,7 +891,9 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
           const jsonPacked = JSON.stringify(packed);
           record.folder_url = jsonPacked;
           record.folderUrl = jsonPacked;
-        } catch (e) {}
+        } catch {
+          /* ignore folderUrl parse error */
+        }
       }
       records = [record];
     } else if (key === KEYS.SALARY_RULES) {
@@ -1059,7 +1065,9 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
               const jsonPacked = JSON.stringify(packed);
               recordWithId.folder_url = jsonPacked;
               recordWithId.folderUrl = jsonPacked;
-            } catch (e) {}
+            } catch {
+              /* ignore folderUrl parse error */
+            }
           }
         } else if (tableName === 'salary_rules') {
           recordWithId = { ...record, id: 1 };

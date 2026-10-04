@@ -380,7 +380,7 @@ export default function DevelopmentalAssessment({
     }
 
     // Step 4: Lookup interpretation from interpretationTable
-    let interpretation = '';
+    let interpretation;
     const intTable = temp?.scoringRules?.interpretationTable || [];
     const correctedIntTable = intTable.map(row => {
       if (row.minScore === 71 && row.maxScore === 89) {

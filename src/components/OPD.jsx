@@ -385,7 +385,7 @@ export default function OPD({
       'รหัสบันทึก', 'รหัส HN', 'วันที่ฝึก', 'ครูผู้ให้บริการ', 'รายละเอียดผลการฝึก', 'ไฟล์แนบ', 'แสดงต่อผู้ปกครอง'
     ];
 
-    let rows = [];
+    let rows;
 
     if (recordsToExport.length === 0) {
       // Export template

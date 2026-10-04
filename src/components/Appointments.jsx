@@ -727,7 +727,7 @@ export default function Appointments({
       'รหัสนัดหมาย', 'รหัส HN', 'รหัสนักบำบัด', 'วันที่นัดหมาย (YYYY-MM-DD)', 'เวลาเรียน', 'ประเภทนัดหมาย', 'สถานะ'
     ];
 
-    let rows = [];
+    let rows;
     if (appointments.length === 0) {
       // Export template
       rows = [

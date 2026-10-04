@@ -113,15 +113,10 @@ export default function ReferralLetter({
     if (!birthDate) return '-';
     const evalDate = docDate ? new Date(docDate) : new Date();
     let years = evalDate.getFullYear() - birthDate.getFullYear();
-    let months = evalDate.getMonth() - birthDate.getMonth();
+    const months = evalDate.getMonth() - birthDate.getMonth();
     if (months < 0 || (months === 0 && evalDate.getDate() < birthDate.getDate())) {
       years--;
-      months += 12;
     }
-    if (evalDate.getDate() < birthDate.getDate()) {
-      months--;
-    }
-    if (months < 0) months = 11;
     return years >= 0 ? years : 0;
   };
 

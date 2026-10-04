@@ -182,7 +182,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
     safeDeductionsRules.forEach(rule => {
       if (rule && rule.id) {
         if (appliedDeductions[rule.id]) {
-          let amount = 0;
+          let amount;
           if (rule.type === 'เปอร์เซ็นต์ (%)') {
             // ภาษีคำนวนจากยอดรวมรับ ประกันสังคมคำนวนจากฐานเงินเดือน
             const nameLower = String(rule.name || '').toLowerCase();

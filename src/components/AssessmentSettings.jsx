@@ -397,8 +397,8 @@ export default function AssessmentSettings({ templates = [], setTemplates, thera
 
   // DYNAMIC CSV EXPORT based on actual data
   const handleDownloadSample = () => {
-    let csvContent = "";
-    let fileName = "";
+    let csvContent;
+    let fileName;
     
     if (editType === 'custom_vmi') {
       fileName = `${editId}_${vmiImportTableType}.csv`;

@@ -52,7 +52,7 @@ const formatDateBE = (dateStr) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch (e) {
+  } catch {
     return dateStr;
   }
 };

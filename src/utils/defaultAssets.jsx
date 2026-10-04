@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // สินทรัพย์รูปภาพและตราประทับตั้งต้นประจำระบบ (Embedded Default Data URLs)
 // ทำงานได้ 100% บนทุกเบราว์เซอร์ (รวมถึง IE, Chrome, Firefox, Safari, Edge, Mobile) โดยไม่ต้องพึ่งพาอินเทอร์เน็ตภายนอก
@@ -41,17 +41,17 @@ export const handleStampError = (e) => {
 
 // คอมโพเนนต์แสดงรูปโปรไฟล์แบบอัจฉริยะ (Smart Avatar Component)
 export const SmartAvatar = ({ src, name, fontSize = '0.75rem', style = {} }) => {
-  const sanitized = sanitizeImageUrl(src);
-  const [imgSrc, setImgSrc] = useState(sanitized);
+  const [prevSrc, setPrevSrc] = useState(src);
+  const [imgSrc, setImgSrc] = useState(() => sanitizeImageUrl(src));
   const [hasError, setHasError] = useState(false);
   const [triedProxy, setTriedProxy] = useState(false);
 
-  useEffect(() => {
-    const clean = sanitizeImageUrl(src);
-    setImgSrc(clean);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setImgSrc(sanitizeImageUrl(src));
     setHasError(false);
     setTriedProxy(false);
-  }, [src]);
+  }
 
   const handleError = () => {
     if (!triedProxy && imgSrc && typeof imgSrc === 'string' && !imgSrc.startsWith('data:image')) {

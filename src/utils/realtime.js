@@ -11,7 +11,7 @@ export const getRealtimeChannel = () => {
     if (sharedChannel) {
       try {
         supabase.removeChannel(sharedChannel);
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -58,7 +58,7 @@ export const removeRealtimeChannel = () => {
   if (sharedChannel) {
     try {
       supabase.removeChannel(sharedChannel);
-    } catch (e) {
+    } catch {
       // ignore
     }
     sharedChannel = null;

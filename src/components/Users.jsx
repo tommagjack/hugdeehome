@@ -21,14 +21,14 @@ const formatDateToInputDate = (dateStr) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
     return cleanStr;
   }
-  const dmyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  const dmyMatch = cleanStr.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (dmyMatch) {
     const day = dmyMatch[1].padStart(2, '0');
     const month = dmyMatch[2].padStart(2, '0');
     const year = dmyMatch[3];
     return `${year}-${month}-${day}`;
   }
-  const ymdMatch = cleanStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  const ymdMatch = cleanStr.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
   if (ymdMatch) {
     const year = ymdMatch[1];
     const month = ymdMatch[2].padStart(2, '0');
@@ -957,7 +957,7 @@ export default function Users({ users, setUsers, setPrintView }) {
           if (val('contractDoc')) {
             try {
               updatedUserData.contractDoc = JSON.parse(val('contractDoc'));
-            } catch(e) {
+            } catch {
               updatedUserData.contractDoc = null;
             }
           }
@@ -1031,7 +1031,7 @@ export default function Users({ users, setUsers, setPrintView }) {
             contractDoc: (() => {
               try {
                 return val('contractDoc') ? JSON.parse(val('contractDoc')) : null;
-              } catch(e) {
+              } catch {
                 return null;
               }
             })()

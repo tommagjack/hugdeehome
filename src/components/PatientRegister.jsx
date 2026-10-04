@@ -685,7 +685,7 @@ export default function PatientRegister({
       'ช่องทางที่รู้จัก', 'รายละเอียดช่องทางอื่นๆ', 'พฤติกรรมหรืออาการที่กังวล', 'LINE User ID'
     ];
 
-    let rows = [];
+    let rows;
     if (patients.length === 0) {
       // Export template
       rows = [

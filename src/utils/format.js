@@ -47,7 +47,7 @@ export const parseDateToAD = (dateStr) => {
   }
   
   // 2. ลองตรวจหาแยกส่วนตามสัญลักษณ์ขีดคั่น / หรือ - หรือ .
-  const parts = str.split(/[\/\-\.]/);
+  const parts = str.split(/[/\-.]/);
   if (parts.length === 3) {
     let day, month, year;
     

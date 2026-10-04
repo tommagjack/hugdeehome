@@ -123,7 +123,9 @@ export default function ReceiptHistory({
         if (Array.isArray(parsed)) {
           displayReason = parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
         }
-      } catch (e) {}
+      } catch {
+        /* ignore parse error */
+      }
     }
     setEditDiscountReason(displayReason);
     // กรองเอา Audit Item ออกเมื่อนำเข้าตะกร้าแก้ไข
@@ -178,7 +180,7 @@ export default function ReceiptHistory({
     }
 
     const subtotal = editItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-    let discount = 0;
+    let discount;
     if (editDiscountType === 'flat') {
       discount = editDiscountValue;
     } else {
@@ -790,7 +792,7 @@ export default function ReceiptHistory({
                                   }}
                                   title={hasVoid ? 'คลิกเพื่อดูเหตุผลการยกเลิกบิล' : 'คลิกเพื่อดูเหตุผลการแก้ไขบิล'}
                                   onClick={() => {
-                                    let htmlContent = '';
+                                    let htmlContent;
                                     if (hasVoid) {
                                       htmlContent = `
                                         <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6;">
