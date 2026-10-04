@@ -8,12 +8,12 @@
     { "slot": 6, "label": "โปรโมชัน & แพ็กเกจคอร์ส", "type": "message", "value": "สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎" }
   ],
   "parent": [
-    { "slot": 1, "label": "นัดหมายของน้อง", "type": "uri", "value": "?action=parent-appointments" },
-    { "slot": 2, "label": "พัฒนาการ & แผน ITP", "type": "uri", "value": "?action=parent-itp" },
-    { "slot": 3, "label": "กิจกรรมฝึกที่บ้าน", "type": "uri", "value": "?action=parent-homeprogram" },
-    { "slot": 4, "label": "คอร์ส ยอดคงเหลือ & แต้มสะสม", "type": "uri", "value": "?action=parent-courses" },
-    { "slot": 5, "label": "แจ้งเลื่อนนัด / คุยกับครู", "type": "message", "value": "ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎" },
-    { "slot": 6, "label": "โปรไฟล์น้อง / สลับบัญชี", "type": "uri", "value": "?action=line-link" }
+    { "slot": 1, "label": "นัดหมาย / ตาราง", "type": "uri", "value": "?action=parent-appointments" },
+    { "slot": 2, "label": "พัฒนาการ / ความก้าวหน้า", "type": "uri", "value": "?action=parent-itp" },
+    { "slot": 3, "label": "กิจกรรมที่บ้าน / คำแนะนำ", "type": "uri", "value": "?action=parent-homeprogram" },
+    { "slot": 4, "label": "คะแนนสะสม / สิทธิพิเศษ", "type": "uri", "value": "?action=parent-courses" },
+    { "slot": 5, "label": "สอบถาม / ติดต่อเรา", "type": "message", "value": "ขออนุญาตติดต่อเจ้าหน้าที่คลินิกฮักดีโฮมค่ะ 🤎" },
+    { "slot": 6, "label": "ข้อมูลน้อง / ประวัติ", "type": "uri", "value": "alias:patient-profile" }
   ],
   "staff": [
     { "slot": 1, "label": "ลงเวลางาน GPS", "type": "uri", "value": "?action=checkin" },

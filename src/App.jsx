@@ -1203,13 +1203,34 @@ export default function App() {
     window.location.pathname === '/register-patient' ||
     window.location.search.includes('register-patient')
   );
+  // ตรวจจับเส้นทางเชื่อมต่อ LINE OA และพอร์ทัลผู้ปกครอง (รองรับทุกแท็บและแอ็กชัน)
+  const isLineLinkRoute = () => {
+    const hash = window.location.hash || '';
+    const path = window.location.pathname || '';
+    const search = window.location.search || '';
+    return (
+      hash.includes('line-link') || 
+      path === '/line-link' || 
+      search.includes('line-link') ||
+      search.includes('parent-') ||
+      hash.includes('parent-') ||
+      search.includes('action=parent-') ||
+      hash.includes('action=parent-') ||
+      search.includes('tab=profile') ||
+      hash.includes('tab=profile') ||
+      search.includes('tab=appointments') ||
+      hash.includes('tab=appointments') ||
+      search.includes('tab=itp') ||
+      hash.includes('tab=itp') ||
+      search.includes('tab=courses') ||
+      hash.includes('tab=courses') ||
+      search.includes('tab=homeprogram') ||
+      hash.includes('tab=homeprogram')
+    );
+  };
+
   // สถานะเปิดหน้าเชื่อมต่อบัญชี LINE OA (สาธารณะ / LIFF)
-  const [isLineLinkPage, setIsLineLinkPage] = useState(() => 
-    window.location.hash === '#/line-link' || 
-    window.location.hash.startsWith('#/line-link') ||
-    window.location.pathname === '/line-link' ||
-    window.location.search.includes('line-link')
-  );
+  const [isLineLinkPage, setIsLineLinkPage] = useState(isLineLinkRoute);
   // สถานะเปิดหน้าบริการของคลินิก (สาธารณะ)
   const [isServicesPage, setIsServicesPage] = useState(() =>
     window.location.hash === '#/services' ||
@@ -1232,12 +1253,7 @@ export default function App() {
         window.location.pathname === '/register-patient' ||
         window.location.search.includes('register-patient')
       );
-      setIsLineLinkPage(
-        window.location.hash === '#/line-link' || 
-        window.location.hash.startsWith('#/line-link') ||
-        window.location.pathname === '/line-link' ||
-        window.location.search.includes('line-link')
-      );
+      setIsLineLinkPage(isLineLinkRoute());
       setIsServicesPage(
         window.location.hash === '#/services' ||
         window.location.pathname === '/services' ||
@@ -2065,6 +2081,10 @@ export default function App() {
         clinicInfo={clinicInfo}
         users={users}
         patients={patients}
+        appointments={appointments}
+        receipts={receipts}
+        assessments={assessments}
+        itpGoals={itpGoals}
       />
     );
   }

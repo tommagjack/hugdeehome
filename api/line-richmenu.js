@@ -277,6 +277,8 @@ export default async function handler(req, res) {
           const roleMatch = rawVal.match(/role=([a-zA-Z0-9_-]+)/);
           const roleParam = roleMatch ? `&role=${roleMatch[1]}` : '';
           finalUri = liffId ? `https://liff.line.me/${liffId}?action=menu-switch${roleParam}` : `${appUrl}/#/line-link?action=menu-switch${roleParam}`;
+        } else if (rawVal.includes('parent-profile') || rawVal.includes('patient-profile')) {
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-profile` : `${appUrl}/#/line-link?tab=profile`;
         } else if (rawVal.includes('parent-appointments')) {
           finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-appointments` : `${appUrl}/#/line-link?tab=appointments`;
         } else if (rawVal.includes('parent-itp')) {
@@ -748,17 +750,27 @@ export default async function handler(req, res) {
       let linkedCount = 0;
       let unlinkedCount = 0;
 
-      // 2. Sync Users (Staff, OT, Admin)
-      const uRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?line_user_id=not.is.null&select=line_user_id,role,status`, {
+      // 2. Sync Users (Staff, OT, Admin) - Keep track of their LINE IDs
+      const staffLineUserIds = new Set();
+      const uRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?select=line_user_id,avatar_file,role,status`, {
         headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
       });
       if (uRes.ok) {
         const usersList = await uRes.json();
         for (const u of usersList) {
-          if (!u.line_user_id) continue;
+          let uid = u.line_user_id;
+          if (!uid && u.avatar_file) {
+            try {
+              const av = typeof u.avatar_file === 'string' ? JSON.parse(u.avatar_file) : u.avatar_file;
+              uid = av?.line_user_id || null;
+            } catch (e) {}
+          }
+          if (!uid) continue;
+          staffLineUserIds.add(uid);
+
           const isInactive = u.status && u.status.toLowerCase() === 'inactive';
           if (isInactive) {
-            await fetch(`https://api.line.me/v2/bot/user/${u.line_user_id}/richmenu`, {
+            await fetch(`https://api.line.me/v2/bot/user/${uid}/richmenu`, {
               method: 'DELETE',
               headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -770,7 +782,7 @@ export default async function handler(req, res) {
             else if (r === 'ot') targetId = otMenu;
 
             if (targetId) {
-              await fetch(`https://api.line.me/v2/bot/user/${u.line_user_id}/richmenu/${targetId}`, {
+              await fetch(`https://api.line.me/v2/bot/user/${uid}/richmenu/${targetId}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
               });
@@ -780,14 +792,14 @@ export default async function handler(req, res) {
         }
       }
 
-      // 3. Sync Patients (Parents)
+      // 3. Sync Patients (Parents) - Strictly skip any staff/admin users
       const pRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/patients?line_user_id=not.is.null&select=line_user_id,status`, {
         headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
       });
       if (pRes.ok) {
         const patientsList = await pRes.json();
         for (const p of patientsList) {
-          if (!p.line_user_id) continue;
+          if (!p.line_user_id || staffLineUserIds.has(p.line_user_id)) continue;
           const isInactive = p.status && p.status.toLowerCase() === 'inactive';
           if (isInactive) {
             await fetch(`https://api.line.me/v2/bot/user/${p.line_user_id}/richmenu`, {

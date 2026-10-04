@@ -56,6 +56,33 @@
       "updatedAt": "2026-10-04T11:00:00Z"
     },
     {
+      "id": "patient-profile",
+      "alias": "patient-profile",
+      "title": "ประวัติคนไข้ & ข้อมูลของน้อง (Parent Portal)",
+      "category": "parent",
+      "description": "ดูประวัติและข้อมูลของน้องที่ลงทะเบียนไว้เฉพาะของตนเอง (ชื่อ, HN, การแพ้, นัดหมาย, และพัฒนาการ)",
+      "targetUrl": "/#line-link?tab=profile",
+      "allowedRoles": [
+        "parent"
+      ],
+      "presetOptions": [
+        {
+          "label": "👶 ข้อมูลน้อง / ประวัติ (เฉพาะของตนเอง)",
+          "url": "/#line-link?tab=profile"
+        },
+        {
+          "label": "📅 นัดหมายของน้อง",
+          "url": "/#line-link?tab=appointments"
+        },
+        {
+          "label": "🧩 พัฒนาการ & แผนบำบัด ITP",
+          "url": "/#line-link?tab=itp"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T12:00:00Z"
+    },
+    {
       "id": "parent-appointments",
       "alias": "parent-appointments",
       "title": "นัดหมายของน้อง & แจ้งเลื่อนนัด",

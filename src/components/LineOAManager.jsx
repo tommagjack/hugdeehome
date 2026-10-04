@@ -24,6 +24,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   const fileInputRef = useRef(null);
   const [customImages, setCustomImages] = useState({});
   const [highlightedSlot, setHighlightedSlot] = useState(null);
+  const [dynamicLinks, setDynamicLinks] = useState([]);
 
   // Search & Filters for User Registry
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,12 +45,12 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       { slot: 6, label: 'โปรโมชัน & แพ็กเกจคอร์ส', type: 'message', value: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
     ],
     parent: [
-      { slot: 1, label: 'นัดหมายของน้อง', type: 'uri', value: '?action=parent-appointments' },
-      { slot: 2, label: 'พัฒนาการ & แผน ITP', type: 'uri', value: '?action=parent-itp' },
-      { slot: 3, label: 'กิจกรรมฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
-      { slot: 4, label: 'คอร์ส & ยอดคงเหลือ & แต้มสะสม', type: 'uri', value: '?action=parent-courses' },
-      { slot: 5, label: 'แจ้งเลื่อนนัด / คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' },
-      { slot: 6, label: 'โปรไฟล์น้อง / สลับบัญชี', type: 'uri', value: '?action=line-link' }
+      { slot: 1, label: 'นัดหมาย / ตาราง', type: 'uri', value: '?action=parent-appointments' },
+      { slot: 2, label: 'พัฒนาการ / ความก้าวหน้า', type: 'uri', value: '?action=parent-itp' },
+      { slot: 3, label: 'กิจกรรมที่บ้าน / คำแนะนำ', type: 'uri', value: '?action=parent-homeprogram' },
+      { slot: 4, label: 'คะแนนสะสม / สิทธิพิเศษ', type: 'uri', value: '?action=parent-courses' },
+      { slot: 5, label: 'สอบถาม / ติดต่อเรา', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่คลินิกฮักดีโฮมค่ะ 🤎' },
+      { slot: 6, label: 'ข้อมูลน้อง / ประวัติ', type: 'uri', value: 'alias:patient-profile' }
     ],
     staff: [
       { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
@@ -105,7 +106,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       borderColor: '#A7F3D0',
       isDefault: false,
       image: '/richmenu_images/richmenu_2_parent.png',
-      buttons: ['นัดหมายของน้อง', 'พัฒนาการ & แผน ITP', 'กิจกรรมฝึกที่บ้าน', 'คอร์ส ยอดคงเหลือ & แต้มสะสม', 'แจ้งเลื่อนนัด / คุยกับครู', 'โปรไฟล์น้อง / สลับบัญชี']
+      buttons: ['นัดหมาย / ตาราง', 'พัฒนาการ / ความก้าวหน้า', 'กิจกรรมที่บ้าน / คำแนะนำ', 'คะแนนสะสม / สิทธิพิเศษ', 'สอบถาม / ติดต่อเรา', 'ข้อมูลน้อง / ประวัติ']
     },
     {
       key: 'staff',
@@ -262,16 +263,42 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     }
   };
 
+  const loadDynamicLinks = async () => {
+    try {
+      const cached = localStorage.getItem('hdh_dynamic_links');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) setDynamicLinks(parsed);
+      }
+      const res = await fetch('/api/link?action=list');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.links) && data.links.length > 0) {
+          setDynamicLinks(data.links);
+          try { localStorage.setItem('hdh_dynamic_links', JSON.stringify(data.links)); } catch (e) {}
+        }
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     let active = true;
     async function loadData() {
       if (active) {
-        await Promise.all([fetchStatus(), fetchConfig()]);
+        await Promise.all([fetchStatus(), fetchConfig(), loadDynamicLinks()]);
       }
     }
     loadData();
+
+    const handleLinksUpdate = (e) => {
+      if (e.detail && Array.isArray(e.detail)) setDynamicLinks(e.detail);
+      else loadDynamicLinks();
+    };
+    window.addEventListener('hdh_dynamic_links_updated', handleLinksUpdate);
+
     return () => {
       active = false;
+      window.removeEventListener('hdh_dynamic_links_updated', handleLinksUpdate);
     };
   }, []);
 
@@ -1562,19 +1589,20 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                         { label: 'บริการของเรา', type: 'uri', value: '?action=services' },
                         { label: 'ลงทะเบียนคนไข้ใหม่', type: 'uri', value: '?action=register-patient' },
                         { label: 'เชื่อมต่อบัญชี LINE', type: 'uri', value: '?action=line-link' },
-                        { label: 'โทรคลินิก', type: 'uri', value: '?action=call' },
-                        { label: 'ลงเวลางาน', type: 'uri', value: '?action=checkin' },
-                        { label: 'แผน ITP', type: 'uri', value: '?action=parent-itp' },
-                        { label: 'นัดหมาย', type: 'uri', value: '?action=parent-appointments' },
-                        { label: 'ยอด & แต้ม', type: 'uri', value: '?action=parent-courses' },
-                        { label: 'ฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
+                        { label: 'ข้อมูลน้อง / ประวัติ', type: 'uri', value: 'alias:patient-profile' },
+                        { label: 'นัดหมาย / ตาราง', type: 'uri', value: '?action=parent-appointments' },
+                        { label: 'พัฒนาการ & แผน ITP', type: 'uri', value: '?action=parent-itp' },
+                        { label: 'คะแนนสะสม & คอร์ส', type: 'uri', value: '?action=parent-courses' },
+                        { label: 'กิจกรรมฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
+                        { label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
                         { label: 'Check-in เคาน์เตอร์', type: 'uri', value: '?action=reception-intake' },
-                        { label: 'การเงิน/สลิป (Dynamic Alias)', type: 'uri', value: 'alias:staff-finance' },
+                        { label: 'การเงิน/สลิป (Dynamic)', type: 'uri', value: 'alias:staff-finance' },
                         { label: 'ออกใบเสร็จ & ตัดคอร์ส', type: 'uri', value: '?action=receipts' },
                         { label: 'ดูสลิปเงินเดือน', type: 'uri', value: '?action=salary' },
                         { label: 'แบบประเมินพึงพอใจ', type: 'uri', value: 'alias:satisfaction-survey' },
+                        { label: 'โทรคลินิก', type: 'uri', value: '?action=call' },
                         { label: 'สลับมุมมอง', type: 'uri', value: `?action=menu-switch&role=${selectedConfigMenu}` },
-                        { label: 'คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' }
+                        { label: 'สอบถาม / ติดต่อเรา', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่คลินิกฮักดีโฮมค่ะ 🤎' }
                       ].map((preset, pIdx) => (
                         <button
                           key={pIdx}
@@ -1598,6 +1626,44 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                         </button>
                       ))}
                     </div>
+
+                    {/* Dynamic Links Created by Admin */}
+                    {dynamicLinks && dynamicLinks.length > 0 && (
+                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px dashed #E2E8F0' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#7C3AED', fontWeight: '800', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ⚡ Dynamic Links ที่บันทึกไว้ ({dynamicLinks.length}):
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {dynamicLinks.map((dl, dlIdx) => (
+                            <button
+                              key={`dl-${dlIdx}`}
+                              type="button"
+                              onClick={() => {
+                                handleSlotChange(selectedConfigMenu, index, 'label', dl.title.slice(0, 20));
+                                handleSlotChange(selectedConfigMenu, index, 'type', 'uri');
+                                handleSlotChange(selectedConfigMenu, index, 'value', `alias:${dl.alias}`);
+                              }}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                border: '1px solid #DDD6FE',
+                                backgroundColor: '#F5F3FF',
+                                color: '#6D28D9',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              title={`สลับปลายทางได้ที่แท็บศูนย์รวมลิงก์ (URL ปัจจุบัน: ${dl.targetUrl})`}
+                            >
+                              ⚡ {dl.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

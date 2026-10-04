@@ -31,24 +31,43 @@ export default function LiffLinkManager({ clinicInfo }) {
   const [newCategory, setNewCategory] = useState('general');
   const [newRoles, setNewRoles] = useState('all');
 
-  // 1. Fetch Dynamic Links from API
+  // 1. Fetch Dynamic Links from LocalStorage + API
   const fetchLinks = async () => {
     setLoadingLinks(true);
+    // A. Instant cache prefill from localStorage
+    try {
+      const cached = localStorage.getItem('hdh_dynamic_links');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLinks(parsed);
+        }
+      }
+    } catch (e) {}
+
+    // B. Fetch authoritative list from server / Supabase
     try {
       const res = await fetch('/api/link?action=list');
       if (res.ok) {
         const data = await res.json();
-        setLinks(data.links || []);
+        if (Array.isArray(data.links) && data.links.length > 0) {
+          setLinks(data.links);
+          try {
+            localStorage.setItem('hdh_dynamic_links', JSON.stringify(data.links));
+          } catch (e) {}
+        }
       } else {
-        // Fallback to static JSON
+        // Fallback to static JSON if offline
         const staticRes = await fetch('/dynamic_links.json');
         if (staticRes.ok) {
           const staticData = await staticRes.json();
-          setLinks(staticData.links || []);
+          if (Array.isArray(staticData.links)) {
+            setLinks(staticData.links);
+          }
         }
       }
     } catch (err) {
-      console.warn('Could not fetch dynamic links:', err);
+      console.warn('Could not fetch dynamic links from server:', err);
     } finally {
       setLoadingLinks(false);
     }
@@ -61,6 +80,13 @@ export default function LiffLinkManager({ clinicInfo }) {
   // 2. Quick Switch Destination Handler
   const handleUpdateTarget = async (linkId, targetUrl, linkTitle) => {
     setSavingAlias(linkId);
+    const updatedList = links.map(l => l.id === linkId ? { ...l, targetUrl, updatedAt: new Date().toISOString() } : l);
+    setLinks(updatedList);
+    try {
+      localStorage.setItem('hdh_dynamic_links', JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: updatedList }));
+    } catch (e) {}
+
     try {
       const res = await fetch('/api/link?action=update', {
         method: 'POST',
@@ -70,7 +96,6 @@ export default function LiffLinkManager({ clinicInfo }) {
       const data = await res.json();
 
       if (res.ok) {
-        setLinks(prev => prev.map(l => l.id === linkId ? { ...l, targetUrl, updatedAt: new Date().toISOString() } : l));
         Swal.fire({
           icon: 'success',
           title: 'สลับปลายทางสำเร็จ! ⚡',
@@ -97,7 +122,7 @@ export default function LiffLinkManager({ clinicInfo }) {
     }
 
     const cleanAlias = newAlias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    if (links.some(l => l.alias === cleanAlias)) {
+    if (links.some(l => l.alias === cleanAlias || l.id === cleanAlias)) {
       Swal.fire({ icon: 'warning', title: 'ชื่อ Alias นี้มีอยู่ในระบบแล้ว', text: 'กรุณาตั้งชื่อ Alias อื่น เช่น staff-portal-2' });
       return;
     }
@@ -117,23 +142,33 @@ export default function LiffLinkManager({ clinicInfo }) {
       updatedAt: new Date().toISOString()
     };
 
-    const updatedList = [...links, newLinkObj];
+    const updatedList = [newLinkObj, ...links];
+    setLinks(updatedList);
     try {
-      const res = await fetch('/api/link?action=save-all', {
+      localStorage.setItem('hdh_dynamic_links', JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: updatedList }));
+    } catch (e) {}
+
+    setShowAddModal(false);
+    setNewTitle('');
+    setNewAlias('');
+    setNewTarget('/#services');
+
+    try {
+      await fetch('/api/link?action=save-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ links: updatedList })
       });
-      if (res.ok) {
-        setLinks(updatedList);
-        setShowAddModal(false);
-        setNewTitle('');
-        setNewAlias('');
-        setNewTarget('/#services');
-        Swal.fire({ icon: 'success', title: 'สร้างลิงก์สำเร็จ', timer: 1500, showConfirmButton: false });
-      }
+      Swal.fire({ 
+        icon: 'success', 
+        title: 'สร้างและบันทึกลิงก์สำเร็จ! 🎉', 
+        html: `สร้างลิงก์ <code>alias:${cleanAlias}</code> เรียบร้อยแล้ว<br><span style="font-size: 0.85rem; color: #059669;">สามารถนำไปใส่ในปุ่ม Rich Menu หรือสร้างเป็น QR Code ได้ทันที</span>`,
+        timer: 2500, 
+        showConfirmButton: false 
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'ไม่สามารถบันทึกได้', text: err.message });
+      console.warn('API save-all warning:', err);
     }
   };
 
@@ -151,16 +186,21 @@ export default function LiffLinkManager({ clinicInfo }) {
     if (!confirm.isConfirmed) return;
 
     const filtered = links.filter(l => l.id !== linkId);
+    setLinks(filtered);
+    try {
+      localStorage.setItem('hdh_dynamic_links', JSON.stringify(filtered));
+      window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: filtered }));
+    } catch (e) {}
+
     try {
       await fetch('/api/link?action=save-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ links: filtered })
       });
-      setLinks(filtered);
       Swal.fire({ icon: 'success', title: 'ลบเรียบร้อยแล้ว', timer: 1200, showConfirmButton: false });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+      console.warn('API save-all delete warning:', err);
     }
   };
 
@@ -187,6 +227,10 @@ export default function LiffLinkManager({ clinicInfo }) {
     if (builderModule === 'line-link') {
       liffTarget += '?action=line-link';
       directTarget += '/line-link';
+    } else if (builderModule === 'parent-profile') {
+      liffTarget += '?action=parent-profile';
+      directTarget += '/line-link?tab=profile';
+      if (paramHn) queryParams.push(`hn=${encodeURIComponent(paramHn)}`);
     } else if (builderModule === 'parent-appointments') {
       liffTarget += '?action=parent-appointments';
       directTarget += '/line-link?tab=appointments';
@@ -535,6 +579,7 @@ export default function LiffLinkManager({ clinicInfo }) {
               >
                 <optgroup label="🌟 สำหรับผู้ปกครอง & บุคคลทั่วไป">
                   <option value="line-link">🔗 เชื่อมต่อบัญชี LINE / ตรวจสิทธิ์ (LIFF Auto Profile)</option>
+                  <option value="parent-profile">👶 ประวัติคนไข้ & ข้อมูลของน้อง (Parent Portal)</option>
                   <option value="parent-appointments">📅 นัดหมายของน้อง (แท็บนัดหมาย)</option>
                   <option value="parent-itp">🧩 พัฒนาการ & แผนบำบัด ITP</option>
                   <option value="parent-homeprogram">🏠 กิจกรรมฝึกที่บ้าน (Home Program)</option>
@@ -588,7 +633,7 @@ export default function LiffLinkManager({ clinicInfo }) {
             )}
 
             {/* Patient HN or Emp ID (Optional) */}
-            {['parent-appointments', 'parent-itp'].includes(builderModule) && (
+            {['parent-profile', 'parent-appointments', 'parent-itp'].includes(builderModule) && (
               <div style={{ marginBottom: '1.25rem' }}>
                 <label style={{ display: 'block', fontWeight: '700', fontSize: '0.88rem', color: '#334155', marginBottom: '6px' }}>
                   เลข HN ของน้อง (Optional):

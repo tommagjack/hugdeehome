@@ -39,10 +39,36 @@ function getLinksFilePath() {
   return primary;
 }
 
-function readDynamicLinks() {
-  const p = getLinksFilePath();
-  const tmp = path.join('/tmp', 'dynamic_links.json');
+async function readDynamicLinks(env) {
+  // 1. Try reading from Supabase clinic_info folder_url (Persists across all devices & Vercel lambdas)
+  if (env?.VITE_SUPABASE_URL) {
+    try {
+      const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1&select=folder_url`, {
+        headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]?.folder_url) {
+          const parsed = JSON.parse(data[0].folder_url);
+          if (Array.isArray(parsed.dynamicLinks) && parsed.dynamicLinks.length > 0) {
+            return parsed.dynamicLinks;
+          }
+        }
+      }
+    } catch (e) {}
+  }
 
+  // 2. Fallback to /tmp and public/dynamic_links.json
+  const tmp = path.join('/tmp', 'dynamic_links.json');
+  if (fs.existsSync(tmp)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(tmp, 'utf8'));
+      if (Array.isArray(data.links) && data.links.length > 0) return data.links;
+    } catch (e) {}
+  }
+
+  const p = getLinksFilePath();
   if (fs.existsSync(p)) {
     try {
       const data = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -50,31 +76,46 @@ function readDynamicLinks() {
     } catch (e) {}
   }
 
-  if (fs.existsSync(tmp)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(tmp, 'utf8'));
-      return data.links || [];
-    } catch (e) {}
-  }
-
   return [];
 }
 
-function saveDynamicLinks(links) {
+async function saveDynamicLinks(links, env) {
   const p = getLinksFilePath();
   const tmp = path.join('/tmp', 'dynamic_links.json');
   const payload = JSON.stringify({ links }, null, 2);
 
-  try {
-    fs.writeFileSync(p, payload, 'utf8');
-  } catch (e) {}
+  try { fs.writeFileSync(p, payload, 'utf8'); } catch (e) {}
+  try { fs.writeFileSync(tmp, payload, 'utf8'); } catch (e) {}
 
-  try {
-    fs.writeFileSync(tmp, payload, 'utf8');
-  } catch (e) {}
+  // Save to Supabase clinic_info folder_url JSON
+  if (env?.VITE_SUPABASE_URL) {
+    try {
+      const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+      const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1&select=folder_url`, {
+        headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const currentFolder = data?.[0]?.folder_url ? JSON.parse(data[0].folder_url) : {};
+        currentFolder.dynamicLinks = links;
+        await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': dbKey,
+            'Authorization': `Bearer ${dbKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ folder_url: JSON.stringify(currentFolder) })
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to save dynamic links to Supabase:', e);
+    }
+  }
 }
 
 export default async function handler(req, res) {
+  const env = loadEnv();
   const { alias, id, action } = req.query || {};
   const origin = req.headers['x-forwarded-host'] 
     ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers['x-forwarded-host']}` 
@@ -82,7 +123,7 @@ export default async function handler(req, res) {
 
   // 1. ACTION: LIST ALL DYNAMIC LINKS
   if (action === 'list') {
-    const links = readDynamicLinks();
+    const links = await readDynamicLinks(env);
     return res.status(200).json({ success: true, links });
   }
 
@@ -93,7 +134,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    const links = readDynamicLinks();
+    const links = await readDynamicLinks(env);
     const idx = links.findIndex(l => (targetId && l.id === targetId) || (targetAlias && l.alias === targetAlias));
 
     if (idx === -1) {
@@ -102,7 +143,7 @@ export default async function handler(req, res) {
 
     links[idx].targetUrl = targetUrl;
     links[idx].updatedAt = new Date().toISOString();
-    saveDynamicLinks(links);
+    await saveDynamicLinks(links, env);
 
     return res.status(200).json({ 
       success: true, 
@@ -118,21 +159,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid links array' });
     }
 
-    saveDynamicLinks(links);
+    await saveDynamicLinks(links, env);
     return res.status(200).json({ success: true, message: 'บันทึกการตั้งค่าลิงก์ทั้งหมดเรียบร้อยแล้ว' });
   }
 
   // 4. ROUTING / REDIRECTION (GET /api/link?alias=... or ?id=...)
   const targetKey = (alias || id || '').trim().toLowerCase();
   if (targetKey) {
-    const links = readDynamicLinks();
+    const links = await readDynamicLinks(env);
     const matched = links.find(l => (l.alias && l.alias.toLowerCase() === targetKey) || (l.id && l.id.toLowerCase() === targetKey));
 
     if (matched) {
       // Increment click count
       matched.clickCount = (matched.clickCount || 0) + 1;
       matched.lastClickedAt = new Date().toISOString();
-      saveDynamicLinks(links);
+      await saveDynamicLinks(links, env);
 
       let dest = matched.targetUrl || '/';
       
