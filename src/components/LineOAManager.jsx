@@ -4,13 +4,15 @@ import {
   QrCode, Copy, 
   Search, Zap, CheckCircle2, UserX,
   Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders,
-  Upload, Download, Maximize2, RotateCcw
+  Upload, Download, Maximize2, RotateCcw,
+  Link as LinkIcon
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { SmartAvatar } from '../utils/defaultAssets';
+import LiffLinkManager from './LiffLinkManager';
 
 export default function LineOAManager({ clinicInfo, users = [], patients = [], onRefreshData }) {
-  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'customizer' | 'users' | 'tools'
+  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'customizer' | 'links' | 'users' | 'tools'
   const [selectedConfigMenu, setSelectedConfigMenu] = useState('guest');
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
@@ -53,7 +55,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
       { slot: 2, label: 'Check-in รับคนไข้', type: 'uri', value: '?action=reception-intake' },
       { slot: 3, label: 'ส่ง LINE เตือนนัดกลุ่ม', type: 'uri', value: '?action=batch-reminders' },
-      { slot: 4, label: 'ออกใบเสร็จ & ตัดคอร์ส', type: 'uri', value: '?action=receipts' },
+      { slot: 4, label: 'ออกใบเสร็จ / สลิปเงินเดือน', type: 'uri', value: 'alias:staff-finance' },
       { slot: 5, label: 'คนไข้ขาดการติดต่อ', type: 'uri', value: '?action=dormant-tracker' },
       { slot: 6, label: 'สลับมุมมอง (1, 3)', type: 'uri', value: '?action=menu-switch&role=staff' }
     ],
@@ -843,6 +845,26 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         </button>
 
         <button
+          onClick={() => setActiveTab('links')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'links' ? '3px solid #7C3AED' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'links' ? '#7C3AED' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <LinkIcon size={18} /> ศูนย์รวมลิงก์ & LIFF Portal Hub
+          <span style={{ fontSize: '0.7rem', backgroundColor: '#EDE9FE', color: '#7C3AED', padding: '2px 8px', borderRadius: '9999px', fontWeight: '800' }}>ใหม่</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('users')}
           style={{
             padding: '12px 20px',
@@ -1547,6 +1569,10 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                         { label: 'ยอด & แต้ม', type: 'uri', value: '?action=parent-courses' },
                         { label: 'ฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
                         { label: 'Check-in เคาน์เตอร์', type: 'uri', value: '?action=reception-intake' },
+                        { label: 'การเงิน/สลิป (Dynamic Alias)', type: 'uri', value: 'alias:staff-finance' },
+                        { label: 'ออกใบเสร็จ & ตัดคอร์ส', type: 'uri', value: '?action=receipts' },
+                        { label: 'ดูสลิปเงินเดือน', type: 'uri', value: '?action=salary' },
+                        { label: 'แบบประเมินพึงพอใจ', type: 'uri', value: 'alias:satisfaction-survey' },
                         { label: 'สลับมุมมอง', type: 'uri', value: `?action=menu-switch&role=${selectedConfigMenu}` },
                         { label: 'คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' }
                       ].map((preset, pIdx) => (
@@ -1894,6 +1920,11 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
           </div>
 
         </div>
+      )}
+
+      {/* TAB: DYNAMIC LINK & LIFF PORTAL HUB */}
+      {activeTab === 'links' && (
+        <LiffLinkManager clinicInfo={clinicInfo} />
       )}
 
     </div>

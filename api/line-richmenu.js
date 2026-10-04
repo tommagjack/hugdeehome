@@ -260,6 +260,11 @@ export default async function handler(req, res) {
         } else if (rawVal === '?action=call' || rawVal.startsWith('?action=call')) {
           const cleanPhone = (phone || '0946753557').replace(/\D/g, '');
           finalUri = `${appUrl}/api/call?phone=${cleanPhone}`;
+        } else if (rawVal.startsWith('alias:') || rawVal.includes('api/link')) {
+          const aliasName = rawVal.replace(/^alias:/, '').replace(/^.*alias=/, '').split('&')[0].trim();
+          finalUri = `${appUrl}/api/link?alias=${aliasName}`;
+        } else if (rawVal.includes('salary')) {
+          finalUri = `${appUrl}/#salary`;
         } else if (rawVal.includes('register-patient') || rawVal.includes('patient-form')) {
           finalUri = `${appUrl}/#/register-patient`;
         } else if (rawVal.includes('line-link')) {

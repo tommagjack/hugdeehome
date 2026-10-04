@@ -93,6 +93,37 @@ const uploadPlugin = () => ({
           res.statusCode = 500;
           res.end(err.message);
         }
+      } else if (req.url && req.url.startsWith('/api/link')) {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const urlObj = new URL(req.url, 'http://localhost');
+            const query = Object.fromEntries(urlObj.searchParams.entries());
+            let parsedBody = {};
+            if (body) {
+              try { parsedBody = JSON.parse(body); } catch {}
+            }
+            const mockReq = { query, body: parsedBody, method: req.method, url: req.url, headers: req.headers };
+            const mockRes = {
+              status(code) { res.statusCode = code; return this; },
+              setHeader(name, value) { res.setHeader(name, value); return this; },
+              json(payload) {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(payload));
+                return this;
+              },
+              end(data) { res.end(data); return this; }
+            };
+            const { default: handler } = await import('./api/link.js');
+            await handler(mockReq, mockRes);
+          } catch (err) {
+            console.error('Error in /api/link dev middleware:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
       } else {
         next();
       }

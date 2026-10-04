@@ -1,0 +1,189 @@
+{
+  "links": [
+    {
+      "id": "staff-finance",
+      "alias": "staff-finance",
+      "title": "การเงิน & สิทธิประโยชน์เจ้าหน้าที่",
+      "category": "staff",
+      "description": "ปุ่มการเงินของเจ้าหน้าที่: สามารถสลับระหว่าง 'ออกใบเสร็จรับเงิน' และ 'ดูเงินเดือนและสลิปเงินเดือน'",
+      "targetUrl": "/#receipts",
+      "allowedRoles": [
+        "staff",
+        "ot",
+        "admin"
+      ],
+      "presetOptions": [
+        {
+          "label": "🧾 ออกใบเสร็จรับเงิน & ตัดคอร์ส",
+          "url": "/#receipts"
+        },
+        {
+          "label": "💵 ดูเงินเดือนและสลิปเงินเดือน",
+          "url": "/#salary"
+        },
+        {
+          "label": "📊 สรุปการเงินและรายได้ภาพรวม",
+          "url": "/#salary"
+        }
+      ],
+      "clickCount": 1,
+      "updatedAt": "2026-10-04T11:00:00Z",
+      "lastClickedAt": "2026-10-04T04:11:34.480Z"
+    },
+    {
+      "id": "staff-attendance",
+      "alias": "staff-attendance",
+      "title": "ลงเวลางาน GPS & ตรวจสอบเวลา",
+      "category": "staff",
+      "description": "ปุ่มลงเวลาและตรวจเช็คประวัติเข้างานของเจ้าหน้าที่",
+      "targetUrl": "/#checkin",
+      "allowedRoles": [
+        "staff",
+        "ot",
+        "admin"
+      ],
+      "presetOptions": [
+        {
+          "label": "📍 ลงเวลางาน GPS (Check-in)",
+          "url": "/#checkin"
+        },
+        {
+          "label": "⏱️ ตรวจสอบเวลาบุคลากร & ประวัติ",
+          "url": "/#attendance"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "parent-appointments",
+      "alias": "parent-appointments",
+      "title": "นัดหมายของน้อง & แจ้งเลื่อนนัด",
+      "category": "parent",
+      "description": "พอร์ทัลตรวจเช็คคิวนัดหมายของบุตรหลาน",
+      "targetUrl": "/#line-link?tab=appointments",
+      "allowedRoles": [
+        "parent"
+      ],
+      "presetOptions": [
+        {
+          "label": "📅 พอร์ทัลนัดหมายของน้อง (LIFF)",
+          "url": "/#line-link?tab=appointments"
+        },
+        {
+          "label": "🗓️ ปฏิทินนัดหมายทั้งหมด",
+          "url": "/#appointments"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "parent-itp",
+      "alias": "parent-itp",
+      "title": "พัฒนาการ & แผนบำบัด ITP",
+      "category": "parent",
+      "description": "ติดตามเป้าหมายการบำบัดรายบุคคล (ITP) และพัฒนาการของน้อง",
+      "targetUrl": "/#line-link?tab=itp",
+      "allowedRoles": [
+        "parent"
+      ],
+      "presetOptions": [
+        {
+          "label": "🧩 เป้าหมายพัฒนาการ ITP",
+          "url": "/#line-link?tab=itp"
+        },
+        {
+          "label": "🏠 กิจกรรมฝึกที่บ้าน (Home Program)",
+          "url": "/#line-link?tab=homeprogram"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "parent-courses",
+      "alias": "parent-courses",
+      "title": "คอร์ส ยอดคงเหลือ & แต้มสะสม",
+      "category": "parent",
+      "description": "ตรวจเช็คจำนวนครั้งคงเหลือในคอร์สและแต้มสะสมรางวัล",
+      "targetUrl": "/#line-link?tab=courses",
+      "allowedRoles": [
+        "parent"
+      ],
+      "presetOptions": [
+        {
+          "label": "⭐ ยอดคอร์สคงเหลือและแต้มสะสม",
+          "url": "/#line-link?tab=courses"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "patient-registration",
+      "alias": "patient-registration",
+      "title": "ลงทะเบียนคนไข้ใหม่ (First Visit Intake)",
+      "category": "guest",
+      "description": "แบบฟอร์มบันทึกประวัติผู้รับบริการรายใหม่ก่อนรับบริการ",
+      "targetUrl": "/#register-patient",
+      "allowedRoles": [
+        "guest",
+        "parent",
+        "staff"
+      ],
+      "presetOptions": [
+        {
+          "label": "📝 แบบฟอร์มลงทะเบียนคนไข้ใหม่",
+          "url": "/#register-patient"
+        },
+        {
+          "label": "🏡 บริการและกิจกรรมบำบัด",
+          "url": "/#services"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "clinic-services",
+      "alias": "clinic-services",
+      "title": "บริการ & โปรโมชันคลินิก",
+      "category": "guest",
+      "description": "หน้ารายละเอียดบริการกิจกรรมบำบัด ข้อมูลคลินิก และโปรโมชัน",
+      "targetUrl": "/#services",
+      "allowedRoles": [
+        "guest",
+        "parent"
+      ],
+      "presetOptions": [
+        {
+          "label": "🌟 หน้าบริการของคลินิก",
+          "url": "/#services"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    },
+    {
+      "id": "satisfaction-survey",
+      "alias": "satisfaction-survey",
+      "title": "แบบประเมินความพึงพอใจการบริการ",
+      "category": "survey",
+      "description": "แบบสอบถามความพึงพอใจและข้อเสนอแนะของผู้ปกครอง",
+      "targetUrl": "/#services",
+      "allowedRoles": [
+        "parent",
+        "guest"
+      ],
+      "presetOptions": [
+        {
+          "label": "📋 หน้าข้อมูลบริการคลินิก",
+          "url": "/#services"
+        }
+      ],
+      "clickCount": 0,
+      "updatedAt": "2026-10-04T11:00:00Z"
+    }
+  ]
+}

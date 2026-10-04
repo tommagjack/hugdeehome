@@ -265,6 +265,10 @@
         window.location.replace(`${window.location.origin}/#/checkin`);
         return;
       }
+      if (action === 'link' && urlParams.get('alias')) {
+        window.location.replace(`${window.location.origin}/api/link?alias=${encodeURIComponent(urlParams.get('alias'))}`);
+        return;
+      }
 
       // 0.1 โหมดเชื่อมต่อ LINE และเปิดดูสิทธิ์ผู้ใช้ (Auto LIFF Profile Link)
       if (action === 'line-link' || (action && action.startsWith('parent-')) || action === 'menu-switch') {
