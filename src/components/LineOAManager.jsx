@@ -37,7 +37,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       { slot: 1, label: 'บริการของเรา', type: 'uri', value: '?action=services' },
       { slot: 2, label: 'ลงทะเบียนคนไข้ใหม่', type: 'uri', value: '?action=register-patient' },
       { slot: 3, label: 'แผนที่คลินิก', type: 'uri', value: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
-      { slot: 4, label: 'โทรติดต่อคลินิก', type: 'uri', value: 'tel:{phone}' },
+      { slot: 4, label: 'โทรติดต่อคลินิก', type: 'uri', value: '?action=call' },
       { slot: 5, label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', type: 'uri', value: '?action=line-link' },
       { slot: 6, label: 'โปรโมชัน & แพ็กเกจคอร์ส', type: 'message', value: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
     ],
@@ -211,12 +211,28 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   };
 
   const fetchConfig = async () => {
+    const sanitizeConfig = (cfg) => {
+      if (!cfg || typeof cfg !== 'object') return cfg;
+      const sanitized = { ...cfg };
+      Object.keys(sanitized).forEach(k => {
+        if (Array.isArray(sanitized[k])) {
+          sanitized[k] = sanitized[k].map(slot => {
+            if (slot && typeof slot.value === 'string' && (slot.value.startsWith('tel:') || slot.value.includes('tel:'))) {
+              return { ...slot, value: '?action=call' };
+            }
+            return slot;
+          });
+        }
+      });
+      return sanitized;
+    };
+
     // 1. First load from localStorage for instant prefill
     try {
       const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
       if (localCfg) {
         const parsed = JSON.parse(localCfg);
-        if (parsed && typeof parsed === 'object') setCustomConfigs(parsed);
+        if (parsed && typeof parsed === 'object') setCustomConfigs(sanitizeConfig(parsed));
       }
       const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
       if (localImgs) {
@@ -233,7 +249,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       if (res.ok) {
         const data = await res.json();
         if (data.config) {
-          setCustomConfigs(prev => ({ ...prev, ...data.config }));
+          setCustomConfigs(prev => ({ ...prev, ...sanitizeConfig(data.config) }));
         }
         if (data.images && typeof data.images === 'object') {
           setCustomImages(prev => ({ ...prev, ...data.images }));
@@ -1527,7 +1543,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                         { label: 'ยอด & แต้ม', type: 'uri', value: '?action=parent-courses' },
                         { label: 'ฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
                         { label: 'Check-in เคาน์เตอร์', type: 'uri', value: '?action=reception-intake' },
-                        { label: 'เตือนนัดกลุ่ม', type: 'uri', value: '?action=batch-reminders' },
+                        { label: 'โทรคลินิก', type: 'uri', value: '?action=call' },
                         { label: 'สลับมุมมอง', type: 'uri', value: `?action=menu-switch&role=${selectedConfigMenu}` },
                         { label: 'คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' }
                       ].map((preset, pIdx) => (

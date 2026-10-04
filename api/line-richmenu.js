@@ -152,9 +152,12 @@ export default async function handler(req, res) {
       // Check for any physical custom image files on disk
       const imgDir = path.join(process.cwd(), 'public/richmenu_images');
       ['guest', 'parent', 'staff', 'ot', 'admin'].forEach(k => {
-        const customPath = path.join(imgDir, `custom_${k}.png`);
-        if (fs.existsSync(customPath)) {
-          imagesData[k] = `/richmenu_images/custom_${k}.png?t=${fs.statSync(customPath).mtimeMs}`;
+        const customJpg = path.join(imgDir, `custom_${k}.jpg`);
+        const customPng = path.join(imgDir, `custom_${k}.png`);
+        if (fs.existsSync(customJpg)) {
+          imagesData[k] = `/richmenu_images/custom_${k}.jpg?t=${fs.statSync(customJpg).mtimeMs}`;
+        } else if (fs.existsSync(customPng)) {
+          imagesData[k] = `/richmenu_images/custom_${k}.png?t=${fs.statSync(customPng).mtimeMs}`;
         }
       });
 
@@ -239,19 +242,35 @@ export default async function handler(req, res) {
         if (slot.type === 'message') {
           return {
             type: 'message',
-            label: slot.label || fallbackAction.label,
-            text: slot.value || fallbackAction.text || slot.label
+            label: (slot.label || fallbackAction.label || '').slice(0, 20),
+            text: (slot.value || fallbackAction.text || slot.label || '').slice(0, 300)
           };
         }
-        let rawVal = slot.value || '';
+        let rawVal = (slot.value || '').trim();
         rawVal = rawVal.replace('{phone}', phone);
         let finalUri = rawVal;
-        if (!rawVal.startsWith('http://') && !rawVal.startsWith('https://') && !rawVal.startsWith('tel:')) {
+
+        // LINE Messaging API strictly enforces http:// or https:// (bans tel: scheme in Rich Menus)
+        // Automatically convert any tel: or phone number into a valid HTTPS call redirector endpoint
+        if (rawVal.startsWith('tel:') || rawVal.includes('tel:')) {
+          const rawNum = rawVal.replace(/^.*tel:/, '').replace(/[{}]/g, '').trim() || phone || '0946753557';
+          const cleanPhone = rawNum.replace(/\D/g, '') || '0946753557';
+          finalUri = `${appUrl}/api/call?phone=${cleanPhone}`;
+        } else if (rawVal === '?action=call' || rawVal.startsWith('?action=call')) {
+          const cleanPhone = (phone || '0946753557').replace(/\D/g, '');
+          finalUri = `${appUrl}/api/call?phone=${cleanPhone}`;
+        } else if (!rawVal.startsWith('http://') && !rawVal.startsWith('https://')) {
           finalUri = `${liffBase}${rawVal.startsWith('?') ? rawVal : ('?' + rawVal)}`;
         }
+
+        // Safety fallback: Ensure URI is strictly https:// or http://
+        if (!finalUri.startsWith('http://') && !finalUri.startsWith('https://')) {
+          finalUri = `${appUrl}${finalUri.startsWith('/') ? finalUri : '/' + finalUri}`;
+        }
+
         return {
           type: 'uri',
-          label: slot.label || fallbackAction.label,
+          label: (slot.label || fallbackAction.label || '').slice(0, 20),
           uri: finalUri
         };
       };
@@ -268,7 +287,7 @@ export default async function handler(req, res) {
             { type: 'uri', label: 'บริการของเรา', uri: `${liffBase}?action=services` },
             { type: 'uri', label: 'ลงทะเบียนคนไข้ใหม่', uri: `${liffBase}?action=register-patient` },
             { type: 'uri', label: 'แผนที่คลินิก', uri: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
-            { type: 'uri', label: 'โทรติดต่อคลินิก', uri: `tel:${phone}` },
+            { type: 'uri', label: 'โทรติดต่อคลินิก', uri: `${appUrl}/api/call?phone=${(phone || '0946753557').replace(/\D/g, '')}` },
             { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: `${liffBase}?action=line-link` },
             { type: 'message', label: 'สิทธิประโยชน์ & โปรโมชัน', text: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
           ]

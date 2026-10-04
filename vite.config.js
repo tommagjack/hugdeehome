@@ -7,7 +7,7 @@ import path from 'path'
 const uploadPlugin = () => ({
   name: 'upload-plugin',
   configureServer(server) {
-    server.middlewares.use((req, res, next) => {
+    server.middlewares.use(async (req, res, next) => {
       if (req.url === '/api/upload' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
@@ -75,6 +75,24 @@ const uploadPlugin = () => ({
             res.end(JSON.stringify({ error: err.message }));
           }
         });
+      } else if (req.url && req.url.startsWith('/api/call')) {
+        try {
+          const urlObj = new URL(req.url, 'http://localhost');
+          const query = Object.fromEntries(urlObj.searchParams.entries());
+          const mockReq = { query, method: req.method, url: req.url };
+          const mockRes = {
+            status(code) { res.statusCode = code; return this; },
+            setHeader(name, value) { res.setHeader(name, value); return this; },
+            send(html) { res.end(html); return this; },
+            end(html) { res.end(html); return this; }
+          };
+          const { default: handler } = await import('./api/call.js');
+          await handler(mockReq, mockRes);
+        } catch (err) {
+          console.error('Error in /api/call dev middleware:', err);
+          res.statusCode = 500;
+          res.end(err.message);
+        }
       } else {
         next();
       }
