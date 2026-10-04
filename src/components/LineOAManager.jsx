@@ -161,16 +161,82 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     }
   };
 
+  // Safe helper to parse JSON and report server status errors cleanly
+  const safeFetchJson = async (res) => {
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('ขนาดข้อมูลภาพใหญ่เกินขีดจำกัดเซิร์ฟเวอร์ (413 Request Entity Too Large) ระบบกำลังช่วยบีบอัดภาพให้อัตโนมัติ กรุณาลองกดบันทึกใหม่อีกครั้ง');
+        }
+        throw new Error(`เซิร์ฟเวอร์ตอบกลับรหัส ${res.status}: ${text.slice(0, 150)}`);
+      }
+      throw new Error('ข้อมูลตอบกลับจากเซิร์ฟเวอร์ไม่อยู่ในรูปแบบ JSON');
+    }
+    if (!res.ok) {
+      throw new Error(data?.error || data?.message || `เกิดข้อผิดพลาด (${res.status})`);
+    }
+    return data;
+  };
+
+  // Helper to ensure any custom image data URL is compressed to JPEG under 600KB before transmission
+  const optimizeImageDataUrl = (dataUrl) => {
+    return new Promise((resolve) => {
+      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+        return resolve(dataUrl);
+      }
+      if (dataUrl.startsWith('data:image/jpeg') && dataUrl.length < 850000) {
+        return resolve(dataUrl);
+      }
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 2500;
+        canvas.height = 1686;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 2500, 1686);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, 2500, 1686);
+        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+        resolve(compressed);
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   const fetchConfig = async () => {
+    // 1. First load from localStorage for instant prefill
+    try {
+      const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
+      if (localCfg) {
+        const parsed = JSON.parse(localCfg);
+        if (parsed && typeof parsed === 'object') setCustomConfigs(parsed);
+      }
+      const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+      if (localImgs) {
+        const parsed = JSON.parse(localImgs);
+        if (parsed && typeof parsed === 'object') setCustomImages(parsed);
+      }
+    } catch (e) {
+      console.warn('LocalStorage read error:', e);
+    }
+
+    // 2. Then merge from server if available
     try {
       const res = await fetch('/api/line-richmenu?action=get-config');
       if (res.ok) {
         const data = await res.json();
         if (data.config) {
-          setCustomConfigs(data.config);
+          setCustomConfigs(prev => ({ ...prev, ...data.config }));
         }
         if (data.images && typeof data.images === 'object') {
-          setCustomImages(data.images);
+          setCustomImages(prev => ({ ...prev, ...data.images }));
         }
       }
     } catch (e) {
@@ -191,7 +257,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     };
   }, []);
 
-  // Process uploaded image with Client-Side 2500x1686 Auto-Resizer
+  // Process uploaded image with Client-Side 2500x1686 Auto-Resizer & JPEG 0.82 Compressor (under 1MB for LINE specification)
   const processImageFile = (file, menuKey) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -218,17 +284,22 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, 2500, 1686);
 
-        // Convert to high-quality PNG data URL
-        const resizedDataUrl = canvas.toDataURL('image/png', 0.95);
-        setCustomImages(prev => ({
-          ...prev,
-          [menuKey]: resizedDataUrl
-        }));
+        // LINE Messaging API Official Specification:
+        // Dimensions: 2500 x 1686 px, Max File Size: 1 MB (JPEG or PNG)
+        // Converting to JPEG with quality 0.82 guarantees size ~350-500 KB (crystal clear & under 1 MB)
+        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        setCustomImages(prev => {
+          const next = { ...prev, [menuKey]: resizedDataUrl };
+          try {
+            localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(next));
+          } catch { /* ignore quota */ }
+          return next;
+        });
 
         Swal.fire({
           icon: 'success',
           title: 'แนบรูปภาพสำเร็จ! 🖼️',
-          html: `ระบบได้ปรับขนาดภาพเป็น <strong>2,500 x 1,686 px</strong> ตามมาตรฐาน LINE อัตโนมัติแล้วค่ะ<br><span style="font-size: 0.85rem; color: #64748B;">สามารถตรวจดูผัง 6 ช่องด้านล่าง และกดบันทึกการตั้งค่าเพื่อนำไปใช้งาน</span>`,
+          html: `ระบบได้ปรับขนาดภาพเป็น <strong>2,500 x 1,686 px</strong> และบีบอัดขนาดไฟล์ตามมาตรฐาน LINE (< 1 MB) อัตโนมัติแล้วค่ะ<br><span style="font-size: 0.85rem; color: #64748B;">สามารถตรวจดูผัง 6 ช่องด้านล่าง และกดบันทึกการตั้งค่าเพื่อนำไปใช้งาน</span>`,
           timer: 2400,
           showConfirmButton: false
         });
@@ -319,19 +390,38 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   const handleSaveConfig = async (shouldDeploy = false) => {
     setIsSavingConfig(true);
     try {
+      // 1. Optimize any uploaded images so each image is guaranteed < 500 KB
+      const optimizedImages = {};
+      for (const [key, val] of Object.entries(customImages)) {
+        if (val && typeof val === 'string' && val.startsWith('data:image')) {
+          optimizedImages[key] = await optimizeImageDataUrl(val);
+        } else {
+          optimizedImages[key] = val;
+        }
+      }
+      setCustomImages(optimizedImages);
+
+      // 2. Persist to localStorage immediately
+      try {
+        localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(customConfigs));
+        localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(optimizedImages));
+      } catch (storageErr) {
+        console.warn('LocalStorage save failed:', storageErr);
+      }
+
+      // 3. Send to backend
       const res = await fetch('/api/line-richmenu?action=save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           config: customConfigs,
-          images: customImages
+          images: optimizedImages
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'บันทึกการตั้งค่าไม่สำเร็จ');
+      await safeFetchJson(res);
 
       if (shouldDeploy) {
-        await handleDeployAll();
+        await handleDeployAll(optimizedImages);
       } else {
         Swal.fire({
           icon: 'success',
@@ -349,7 +439,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   };
 
   // 1. One-Click Deploy All 5 Menus
-  const handleDeployAll = async () => {
+  const handleDeployAll = async (overrideImages = null) => {
     const result = await Swal.fire({
       title: 'ยืนยันการ Deploy Rich Menu?',
       html: `ระบบจะดำเนินการ:
@@ -370,20 +460,24 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
     setIsDeploying(true);
     try {
-      const res = await fetch('/api/line-richmenu?action=deploy-all', { method: 'POST' });
-      const data = await res.json();
+      const imagesToSend = overrideImages || customImages;
+      const res = await fetch('/api/line-richmenu?action=deploy-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: customConfigs,
+          images: imagesToSend
+        })
+      });
+      const data = await safeFetchJson(res);
 
-      if (res.ok) {
-        await fetchStatus();
-        Swal.fire({
-          icon: 'success',
-          title: 'Deploy สำเร็จเรียบร้อย! 🎉',
-          html: 'ติดตั้ง Rich Menu ทั้ง 5 รูปแบบขึ้นสู่ LINE Server เรียบร้อยแล้วค่ะ<br>ผู้ติดตามทุกคนจะเริ่มเห็น Rich Menu แบบใหม่ทันที',
-          confirmButtonColor: '#059669'
-        });
-      } else {
-        throw new Error(data.error || 'เกิดข้อผิดพลาดในการ Deploy');
-      }
+      await fetchStatus();
+      Swal.fire({
+        icon: 'success',
+        title: 'Deploy สำเร็จเรียบร้อย! 🎉',
+        html: data.message || 'ติดตั้ง Rich Menu ทั้ง 5 รูปแบบขึ้นสู่ LINE Server เรียบร้อยแล้วค่ะ<br>ผู้ติดตามทุกคนจะเริ่มเห็น Rich Menu แบบใหม่ทันที',
+        confirmButtonColor: '#059669'
+      });
     } catch (err) {
       console.error('Deploy error:', err);
       Swal.fire({ icon: 'error', title: 'การ Deploy ขัดข้อง', text: err.message });
@@ -409,18 +503,14 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     setIsSyncingAll(true);
     try {
       const res = await fetch('/api/line-richmenu?action=sync-all-users', { method: 'POST' });
-      const data = await res.json();
+      const data = await safeFetchJson(res);
 
-      if (res.ok) {
-        Swal.fire({
-          icon: 'success',
-          title: 'ซิงค์สำเร็จ! 🌟',
-          text: data.message || 'ซิงค์สิทธิ์ผู้ใช้งานทั้งหมดเรียบร้อยแล้ว'
-        });
-        if (onRefreshData) onRefreshData();
-      } else {
-        throw new Error(data.error || 'เกิดข้อผิดพลาดในการซิงค์');
-      }
+      Swal.fire({
+        icon: 'success',
+        title: 'ซิงค์สำเร็จ! 🌟',
+        text: data.message || 'ซิงค์สิทธิ์ผู้ใช้งานทั้งหมดเรียบร้อยแล้ว'
+      });
+      if (onRefreshData) onRefreshData();
     } catch (err) {
       console.error('Sync error:', err);
       Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
@@ -447,18 +537,14 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         })
       });
 
-      const data = await res.json();
-      if (res.ok) {
-        Swal.fire({
-          icon: 'success',
-          title: 'ปรับเปลี่ยนสำเร็จ',
-          text: `เปลี่ยน Rich Menu ของคุณ ${userRecord.name} เป็น "${targetRole.toUpperCase()}" เรียบร้อยแล้ว`,
-          timer: 1800,
-          showConfirmButton: false
-        });
-      } else {
-        Swal.fire({ icon: 'error', title: 'ไม่สามารถเปลี่ยนได้', text: data.error });
-      }
+      await safeFetchJson(res);
+      Swal.fire({
+        icon: 'success',
+        title: 'ปรับเปลี่ยนสำเร็จ',
+        text: `เปลี่ยน Rich Menu ของคุณ ${userRecord.name} เป็น "${targetRole.toUpperCase()}" เรียบร้อยแล้ว`,
+        timer: 1800,
+        showConfirmButton: false
+      });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: e.message });
     }

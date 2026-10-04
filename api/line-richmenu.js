@@ -170,23 +170,47 @@ export default async function handler(req, res) {
 
       // Handle custom images if provided
       if (images && typeof images === 'object') {
-        const imgDir = path.join(process.cwd(), 'public/richmenu_images');
-        if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
+        const imgDirs = [
+          path.join(process.cwd(), 'public/richmenu_images'),
+          path.join('/tmp', 'richmenu_images')
+        ];
 
-        for (const [key, val] of Object.entries(images)) {
-          const customFile = path.join(imgDir, `custom_${key}.png`);
-          if (val === null || val === 'default') {
-            if (fs.existsSync(customFile)) fs.unlinkSync(customFile);
-          } else if (typeof val === 'string' && val.includes('base64,')) {
-            const base64Data = val.split('base64,').pop();
-            const buffer = Buffer.from(base64Data, 'base64');
-            fs.writeFileSync(customFile, buffer);
+        for (const dir of imgDirs) {
+          try {
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+            for (const [key, val] of Object.entries(images)) {
+              const customPng = path.join(dir, `custom_${key}.png`);
+              const customJpg = path.join(dir, `custom_${key}.jpg`);
+
+              if (val === null || val === 'default') {
+                if (fs.existsSync(customPng)) fs.unlinkSync(customPng);
+                if (fs.existsSync(customJpg)) fs.unlinkSync(customJpg);
+              } else if (typeof val === 'string' && val.includes('base64,')) {
+                const isJpg = val.startsWith('data:image/jpeg');
+                const base64Data = val.split('base64,').pop();
+                const buffer = Buffer.from(base64Data, 'base64');
+                const targetFile = isJpg ? customJpg : customPng;
+                fs.writeFileSync(targetFile, buffer);
+              }
+            }
+          } catch (e) {
+            // Read-only fallback gracefully caught
           }
         }
       }
 
-      const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
-      fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
+      // Save config to both public and /tmp
+      const cfgPaths = [
+        path.join(process.cwd(), 'public/richmenu_config.json'),
+        path.join('/tmp', 'richmenu_config.json')
+      ];
+      for (const p of cfgPaths) {
+        try {
+          fs.writeFileSync(p, JSON.stringify(config, null, 2), 'utf8');
+        } catch (e) {}
+      }
+
       return res.status(200).json({ success: true, message: 'บันทึกการตั้งค่าปุ่มและรูปภาพ Rich Menu สำเร็จ' });
     }
 
@@ -194,14 +218,20 @@ export default async function handler(req, res) {
     if (action === 'deploy-all') {
       console.log('Deploying all 5 Rich Menus to LINE...');
 
-      let customConfig = null;
-      try {
-        const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
-        if (fs.existsSync(cfgPath)) {
-          customConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      let customConfig = req.body?.config || null;
+      if (!customConfig) {
+        const cfgPaths = [
+          path.join('/tmp', 'richmenu_config.json'),
+          path.join(process.cwd(), 'public/richmenu_config.json')
+        ];
+        for (const p of cfgPaths) {
+          try {
+            if (fs.existsSync(p)) {
+              customConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
+              break;
+            }
+          } catch (e) {}
         }
-      } catch (e) {
-        console.warn('Could not read richmenu_config.json:', e);
       }
 
       const resolveSlotAction = (slot, fallbackAction) => {
@@ -347,29 +377,49 @@ export default async function handler(req, res) {
         const { richMenuId } = await createRes.json();
         console.log(`Created ${cfg.name} with ID: ${richMenuId}`);
 
-        // 2. Upload Image (Prioritize custom uploaded image if available, fallback to default)
-        let imgPath = path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.png`);
-        if (!fs.existsSync(imgPath)) {
-          imgPath = path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile);
+        // 2. Upload Image (Prioritize memory payload first, then custom disk file, then default template)
+        let imgBuffer = null;
+        let contentType = 'image/png';
+
+        if (req.body?.images?.[cfg.key] && typeof req.body.images[cfg.key] === 'string' && req.body.images[cfg.key].includes('base64,')) {
+          const raw = req.body.images[cfg.key].split('base64,').pop();
+          imgBuffer = Buffer.from(raw, 'base64');
+          contentType = req.body.images[cfg.key].startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png';
+        } else {
+          const possiblePaths = [
+            path.join('/tmp/richmenu_images', `custom_${cfg.key}.jpg`),
+            path.join('/tmp/richmenu_images', `custom_${cfg.key}.png`),
+            path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.jpg`),
+            path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.png`),
+            path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile)
+          ];
+          for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+              imgBuffer = fs.readFileSync(p);
+              contentType = p.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+              break;
+            }
+          }
         }
-        if (fs.existsSync(imgPath)) {
-          const imgBuffer = fs.readFileSync(imgPath);
+
+        if (imgBuffer) {
           const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
-              'Content-Type': 'image/png'
+              'Content-Type': contentType
             },
             body: imgBuffer
           });
 
           if (!uploadRes.ok) {
-            console.error(`Failed to upload image for ${richMenuId}: status ${uploadRes.status}`);
+            const errTxt = await uploadRes.text();
+            console.error(`Failed to upload image for ${richMenuId}: status ${uploadRes.status}`, errTxt);
           } else {
-            console.log(`Uploaded image for ${cfg.name}`);
+            console.log(`Uploaded image for ${cfg.name} (${contentType})`);
           }
         } else {
-          console.warn(`Image file not found at ${imgPath}`);
+          console.warn(`No image buffer found for ${cfg.name}`);
         }
 
         // 3. Set Default if Guest
