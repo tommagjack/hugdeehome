@@ -224,13 +224,14 @@ export default async function handler(req, res) {
       let customConfig = req.body?.config || null;
       if (!customConfig) {
         const cfgPaths = [
-          path.join('/tmp', 'richmenu_config.json'),
-          path.join(process.cwd(), 'public/richmenu_config.json')
+          path.join(process.cwd(), 'public/richmenu_config.json'),
+          path.join('/tmp', 'richmenu_config.json')
         ];
         for (const p of cfgPaths) {
           try {
             if (fs.existsSync(p)) {
-              customConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
+              const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+              customConfig = parsed.config || parsed;
               break;
             }
           } catch (e) {}
@@ -262,7 +263,7 @@ export default async function handler(req, res) {
         } else if (rawVal.includes('register-patient') || rawVal.includes('patient-form')) {
           finalUri = `${appUrl}/#/register-patient`;
         } else if (rawVal.includes('line-link')) {
-          finalUri = `${appUrl}/#/line-link`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=line-link` : `${appUrl}/#/line-link`;
         } else if (rawVal.includes('services')) {
           finalUri = `${appUrl}/#/services`;
         } else if (rawVal.includes('checkin')) {
@@ -270,15 +271,15 @@ export default async function handler(req, res) {
         } else if (rawVal.includes('menu-switch')) {
           const roleMatch = rawVal.match(/role=([a-zA-Z0-9_-]+)/);
           const roleParam = roleMatch ? `&role=${roleMatch[1]}` : '';
-          finalUri = `${appUrl}/#/line-link?action=menu-switch${roleParam}`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=menu-switch${roleParam}` : `${appUrl}/#/line-link?action=menu-switch${roleParam}`;
         } else if (rawVal.includes('parent-appointments')) {
-          finalUri = `${appUrl}/#/line-link?tab=appointments`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-appointments` : `${appUrl}/#/line-link?tab=appointments`;
         } else if (rawVal.includes('parent-itp')) {
-          finalUri = `${appUrl}/#/line-link?tab=itp`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-itp` : `${appUrl}/#/line-link?tab=itp`;
         } else if (rawVal.includes('parent-homeprogram')) {
-          finalUri = `${appUrl}/#/line-link?tab=homeprogram`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-homeprogram` : `${appUrl}/#/line-link?tab=homeprogram`;
         } else if (rawVal.includes('parent-courses')) {
-          finalUri = `${appUrl}/#/line-link?tab=courses`;
+          finalUri = liffId ? `https://liff.line.me/${liffId}?action=parent-courses` : `${appUrl}/#/line-link?tab=courses`;
         } else if (rawVal.includes('reception-intake')) {
           finalUri = `${appUrl}/#/register-patient`;
         } else if (rawVal.includes('batch-reminders')) {
@@ -348,7 +349,7 @@ export default async function handler(req, res) {
             { type: 'uri', label: 'ลงทะเบียนคนไข้ใหม่', uri: `${appUrl}/#/register-patient` },
             { type: 'uri', label: 'แผนที่คลินิก', uri: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
             { type: 'uri', label: 'โทรติดต่อคลินิก', uri: `${appUrl}/api/call?phone=${(phone || '0946753557').replace(/\D/g, '')}` },
-            { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: `${appUrl}/#/line-link` },
+            { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: liffId ? `https://liff.line.me/${liffId}?action=line-link` : `${appUrl}/#/line-link` },
             { type: 'message', label: 'สิทธิประโยชน์ & โปรโมชัน', text: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
           ]
         },
@@ -360,12 +361,12 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูผู้ปกครอง 👶',
           isDefault: false,
           actions: [
-            { type: 'uri', label: 'นัดหมายของน้อง', uri: `${appUrl}/#/line-link?tab=appointments` },
-            { type: 'uri', label: 'พัฒนาการ & แผน ITP', uri: `${appUrl}/#/line-link?tab=itp` },
-            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${appUrl}/#/line-link?tab=homeprogram` },
-            { type: 'uri', label: 'คอร์ส & ยอดคงเหลือ', uri: `${appUrl}/#/line-link?tab=courses` },
+            { type: 'uri', label: 'นัดหมายของน้อง', uri: liffId ? `https://liff.line.me/${liffId}?action=parent-appointments` : `${appUrl}/#/line-link?tab=appointments` },
+            { type: 'uri', label: 'พัฒนาการ & แผน ITP', uri: liffId ? `https://liff.line.me/${liffId}?action=parent-itp` : `${appUrl}/#/line-link?tab=itp` },
+            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: liffId ? `https://liff.line.me/${liffId}?action=parent-homeprogram` : `${appUrl}/#/line-link?tab=homeprogram` },
+            { type: 'uri', label: 'คอร์ส & ยอดคงเหลือ', uri: liffId ? `https://liff.line.me/${liffId}?action=parent-courses` : `${appUrl}/#/line-link?tab=courses` },
             { type: 'message', label: 'แจ้งเลื่อนนัด / คุยกับครู', text: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' },
-            { type: 'uri', label: 'โปรไฟล์น้อง / สลับบัญชี', uri: `${appUrl}/#/line-link` }
+            { type: 'uri', label: 'โปรไฟล์น้อง / สลับบัญชี', uri: liffId ? `https://liff.line.me/${liffId}?action=line-link` : `${appUrl}/#/line-link` }
           ]
         },
         {
@@ -381,7 +382,7 @@ export default async function handler(req, res) {
             { type: 'uri', label: 'ส่ง LINE เตือนนัดกลุ่ม', uri: `${appUrl}/#dashboard` },
             { type: 'uri', label: 'ออกใบเสร็จ & ตัดคอร์ส', uri: `${appUrl}/#receipts` },
             { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${appUrl}/#dashboard` },
-            { type: 'uri', label: 'สลับมุมมอง', uri: `${appUrl}/#/line-link?action=menu-switch&role=staff` }
+            { type: 'uri', label: 'สลับมุมมอง', uri: liffId ? `https://liff.line.me/${liffId}?action=menu-switch&role=staff` : `${appUrl}/#/line-link?action=menu-switch&role=staff` }
           ]
         },
         {
@@ -397,7 +398,7 @@ export default async function handler(req, res) {
             { type: 'uri', label: 'บันทึกผลการฝึก (OPD)', uri: `${appUrl}/#opd` },
             { type: 'uri', label: 'เป้าหมายบำบัด (ITP)', uri: `${appUrl}/#itp` },
             { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${appUrl}/#itp` },
-            { type: 'uri', label: 'สลับมุมมอง', uri: `${appUrl}/#/line-link?action=menu-switch&role=ot` }
+            { type: 'uri', label: 'สลับมุมมอง', uri: liffId ? `https://liff.line.me/${liffId}?action=menu-switch&role=ot` : `${appUrl}/#/line-link?action=menu-switch&role=ot` }
           ]
         },
         {
@@ -413,7 +414,7 @@ export default async function handler(req, res) {
             { type: 'uri', label: 'สรุปการเงิน & Payroll', uri: `${appUrl}/#salary` },
             { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${appUrl}/#dashboard` },
             { type: 'uri', label: 'ควบคุม LINE & ระบบ', uri: `${appUrl}/#line-manager` },
-            { type: 'uri', label: 'สลับมุมมองอิสระ', uri: `${appUrl}/#/line-link?action=menu-switch&role=admin` }
+            { type: 'uri', label: 'สลับมุมมองอิสระ', uri: liffId ? `https://liff.line.me/${liffId}?action=menu-switch&role=admin` : `${appUrl}/#/line-link?action=menu-switch&role=admin` }
           ]
         }
       ];
@@ -421,8 +422,12 @@ export default async function handler(req, res) {
       // Override with customConfig if present
       if (customConfig) {
         menuConfigs.forEach(cfg => {
-          if (Array.isArray(customConfig[cfg.key])) {
-            cfg.actions = customConfig[cfg.key].map((slot, idx) => resolveSlotAction(slot, cfg.actions[idx]));
+          const customList = customConfig[cfg.key] || customConfig.config?.[cfg.key];
+          if (Array.isArray(customList) && customList.length > 0) {
+            cfg.actions = cfg.actions.map((fallbackAction, idx) => {
+              const customSlot = customList[idx];
+              return resolveSlotAction(customSlot, fallbackAction);
+            });
           }
         });
       }
@@ -466,14 +471,14 @@ export default async function handler(req, res) {
           contentType = req.body.images[cfg.key].startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png';
         } else {
           const possiblePaths = [
-            path.join('/tmp/richmenu_images', `custom_${cfg.key}.jpg`),
-            path.join('/tmp/richmenu_images', `custom_${cfg.key}.png`),
             path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.jpg`),
             path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.png`),
-            path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile)
+            path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile),
+            path.join('/tmp/richmenu_images', `custom_${cfg.key}.jpg`),
+            path.join('/tmp/richmenu_images', `custom_${cfg.key}.png`)
           ];
           for (const p of possiblePaths) {
-            if (fs.existsSync(p)) {
+            if (fs.existsSync(p) && fs.statSync(p).size > 1000) {
               imgBuffer = fs.readFileSync(p);
               contentType = p.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
               break;

@@ -30,7 +30,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
   const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
   const lineOaId = clinicInfo?.lineId || '@hugdeehome';
-  const liffLinkUrl = `${window.location.origin}/#/line-link`;
+  const liffLinkUrl = liffId ? `https://liff.line.me/${liffId}?action=line-link` : `${window.location.origin}/#/line-link`;
 
   const DEFAULT_CONFIGS = {
     guest: [

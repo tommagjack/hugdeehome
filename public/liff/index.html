@@ -257,10 +257,6 @@
         window.location.replace(`${window.location.origin}/#/register-patient`);
         return;
       }
-      if (action === 'line-link') {
-        window.location.replace(`${window.location.origin}/#/line-link`);
-        return;
-      }
       if (action === 'services') {
         window.location.replace(`${window.location.origin}/#/services`);
         return;
@@ -269,10 +265,61 @@
         window.location.replace(`${window.location.origin}/#/checkin`);
         return;
       }
-      if (action && action.startsWith('parent-')) {
-        const tab = action.replace('parent-', '');
-        window.location.replace(`${window.location.origin}/#/line-link?tab=${encodeURIComponent(tab)}`);
-        return;
+
+      // 0.1 โหมดเชื่อมต่อ LINE และเปิดดูสิทธิ์ผู้ใช้ (Auto LIFF Profile Link)
+      if (action === 'line-link' || (action && action.startsWith('parent-')) || action === 'menu-switch') {
+        document.getElementById('sending-view').style.display = 'block';
+        document.getElementById('sending-title').innerText = 'กำลังเชื่อมต่อกับ LINE...';
+        document.getElementById('status-text').innerText = 'ระบบกำลังดึงข้อมูลโปรไฟล์ LINE ของคุณอัตโนมัติ กรุณารอสักครู่';
+        document.getElementById('linking-view').style.display = 'none';
+
+        try {
+          if (!liffId) {
+            try {
+              const response = await fetch(`${supabaseUrl}/rest/v1/clinic_info?select=liff_id&limit=1`, {
+                headers: { 'apikey': apiKey, 'Authorization': 'Bearer ' + apiKey }
+              });
+              const data = await response.json();
+              if (data && data[0] && data[0].liff_id) liffId = data[0].liff_id;
+            } catch (e) {}
+          }
+          if (!liffId) liffId = '2008270606-7bkwSGyt';
+
+          await liff.init({ liffId });
+          if (!liff.isLoggedIn()) {
+            liff.login();
+            return;
+          }
+
+          const profile = await liff.getProfile();
+          const lineUid = profile.userId || '';
+          const displayName = profile.displayName || '';
+          const pictureUrl = profile.pictureUrl || '';
+
+          // แคชข้อมูลโปรไฟล์ลง LocalStorage/SessionStorage
+          try {
+            const profilePayload = { userId: lineUid, displayName: displayName, pictureUrl: pictureUrl };
+            localStorage.setItem('hdh_line_portal_profile', JSON.stringify(profilePayload));
+            sessionStorage.setItem('hdh_line_portal_profile', JSON.stringify(profilePayload));
+          } catch (storageErr) {}
+
+          let extraParams = '';
+          if (action && action.startsWith('parent-')) {
+            extraParams += `&tab=${encodeURIComponent(action.replace('parent-', ''))}`;
+          }
+          if (action === 'menu-switch') {
+            const role = urlParams.get('role') || '';
+            extraParams += `&action=menu-switch${role ? '&role=' + encodeURIComponent(role) : ''}`;
+          }
+
+          const targetUrl = `${window.location.origin}/#/line-link?uid=${encodeURIComponent(lineUid)}&name=${encodeURIComponent(displayName)}&pic=${encodeURIComponent(pictureUrl)}${extraParams}`;
+          window.location.replace(targetUrl);
+          return;
+        } catch (liffErr) {
+          console.warn('LIFF auto-profile error in liff/index.html:', liffErr);
+          window.location.replace(`${window.location.origin}/#/line-link`);
+          return;
+        }
       }
 
       // 1.0 โหมดผูกบัญชี LINE พนักงานกับระบบลงเวลาอัตโนมัติ (1-Click Auto Link)

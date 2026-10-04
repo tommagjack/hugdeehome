@@ -1,10 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  Smartphone, ShieldCheck, Heart, LogOut, Check, RefreshCw
+  Smartphone, ShieldCheck, Heart, LogOut, Check, RefreshCw, MessageCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../utils/supabaseClient';
 import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
+
+// Helper to extract param from search or hash
+function getUrlParam(key) {
+  if (typeof window === 'undefined') return null;
+  const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.get(key)) return searchParams.get(key);
+
+  const hash = window.location.hash || '';
+  if (hash.includes('?')) {
+    const hashQuery = hash.split('?')[1];
+    const hashParams = new URLSearchParams(hashQuery);
+    if (hashParams.get(key)) return hashParams.get(key);
+  }
+  return null;
+}
 
 export default function LineLinkPortal({ clinicInfo }) {
   const [liffProfile, setLiffProfile] = useState(null);
@@ -80,24 +95,82 @@ export default function LineLinkPortal({ clinicInfo }) {
     }
   }, []);
 
-  // 2. Initialize LIFF
+  // 0. Parse Initial Profile from URL params or Cache immediately
+  useEffect(() => {
+    const urlUid = getUrlParam('uid');
+    const urlName = getUrlParam('name');
+    const urlPic = getUrlParam('pic');
+    const urlTab = getUrlParam('tab');
+
+    if (urlTab === 'parent' || urlTab === 'staff') {
+      setBindingTab(urlTab);
+    }
+
+    if (urlUid) {
+      const p = {
+        userId: urlUid,
+        displayName: urlName || 'ผู้ใช้งาน LINE',
+        pictureUrl: urlPic || null
+      };
+      setLiffProfile(p);
+      setManualUid(urlUid);
+      checkExistingBinding(urlUid);
+      try {
+        localStorage.setItem('hdh_line_portal_profile', JSON.stringify(p));
+        sessionStorage.setItem('hdh_line_portal_profile', JSON.stringify(p));
+      } catch (e) {}
+      return;
+    }
+
+    // Read cached profile if exists
+    try {
+      const cached = localStorage.getItem('hdh_line_portal_profile') || sessionStorage.getItem('hdh_line_portal_profile');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.userId) {
+          setLiffProfile(parsed);
+          setManualUid(parsed.userId);
+          checkExistingBinding(parsed.userId);
+        }
+      }
+    } catch (e) {}
+  }, [checkExistingBinding]);
+
+  // 2. Initialize LIFF SDK
   useEffect(() => {
     let isMounted = true;
 
     async function initLiff() {
       try {
+        // Wait up to 1 second for window.liff to become available
+        let attempts = 0;
+        while (!window.liff && attempts < 10) {
+          await new Promise(r => setTimeout(r, 100));
+          attempts++;
+        }
+
         if (window.liff) {
           await window.liff.init({ liffId });
           if (window.liff.isLoggedIn()) {
             const profile = await window.liff.getProfile();
             if (isMounted) {
-              setLiffProfile(profile);
+              const fullProfile = {
+                userId: profile.userId,
+                displayName: profile.displayName || 'ผู้ใช้งาน LINE',
+                pictureUrl: profile.pictureUrl || null
+              };
+              setLiffProfile(fullProfile);
               setManualUid(profile.userId);
+              try {
+                localStorage.setItem('hdh_line_portal_profile', JSON.stringify(fullProfile));
+                sessionStorage.setItem('hdh_line_portal_profile', JSON.stringify(fullProfile));
+              } catch (e) {}
               await checkExistingBinding(profile.userId);
             }
           } else {
-            // If in external browser, try login or allow manual UID
-            if (window.liff.isInClient()) {
+            // If in external browser vs inside LINE client
+            const isLineClient = window.liff.isInClient() || /Line\//i.test(navigator.userAgent);
+            if (isLineClient) {
               window.liff.login();
             } else {
               setLoading(false);
@@ -122,6 +195,14 @@ export default function LineLinkPortal({ clinicInfo }) {
     };
   }, [liffId, checkExistingBinding]);
 
+  const handleLineLogin = () => {
+    if (window.liff) {
+      window.liff.login({ redirectUri: window.location.href });
+    } else {
+      window.location.href = `https://liff.line.me/${liffId}?action=line-link`;
+    }
+  };
+
   // 3. Handle Parent Binding
   const handleBindParent = async (e) => {
     e.preventDefault();
@@ -133,7 +214,19 @@ export default function LineLinkPortal({ clinicInfo }) {
       return;
     }
     if (!uid) {
-      Swal.fire({ icon: 'warning', title: 'ไม่พบ LINE User ID', text: 'กรุณาเปิดหน้านี้ผ่านแอป LINE หรือระบุ LINE UID' });
+      Swal.fire({
+        icon: 'warning',
+        title: 'ยังไม่พบข้อมูลบัญชี LINE',
+        html: 'กรุณากดปุ่ม <b>"เข้าสู่ระบบด้วย LINE"</b> เพื่อให้ระบบดึงรูปโปรไฟล์และ User ID ของคุณโดยอัตโนมัติค่ะ',
+        confirmButtonColor: '#06C755',
+        confirmButtonText: 'เข้าสู่ระบบด้วย LINE ตอนนี้',
+        showCancelButton: true,
+        cancelButtonText: 'ยกเลิก'
+      }).then(res => {
+        if (res.isConfirmed) {
+          handleLineLogin();
+        }
+      });
       return;
     }
 
@@ -219,7 +312,19 @@ export default function LineLinkPortal({ clinicInfo }) {
       return;
     }
     if (!uid) {
-      Swal.fire({ icon: 'warning', title: 'ไม่พบ LINE User ID', text: 'กรุณาเปิดหน้านี้ผ่านแอป LINE หรือระบุ LINE UID' });
+      Swal.fire({
+        icon: 'warning',
+        title: 'ยังไม่พบข้อมูลบัญชี LINE',
+        html: 'กรุณากดปุ่ม <b>"เข้าสู่ระบบด้วย LINE"</b> เพื่อให้ระบบดึงรูปโปรไฟล์และ User ID ของคุณโดยอัตโนมัติค่ะ',
+        confirmButtonColor: '#06C755',
+        confirmButtonText: 'เข้าสู่ระบบด้วย LINE ตอนนี้',
+        showCancelButton: true,
+        cancelButtonText: 'ยกเลิก'
+      }).then(res => {
+        if (res.isConfirmed) {
+          handleLineLogin();
+        }
+      });
       return;
     }
 
@@ -429,7 +534,7 @@ export default function LineLinkPortal({ clinicInfo }) {
           borderRadius: '20px',
           padding: '1.25rem',
           boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-          border: '1px solid #E2E8F0',
+          border: '1.5px solid ' + (liffProfile ? '#A7F3D0' : '#E2E8F0'),
           display: 'flex',
           alignItems: 'center',
           gap: '1rem',
@@ -439,32 +544,36 @@ export default function LineLinkPortal({ clinicInfo }) {
             <img 
               src={liffProfile.pictureUrl} 
               alt="Avatar" 
-              style={{ width: '58px', height: '58px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #06B6D4' }} 
+              style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #10B981', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }} 
             />
           ) : (
-            <div style={{ width: '58px', height: '58px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' }}>
               👤
             </div>
           )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {liffProfile?.displayName || 'ผู้ใช้งาน LINE'}
               </span>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: liffProfile ? '#10B981' : '#94A3B8' }} />
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#64748B', wordBreak: 'break-all', marginTop: '2px' }}>
-              UID: {liffProfile?.userId ? `${liffProfile.userId.substring(0, 14)}...` : (manualUid ? `${manualUid.substring(0, 14)}...` : 'รอการเชื่อมต่อ')}
+            <div style={{ fontSize: '0.78rem', color: liffProfile ? '#059669' : '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+              {liffProfile ? (
+                <span>✓ เชื่อมต่อบัญชี LINE สำเร็จ (ดึง ID อัตโนมัติ)</span>
+              ) : (
+                <span>UID: {manualUid ? `${manualUid.substring(0, 14)}...` : 'รอการเชื่อมต่อ'}</span>
+              )}
             </div>
           </div>
 
           <div style={{ textAlign: 'right' }}>
             <span style={{
               display: 'inline-block',
-              padding: '4px 10px',
+              padding: '6px 12px',
               borderRadius: '9999px',
-              fontSize: '0.75rem',
+              fontSize: '0.78rem',
               fontWeight: '700',
               backgroundColor: linkedUser ? '#EFF6FF' : (linkedPatients.length > 0 ? '#ECFDF5' : '#F1F5F9'),
               color: linkedUser ? '#2563EB' : (linkedPatients.length > 0 ? '#059669' : '#64748B')
@@ -474,31 +583,58 @@ export default function LineLinkPortal({ clinicInfo }) {
           </div>
         </div>
 
-        {/* Desktop / Manual UID Helper (Visible when not inside LINE app) */}
+        {/* 1-Click LINE Login Prompt (Visible when opened in external browser without profile) */}
         {!liffProfile && (
-          <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '16px', padding: '1rem', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#B45309', fontWeight: '700', fontSize: '0.88rem', marginBottom: '6px' }}>
-              <Smartphone size={16} /> กำลังเปิดผ่านเบราว์เซอร์ภายนอก
+          <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '20px', padding: '1.25rem', marginBottom: '1.25rem', textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: '700', fontSize: '0.95rem', marginBottom: '6px' }}>
+              <MessageCircle size={18} color="#16A34A" /> เข้าสู่ระบบด้วย LINE
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#78350F', margin: '0 0 8px 0', lineHeight: 1.4 }}>
-              เพื่อความสะดวกสูงสุด แนะนำให้เปิดหน้านี้ผ่านแอป LINE หรือระบุ LINE User ID เพื่อทดสอบ:
+            <p style={{ fontSize: '0.85rem', color: '#15803D', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+              เพื่อให้ระบบดึงรูปโปรไฟล์ ชื่อ และ LINE User ID ของคุณให้อัตโนมัติ โดยไม่ต้องกรอกเอง:
             </p>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input 
-                type="text"
-                placeholder="ระบุ LINE User ID (U...)"
-                value={manualUid}
-                onChange={(e) => setManualUid(e.target.value)}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
-              />
-              <button 
-                onClick={() => checkExistingBinding(manualUid)}
-                className="btn btn-primary"
-                style={{ padding: '8px 14px', borderRadius: '10px', fontSize: '0.82rem', backgroundColor: '#D97706', borderColor: '#D97706' }}
-              >
-                ตรวจสอบ
-              </button>
-            </div>
+            <button
+              onClick={handleLineLogin}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '12px',
+                backgroundColor: '#06C755',
+                color: '#FFFFFF',
+                fontWeight: '700',
+                fontSize: '0.95rem',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(6, 199, 85, 0.25)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <MessageCircle size={20} />
+              เข้าสู่ระบบด้วย LINE เพื่อดึงข้อมูลโปรไฟล์อัตโนมัติ
+            </button>
+
+            <details style={{ marginTop: '12px', textAlign: 'left', fontSize: '0.8rem', color: '#4B5563' }}>
+              <summary style={{ cursor: 'pointer', color: '#6B7280' }}>หรือระบุ LINE User ID เพื่อทดสอบด้วยตนเอง (สำหรับเจ้าหน้าที่)</summary>
+              <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                <input 
+                  type="text"
+                  placeholder="ระบุ LINE User ID (U...)"
+                  value={manualUid}
+                  onChange={(e) => setManualUid(e.target.value)}
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.82rem' }}
+                />
+                <button 
+                  onClick={() => checkExistingBinding(manualUid)}
+                  className="btn btn-primary"
+                  style={{ padding: '8px 14px', borderRadius: '10px', fontSize: '0.82rem', backgroundColor: '#0284C7', borderColor: '#0284C7' }}
+                >
+                  ตรวจสอบ
+                </button>
+              </div>
+            </details>
           </div>
         )}
 
@@ -765,6 +901,34 @@ export default function LineLinkPortal({ clinicInfo }) {
             {/* TAB 1: PARENT */}
             {bindingTab === 'parent' && (
               <form onSubmit={handleBindParent}>
+                {/* Auto Profile Connection Status */}
+                <div style={{
+                  backgroundColor: liffProfile ? '#ECFDF5' : '#FFFBEB',
+                  border: '1.5px solid ' + (liffProfile ? '#A7F3D0' : '#FDE68A'),
+                  borderRadius: '14px',
+                  padding: '12px 14px',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  {liffProfile?.pictureUrl ? (
+                    <img src={liffProfile.pictureUrl} alt="Avatar" style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #10B981' }} />
+                  ) : (
+                    <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+                      👤
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: '800', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      ผูกกับบัญชี LINE: {liffProfile?.displayName || (manualUid ? `UID: ${manualUid.substring(0, 10)}...` : 'รอเชื่อมต่อ')}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: liffProfile ? '#059669' : '#B45309', fontWeight: '600', marginTop: '2px' }}>
+                      {liffProfile ? '✓ เชื่อมโยง LINE User ID อัตโนมัติ (ไม่ต้องกรอกเอง)' : 'เพื่อความสะดวก แนะนำให้กดเข้าสู่ระบบด้วย LINE ด้านบน'}
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={{ display: 'block', fontWeight: '700', fontSize: '0.88rem', color: '#334155', marginBottom: '6px' }}>
                     เบอร์โทรศัพท์ผู้ปกครอง หรือ เลข HN ของน้อง:
@@ -818,6 +982,33 @@ export default function LineLinkPortal({ clinicInfo }) {
             {/* TAB 2: STAFF */}
             {bindingTab === 'staff' && (
               <form onSubmit={handleBindStaff}>
+                {/* Auto Profile Connection Status */}
+                <div style={{
+                  backgroundColor: liffProfile ? '#F0F9FF' : '#FFFBEB',
+                  border: '1.5px solid ' + (liffProfile ? '#BAE6FD' : '#FDE68A'),
+                  borderRadius: '14px',
+                  padding: '12px 14px',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  {liffProfile?.pictureUrl ? (
+                    <img src={liffProfile.pictureUrl} alt="Avatar" style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284C7' }} />
+                  ) : (
+                    <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#E0F2FE', color: '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+                      👤
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: '800', color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      ผูกกับบัญชี LINE: {liffProfile?.displayName || (manualUid ? `UID: ${manualUid.substring(0, 10)}...` : 'รอเชื่อมต่อ')}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: liffProfile ? '#0284C7' : '#B45309', fontWeight: '600', marginTop: '2px' }}>
+                      {liffProfile ? '✓ เชื่อมโยง LINE User ID อัตโนมัติ (ไม่ต้องกรอกเอง)' : 'เพื่อความสะดวก แนะนำให้กดเข้าสู่ระบบด้วย LINE ด้านบน'}
+                    </div>
+                  </div>
+                </div>
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', fontWeight: '700', fontSize: '0.88rem', color: '#334155', marginBottom: '6px' }}>
                     รหัสพนักงาน (Employee ID):
