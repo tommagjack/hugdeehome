@@ -275,6 +275,21 @@ export default async function handler(req, res) {
         };
       };
 
+      // LINE Messaging API strictly enforces chatBarText <= 14 characters/graphemes
+      const truncateChatBar = (str) => {
+        if (!str) return 'เมนูหลัก';
+        try {
+          const segmenter = new Intl.Segmenter('th', { granularity: 'grapheme' });
+          const graphemes = [...segmenter.segment(str.trim())].map(x => x.segment);
+          if (graphemes.length > 14) {
+            return graphemes.slice(0, 14).join('');
+          }
+          return str.trim();
+        } catch (e) {
+          return str.trim().slice(0, 14);
+        }
+      };
+
       const menuConfigs = [
         {
           key: 'guest',
@@ -297,7 +312,7 @@ export default async function handler(req, res) {
           aliasId: 'rm-parent',
           name: 'HDH_RichMenu_2_Parent',
           imageFile: 'richmenu_2_parent.png',
-          chatBarText: 'พอร์ทัลผู้ปกครอง 👶',
+          chatBarText: 'เมนูผู้ปกครอง 👶',
           isDefault: false,
           actions: [
             { type: 'uri', label: 'นัดหมายของน้อง', uri: `${liffBase}?action=parent-appointments` },
@@ -329,7 +344,7 @@ export default async function handler(req, res) {
           aliasId: 'rm-ot',
           name: 'HDH_RichMenu_4_OT',
           imageFile: 'richmenu_4_ot.png',
-          chatBarText: 'เมนูกิจกรรมบำบัด 🧩',
+          chatBarText: 'เมนูนักบำบัด 🧩',
           isDefault: false,
           actions: [
             { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${liffBase}?action=checkin` },
@@ -345,7 +360,7 @@ export default async function handler(req, res) {
           aliasId: 'rm-admin',
           name: 'HDH_RichMenu_5_Admin',
           imageFile: 'richmenu_5_admin.png',
-          chatBarText: 'ศูนย์บริหารจัดการ 👑',
+          chatBarText: 'เมนูผู้บริหาร 👑',
           isDefault: false,
           actions: [
             { type: 'uri', label: 'แดชบอร์ดภาพรวมคลินิก', uri: `${liffBase}?action=dashboard` },
@@ -375,7 +390,7 @@ export default async function handler(req, res) {
           size: { width: 2500, height: 1686 },
           selected: true,
           name: cfg.name,
-          chatBarText: cfg.chatBarText,
+          chatBarText: truncateChatBar(cfg.chatBarText),
           areas: getGridAreas(cfg.actions)
         };
 
