@@ -252,6 +252,29 @@
       const time = urlParams.get('time');
       const therapist = urlParams.get('therapist');
 
+      // 0. อัตโนมัติส่งต่อไปยังหน้าเว็บหลักสำหรับเมนูที่สร้างใหม่
+      if (action === 'register-patient') {
+        window.location.replace(`${window.location.origin}/#/register-patient`);
+        return;
+      }
+      if (action === 'line-link') {
+        window.location.replace(`${window.location.origin}/#/line-link`);
+        return;
+      }
+      if (action === 'services') {
+        window.location.replace(`${window.location.origin}/#/services`);
+        return;
+      }
+      if (action === 'checkin') {
+        window.location.replace(`${window.location.origin}/#/checkin`);
+        return;
+      }
+      if (action && action.startsWith('parent-')) {
+        const tab = action.replace('parent-', '');
+        window.location.replace(`${window.location.origin}/#/line-link?tab=${encodeURIComponent(tab)}`);
+        return;
+      }
+
       // 1.0 โหมดผูกบัญชี LINE พนักงานกับระบบลงเวลาอัตโนมัติ (1-Click Auto Link)
       const employeeId = urlParams.get('employeeId') || urlParams.get('emp') || (action === 'employee_link' ? localStorage.getItem('hdh_checkin_saved_emp_id') : null);
       const returnUrl = urlParams.get('returnUrl');

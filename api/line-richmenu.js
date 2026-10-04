@@ -259,8 +259,53 @@ export default async function handler(req, res) {
         } else if (rawVal === '?action=call' || rawVal.startsWith('?action=call')) {
           const cleanPhone = (phone || '0946753557').replace(/\D/g, '');
           finalUri = `${appUrl}/api/call?phone=${cleanPhone}`;
+        } else if (rawVal.includes('register-patient') || rawVal.includes('patient-form')) {
+          finalUri = `${appUrl}/#/register-patient`;
+        } else if (rawVal.includes('line-link')) {
+          finalUri = `${appUrl}/#/line-link`;
+        } else if (rawVal.includes('services')) {
+          finalUri = `${appUrl}/#/services`;
+        } else if (rawVal.includes('checkin')) {
+          finalUri = `${appUrl}/#/checkin`;
+        } else if (rawVal.includes('menu-switch')) {
+          const roleMatch = rawVal.match(/role=([a-zA-Z0-9_-]+)/);
+          const roleParam = roleMatch ? `&role=${roleMatch[1]}` : '';
+          finalUri = `${appUrl}/#/line-link?action=menu-switch${roleParam}`;
+        } else if (rawVal.includes('parent-appointments')) {
+          finalUri = `${appUrl}/#/line-link?tab=appointments`;
+        } else if (rawVal.includes('parent-itp')) {
+          finalUri = `${appUrl}/#/line-link?tab=itp`;
+        } else if (rawVal.includes('parent-homeprogram')) {
+          finalUri = `${appUrl}/#/line-link?tab=homeprogram`;
+        } else if (rawVal.includes('parent-courses')) {
+          finalUri = `${appUrl}/#/line-link?tab=courses`;
+        } else if (rawVal.includes('reception-intake')) {
+          finalUri = `${appUrl}/#/register-patient`;
+        } else if (rawVal.includes('batch-reminders')) {
+          finalUri = `${appUrl}/#dashboard`;
+        } else if (rawVal.includes('receipts')) {
+          finalUri = `${appUrl}/#receipts`;
+        } else if (rawVal.includes('dormant-tracker')) {
+          finalUri = `${appUrl}/#dashboard`;
+        } else if (rawVal.includes('my-cases')) {
+          finalUri = `${appUrl}/#appointments`;
+        } else if (rawVal.includes('opd-soap')) {
+          finalUri = `${appUrl}/#opd`;
+        } else if (rawVal.includes('itp-tracker') || rawVal.includes('home-program-planner')) {
+          finalUri = `${appUrl}/#itp`;
+        } else if (rawVal.includes('dashboard')) {
+          finalUri = `${appUrl}/`;
+        } else if (rawVal.includes('staff-attendance')) {
+          finalUri = `${appUrl}/#attendance`;
+        } else if (rawVal.includes('financial-payroll')) {
+          finalUri = `${appUrl}/#salary`;
+        } else if (rawVal.includes('line-manager')) {
+          finalUri = `${appUrl}/#line-manager`;
+        } else if (rawVal.startsWith('?action=') || rawVal.startsWith('action=')) {
+          const act = rawVal.replace(/^\??action=/, '');
+          finalUri = `${appUrl}/#/${act}`;
         } else if (!rawVal.startsWith('http://') && !rawVal.startsWith('https://')) {
-          finalUri = `${liffBase}${rawVal.startsWith('?') ? rawVal : ('?' + rawVal)}`;
+          finalUri = `${appUrl}/${rawVal.replace(/^\/+/, '')}`;
         }
 
         // Safety fallback: Ensure URI is strictly https:// or http://
@@ -299,11 +344,11 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูทั่วไป 🏡',
           isDefault: true,
           actions: [
-            { type: 'uri', label: 'บริการของเรา', uri: `${liffBase}?action=services` },
-            { type: 'uri', label: 'ลงทะเบียนคนไข้ใหม่', uri: `${liffBase}?action=register-patient` },
+            { type: 'uri', label: 'บริการของเรา', uri: `${appUrl}/#/services` },
+            { type: 'uri', label: 'ลงทะเบียนคนไข้ใหม่', uri: `${appUrl}/#/register-patient` },
             { type: 'uri', label: 'แผนที่คลินิก', uri: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
             { type: 'uri', label: 'โทรติดต่อคลินิก', uri: `${appUrl}/api/call?phone=${(phone || '0946753557').replace(/\D/g, '')}` },
-            { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: `${liffBase}?action=line-link` },
+            { type: 'uri', label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', uri: `${appUrl}/#/line-link` },
             { type: 'message', label: 'สิทธิประโยชน์ & โปรโมชัน', text: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
           ]
         },
@@ -315,12 +360,12 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูผู้ปกครอง 👶',
           isDefault: false,
           actions: [
-            { type: 'uri', label: 'นัดหมายของน้อง', uri: `${liffBase}?action=parent-appointments` },
-            { type: 'uri', label: 'พัฒนาการ & แผน ITP', uri: `${liffBase}?action=parent-itp` },
-            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${liffBase}?action=parent-homeprogram` },
-            { type: 'uri', label: 'คอร์ส & ยอดคงเหลือ', uri: `${liffBase}?action=parent-courses` },
+            { type: 'uri', label: 'นัดหมายของน้อง', uri: `${appUrl}/#/line-link?tab=appointments` },
+            { type: 'uri', label: 'พัฒนาการ & แผน ITP', uri: `${appUrl}/#/line-link?tab=itp` },
+            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${appUrl}/#/line-link?tab=homeprogram` },
+            { type: 'uri', label: 'คอร์ส & ยอดคงเหลือ', uri: `${appUrl}/#/line-link?tab=courses` },
             { type: 'message', label: 'แจ้งเลื่อนนัด / คุยกับครู', text: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' },
-            { type: 'uri', label: 'โปรไฟล์น้อง / สลับบัญชี', uri: `${liffBase}?action=line-link` }
+            { type: 'uri', label: 'โปรไฟล์น้อง / สลับบัญชี', uri: `${appUrl}/#/line-link` }
           ]
         },
         {
@@ -331,12 +376,12 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูเจ้าหน้าที่ 🛎️',
           isDefault: false,
           actions: [
-            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${liffBase}?action=checkin` },
-            { type: 'uri', label: 'Check-in รับคนไข้', uri: `${liffBase}?action=reception-intake` },
-            { type: 'uri', label: 'ส่ง LINE เตือนนัดกลุ่ม', uri: `${liffBase}?action=batch-reminders` },
-            { type: 'uri', label: 'ออกใบเสร็จ & ตัดคอร์ส', uri: `${liffBase}?action=receipts` },
-            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${liffBase}?action=dormant-tracker` },
-            { type: 'uri', label: 'สลับมุมมอง', uri: `${liffBase}?action=menu-switch&role=staff` }
+            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${appUrl}/#/checkin` },
+            { type: 'uri', label: 'Check-in รับคนไข้', uri: `${appUrl}/#/register-patient` },
+            { type: 'uri', label: 'ส่ง LINE เตือนนัดกลุ่ม', uri: `${appUrl}/#dashboard` },
+            { type: 'uri', label: 'ออกใบเสร็จ & ตัดคอร์ส', uri: `${appUrl}/#receipts` },
+            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${appUrl}/#dashboard` },
+            { type: 'uri', label: 'สลับมุมมอง', uri: `${appUrl}/#/line-link?action=menu-switch&role=staff` }
           ]
         },
         {
@@ -347,12 +392,12 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูนักบำบัด 🧩',
           isDefault: false,
           actions: [
-            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${liffBase}?action=checkin` },
-            { type: 'uri', label: 'ตารางเคสของฉันวันนี้', uri: `${liffBase}?action=my-cases` },
-            { type: 'uri', label: 'บันทึกผลการฝึก (OPD)', uri: `${liffBase}?action=opd-soap` },
-            { type: 'uri', label: 'เป้าหมายบำบัด (ITP)', uri: `${liffBase}?action=itp-tracker` },
-            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${liffBase}?action=home-program-planner` },
-            { type: 'uri', label: 'สลับมุมมอง', uri: `${liffBase}?action=menu-switch&role=ot` }
+            { type: 'uri', label: 'ลงเวลางาน GPS', uri: `${appUrl}/#/checkin` },
+            { type: 'uri', label: 'ตารางเคสของฉันวันนี้', uri: `${appUrl}/#appointments` },
+            { type: 'uri', label: 'บันทึกผลการฝึก (OPD)', uri: `${appUrl}/#opd` },
+            { type: 'uri', label: 'เป้าหมายบำบัด (ITP)', uri: `${appUrl}/#itp` },
+            { type: 'uri', label: 'กิจกรรมฝึกที่บ้าน', uri: `${appUrl}/#itp` },
+            { type: 'uri', label: 'สลับมุมมอง', uri: `${appUrl}/#/line-link?action=menu-switch&role=ot` }
           ]
         },
         {
@@ -363,12 +408,12 @@ export default async function handler(req, res) {
           chatBarText: 'เมนูผู้บริหาร 👑',
           isDefault: false,
           actions: [
-            { type: 'uri', label: 'แดชบอร์ดภาพรวมคลินิก', uri: `${liffBase}?action=dashboard` },
-            { type: 'uri', label: 'ตรวจสอบเวลาบุคลากร', uri: `${liffBase}?action=staff-attendance` },
-            { type: 'uri', label: 'สรุปการเงิน & Payroll', uri: `${liffBase}?action=financial-payroll` },
-            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${liffBase}?action=dormant-tracker` },
-            { type: 'uri', label: 'ควบคุม LINE & ระบบ', uri: `${liffBase}?action=line-manager` },
-            { type: 'uri', label: 'สลับมุมมองอิสระ', uri: `${liffBase}?action=menu-switch&role=admin` }
+            { type: 'uri', label: 'แดชบอร์ดภาพรวมคลินิก', uri: `${appUrl}/` },
+            { type: 'uri', label: 'ตรวจสอบเวลาบุคลากร', uri: `${appUrl}/#attendance` },
+            { type: 'uri', label: 'สรุปการเงิน & Payroll', uri: `${appUrl}/#salary` },
+            { type: 'uri', label: 'คนไข้ขาดการติดต่อ', uri: `${appUrl}/#dashboard` },
+            { type: 'uri', label: 'ควบคุม LINE & ระบบ', uri: `${appUrl}/#line-manager` },
+            { type: 'uri', label: 'สลับมุมมองอิสระ', uri: `${appUrl}/#/line-link?action=menu-switch&role=admin` }
           ]
         }
       ];

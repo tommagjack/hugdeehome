@@ -1537,13 +1537,16 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                     </div>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {[
+                        { label: 'บริการของเรา', type: 'uri', value: '?action=services' },
+                        { label: 'ลงทะเบียนคนไข้ใหม่', type: 'uri', value: '?action=register-patient' },
+                        { label: 'เชื่อมต่อบัญชี LINE', type: 'uri', value: '?action=line-link' },
+                        { label: 'โทรคลินิก', type: 'uri', value: '?action=call' },
                         { label: 'ลงเวลางาน', type: 'uri', value: '?action=checkin' },
                         { label: 'แผน ITP', type: 'uri', value: '?action=parent-itp' },
                         { label: 'นัดหมาย', type: 'uri', value: '?action=parent-appointments' },
                         { label: 'ยอด & แต้ม', type: 'uri', value: '?action=parent-courses' },
                         { label: 'ฝึกที่บ้าน', type: 'uri', value: '?action=parent-homeprogram' },
                         { label: 'Check-in เคาน์เตอร์', type: 'uri', value: '?action=reception-intake' },
-                        { label: 'โทรคลินิก', type: 'uri', value: '?action=call' },
                         { label: 'สลับมุมมอง', type: 'uri', value: `?action=menu-switch&role=${selectedConfigMenu}` },
                         { label: 'คุยกับครู', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่เรื่องวันนัดหมายของน้องค่ะ 🤎' }
                       ].map((preset, pIdx) => (

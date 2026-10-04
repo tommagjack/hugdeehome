@@ -26,6 +26,7 @@ import UserProfile from './components/UserProfile';
 import ParentPatientRegister from './components/ParentPatientRegister';
 import LineOAManager from './components/LineOAManager';
 import LineLinkPortal from './components/LineLinkPortal';
+import PublicServices from './components/PublicServices';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
@@ -1209,6 +1210,12 @@ export default function App() {
     window.location.pathname === '/line-link' ||
     window.location.search.includes('line-link')
   );
+  // สถานะเปิดหน้าบริการของคลินิก (สาธารณะ)
+  const [isServicesPage, setIsServicesPage] = useState(() =>
+    window.location.hash === '#/services' ||
+    window.location.pathname === '/services' ||
+    window.location.search.includes('services')
+  );
 
 
   useEffect(() => {
@@ -1230,6 +1237,11 @@ export default function App() {
         window.location.hash.startsWith('#/line-link') ||
         window.location.pathname === '/line-link' ||
         window.location.search.includes('line-link')
+      );
+      setIsServicesPage(
+        window.location.hash === '#/services' ||
+        window.location.pathname === '/services' ||
+        window.location.search.includes('services')
       );
     };
     window.addEventListener('hashchange', handleHash);
@@ -2053,6 +2065,16 @@ export default function App() {
         clinicInfo={clinicInfo}
         users={users}
         patients={patients}
+      />
+    );
+  }
+
+  // 14. รันหน้าบริการของคลินิก (สาธารณะ)
+  if (isServicesPage) {
+    return (
+      <PublicServices 
+        clinicInfo={clinicInfo}
+        services={services}
       />
     );
   }
