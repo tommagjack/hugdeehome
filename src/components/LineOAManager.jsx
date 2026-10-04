@@ -42,7 +42,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       { slot: 3, label: 'แผนที่คลินิก', type: 'uri', value: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
       { slot: 4, label: 'โทรติดต่อคลินิก', type: 'uri', value: '?action=call' },
       { slot: 5, label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', type: 'uri', value: '?action=line-link' },
-      { slot: 6, label: 'โปรโมชัน & แพ็กเกจคอร์ส', type: 'message', value: 'สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎' }
+      { slot: 6, label: 'บริการ & โปรโมชันคลินิก', type: 'uri', value: 'alias:clinic-services' }
     ],
     parent: [
       { slot: 1, label: 'นัดหมาย / ตาราง', type: 'uri', value: '?action=parent-appointments' },
@@ -93,7 +93,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       borderColor: '#FDE68A',
       isDefault: true,
       image: '/richmenu_images/richmenu_1_guest.png',
-      buttons: ['บริการของเรา', 'ลงทะเบียนคนไข้ใหม่', 'แผนที่คลินิก', 'โทรติดต่อคลินิก', 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', 'โปรโมชัน & แพ็กเกจคอร์ส']
+      buttons: ['บริการของเรา', 'ลงทะเบียนคนไข้ใหม่', 'แผนที่คลินิก', 'โทรติดต่อคลินิก', 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', 'บริการ & โปรโมชันคลินิก']
     },
     {
       key: 'parent',
@@ -231,11 +231,15 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     };
 
     // 1. First load from localStorage for instant prefill
+    let hasLocalConfig = false;
     try {
       const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
       if (localCfg) {
         const parsed = JSON.parse(localCfg);
-        if (parsed && typeof parsed === 'object') setCustomConfigs(sanitizeConfig(parsed));
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setCustomConfigs(sanitizeConfig(parsed));
+          hasLocalConfig = true;
+        }
       }
       const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
       if (localImgs) {
@@ -246,13 +250,18 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       console.warn('LocalStorage read error:', e);
     }
 
-    // 2. Then merge from server if available
+    // 2. Then merge from server if available (Cloud data takes priority, but static defaults don't overwrite user edits)
     try {
       const res = await fetch('/api/line-richmenu?action=get-config');
       if (res.ok) {
         const data = await res.json();
-        if (data.config) {
-          setCustomConfigs(prev => ({ ...prev, ...sanitizeConfig(data.config) }));
+        // If data came from Supabase cloud (user previously saved) OR if user has no local config yet
+        if (data.config && (data.fromCloud || !hasLocalConfig)) {
+          const sanitized = sanitizeConfig(data.config);
+          setCustomConfigs(sanitized);
+          try {
+            localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(sanitized));
+          } catch (e) {}
         }
         if (data.images && typeof data.images === 'object') {
           setCustomImages(prev => ({ ...prev, ...data.images }));
@@ -396,7 +405,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     }, 2200);
   };
 
-  // Update slot field
+  // Update slot field with auto-save to localStorage
   const handleSlotChange = (menuKey, slotIndex, field, value) => {
     setCustomConfigs(prev => {
       const currentList = prev[menuKey] ? [...prev[menuKey]] : [...(DEFAULT_CONFIGS[menuKey] || [])];
@@ -404,10 +413,33 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         currentList[slotIndex] = { slot: slotIndex + 1, label: '', type: 'uri', value: '' };
       }
       currentList[slotIndex] = { ...currentList[slotIndex], [field]: value };
-      return {
+      const updated = {
         ...prev,
         [menuKey]: currentList
       };
+      try {
+        localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  // Atomically apply preset object to slot and auto-save
+  const handleApplySlotPreset = (menuKey, slotIndex, patch) => {
+    setCustomConfigs(prev => {
+      const currentList = prev[menuKey] ? [...prev[menuKey]] : [...(DEFAULT_CONFIGS[menuKey] || [])];
+      if (!currentList[slotIndex]) {
+        currentList[slotIndex] = { slot: slotIndex + 1, label: '', type: 'uri', value: '' };
+      }
+      currentList[slotIndex] = { ...currentList[slotIndex], ...patch };
+      const updated = {
+        ...prev,
+        [menuKey]: currentList
+      };
+      try {
+        localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
     });
   };
 
@@ -422,10 +454,16 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       cancelButtonText: 'ยกเลิก'
     }).then(res => {
       if (res.isConfirmed) {
-        setCustomConfigs(prev => ({
-          ...prev,
-          [menuKey]: [...DEFAULT_CONFIGS[menuKey]]
-        }));
+        setCustomConfigs(prev => {
+          const updated = {
+            ...prev,
+            [menuKey]: [...DEFAULT_CONFIGS[menuKey]]
+          };
+          try {
+            localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
         Swal.fire({ icon: 'success', title: 'คืนค่าสำเร็จ', timer: 1200, showConfirmButton: false });
       }
     });
@@ -1608,9 +1646,11 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                           key={pIdx}
                           type="button"
                           onClick={() => {
-                            handleSlotChange(selectedConfigMenu, index, 'label', preset.label);
-                            handleSlotChange(selectedConfigMenu, index, 'type', preset.type);
-                            handleSlotChange(selectedConfigMenu, index, 'value', preset.value);
+                            handleApplySlotPreset(selectedConfigMenu, index, {
+                              label: preset.label,
+                              type: preset.type,
+                              value: preset.value
+                            });
                           }}
                           style={{
                             padding: '2px 8px',
@@ -1639,9 +1679,11 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                               key={`dl-${dlIdx}`}
                               type="button"
                               onClick={() => {
-                                handleSlotChange(selectedConfigMenu, index, 'label', dl.title.slice(0, 20));
-                                handleSlotChange(selectedConfigMenu, index, 'type', 'uri');
-                                handleSlotChange(selectedConfigMenu, index, 'value', `alias:${dl.alias}`);
+                                handleApplySlotPreset(selectedConfigMenu, index, {
+                                  label: dl.title.slice(0, 20),
+                                  type: 'uri',
+                                  value: `alias:${dl.alias}`
+                                });
                               }}
                               style={{
                                 padding: '3px 8px',

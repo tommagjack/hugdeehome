@@ -5,7 +5,7 @@
     { "slot": 3, "label": "แผนที่คลินิก", "type": "uri", "value": "https://maps.google.com/?q=Hug+Dee+Home+Clinic" },
     { "slot": 4, "label": "โทรติดต่อคลินิก", "type": "uri", "value": "?action=call" },
     { "slot": 5, "label": "เชื่อมต่อบัญชี / ตรวจสิทธิ์", "type": "uri", "value": "?action=line-link" },
-    { "slot": 6, "label": "โปรโมชัน & แพ็กเกจคอร์ส", "type": "message", "value": "สนใจสอบถามแพ็กเกจคอร์สกิจกรรมบำบัดและโปรโมชันค่ะ 🤎" }
+    { "slot": 6, "label": "บริการ & โปรโมชันคลินิก", "type": "uri", "value": "alias:clinic-services" }
   ],
   "parent": [
     { "slot": 1, "label": "นัดหมาย / ตาราง", "type": "uri", "value": "?action=parent-appointments" },

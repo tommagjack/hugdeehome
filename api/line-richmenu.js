@@ -79,6 +79,62 @@ function getGridAreas(actions) {
   return areas;
 }
 
+// Helper to read richmenu config & images from Supabase clinic_info folder_url
+async function readRichMenuConfigFromSupabase(env) {
+  if (!env?.VITE_SUPABASE_URL) return null;
+  const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+  try {
+    const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1&select=folder_url`, {
+      headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data[0]?.folder_url) {
+        const parsed = typeof data[0].folder_url === 'string' ? JSON.parse(data[0].folder_url) : data[0].folder_url;
+        if (parsed.richmenuConfig) {
+          return {
+            config: parsed.richmenuConfig,
+            images: parsed.richmenuImages || {}
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading richmenu config from Supabase:', e);
+  }
+  return null;
+}
+
+// Helper to save richmenu config & images to Supabase clinic_info folder_url
+async function saveRichMenuConfigToSupabase(config, images, env) {
+  if (!env?.VITE_SUPABASE_URL) return;
+  const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+  try {
+    const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1&select=folder_url`, {
+      headers: { 'apikey': dbKey, 'Authorization': `Bearer ${dbKey}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const currentFolder = data?.[0]?.folder_url ? (typeof data[0].folder_url === 'string' ? JSON.parse(data[0].folder_url) : data[0].folder_url) : {};
+      if (config) currentFolder.richmenuConfig = config;
+      if (images) currentFolder.richmenuImages = images;
+      currentFolder.richmenuUpdatedAt = new Date().toISOString();
+
+      await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': dbKey,
+          'Authorization': `Bearer ${dbKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folder_url: JSON.stringify(currentFolder) })
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to save richmenu config to Supabase:', e);
+  }
+}
+
 export default async function handler(req, res) {
   const env = loadEnv();
   const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
@@ -131,21 +187,37 @@ export default async function handler(req, res) {
 
     // 1.1 ACTION: GET BUTTON CONFIG & CUSTOM IMAGES
     if (action === 'get-config') {
-      const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
       let configData = null;
       let imagesData = {};
+      let fromCloud = false;
 
-      if (fs.existsSync(cfgPath)) {
-        try {
-          const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-          if (parsed.config) {
-            configData = parsed.config;
-            imagesData = parsed.images || {};
-          } else {
-            configData = parsed;
+      // 1. Priority 1: Check Supabase Cloud Storage (persists across all devices/sessions)
+      const cloudData = await readRichMenuConfigFromSupabase(env);
+      if (cloudData && cloudData.config) {
+        configData = cloudData.config;
+        imagesData = cloudData.images || {};
+        fromCloud = true;
+      }
+
+      // 2. Priority 2: Fallback to local files
+      if (!configData) {
+        const cfgPaths = [
+          path.join(process.cwd(), 'public/richmenu_config.json'),
+          path.join('/tmp', 'richmenu_config.json')
+        ];
+        for (const p of cfgPaths) {
+          if (fs.existsSync(p)) {
+            try {
+              const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+              if (parsed.config) {
+                configData = parsed.config;
+                imagesData = parsed.images || imagesData;
+              } else {
+                configData = parsed;
+              }
+              break;
+            } catch (e) {}
           }
-        } catch (e) {
-          console.warn('Failed to parse richmenu_config.json:', e);
         }
       }
 
@@ -161,7 +233,7 @@ export default async function handler(req, res) {
         }
       });
 
-      return res.status(200).json({ success: true, config: configData, images: imagesData });
+      return res.status(200).json({ success: true, config: configData, images: imagesData, fromCloud });
     }
 
     // 1.2 ACTION: SAVE BUTTON CONFIG & CUSTOM IMAGES
@@ -171,7 +243,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing config payload' });
       }
 
-      // Handle custom images if provided
+      // 1. Save to Supabase Cloud for cross-device persistence
+      await saveRichMenuConfigToSupabase(config, images, env);
+
+      // 2. Handle custom images if provided
       if (images && typeof images === 'object') {
         const imgDirs = [
           path.join(process.cwd(), 'public/richmenu_images'),
@@ -203,7 +278,7 @@ export default async function handler(req, res) {
         }
       }
 
-      // Save config to both public and /tmp
+      // 3. Save config to both public and /tmp
       const cfgPaths = [
         path.join(process.cwd(), 'public/richmenu_config.json'),
         path.join('/tmp', 'richmenu_config.json')
@@ -222,6 +297,12 @@ export default async function handler(req, res) {
       console.log('Deploying all 5 Rich Menus to LINE...');
 
       let customConfig = req.body?.config || null;
+      if (!customConfig) {
+        const cloudData = await readRichMenuConfigFromSupabase(env);
+        if (cloudData && cloudData.config) {
+          customConfig = cloudData.config;
+        }
+      }
       if (!customConfig) {
         const cfgPaths = [
           path.join(process.cwd(), 'public/richmenu_config.json'),
