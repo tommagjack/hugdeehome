@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   MessageSquare, Smartphone, Users, ShieldCheck, RefreshCw, 
   Send, ExternalLink, QrCode, Copy, Check, AlertCircle, 
   Search, Filter, ChevronRight, Zap, CheckCircle2, UserX,
-  Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders
+  Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders,
+  Upload, Download, Maximize2, RotateCcw, Image as ImageIcon
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../utils/supabaseClient';
@@ -17,6 +18,11 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [deployedData, setDeployedData] = useState(null);
   const [loadingDeployed, setLoadingDeployed] = useState(true);
+
+  // Custom Images & Visual Layout State
+  const fileInputRef = useRef(null);
+  const [customImages, setCustomImages] = useState({});
+  const [highlightedSlot, setHighlightedSlot] = useState(null);
 
   // Search & Filters for User Registry
   const [searchQuery, setSearchQuery] = useState('');
@@ -165,6 +171,9 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         if (data.config) {
           setCustomConfigs(data.config);
         }
+        if (data.images && typeof data.images === 'object') {
+          setCustomImages(data.images);
+        }
       }
     } catch (e) {
       console.warn('Could not fetch custom configs:', e);
@@ -175,6 +184,95 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
     fetchStatus();
     fetchConfig();
   }, []);
+
+  // Process uploaded image with Client-Side 2500x1686 Auto-Resizer
+  const processImageFile = (file, menuKey) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({ icon: 'warning', title: 'ไฟล์ไม่ถูกต้อง', text: 'กรุณาเลือกไฟล์รูปภาพ (PNG, JPG หรือ WEBP)' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        // Create 2500x1686 Canvas for perfect LINE Rich Menu specification
+        const canvas = document.createElement('canvas');
+        canvas.width = 2500;
+        canvas.height = 1686;
+        const ctx = canvas.getContext('2d');
+
+        // Fill background white
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 2500, 1686);
+
+        // Draw and scale image smoothly to fit 2500 x 1686
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, 2500, 1686);
+
+        // Convert to high-quality PNG data URL
+        const resizedDataUrl = canvas.toDataURL('image/png', 0.95);
+        setCustomImages(prev => ({
+          ...prev,
+          [menuKey]: resizedDataUrl
+        }));
+
+        Swal.fire({
+          icon: 'success',
+          title: 'แนบรูปภาพสำเร็จ! 🖼️',
+          html: `ระบบได้ปรับขนาดภาพเป็น <strong>2,500 x 1,686 px</strong> ตามมาตรฐาน LINE อัตโนมัติแล้วค่ะ<br><span style="font-size: 0.85rem; color: #64748B;">สามารถตรวจดูผัง 6 ช่องด้านล่าง และกดบันทึกการตั้งค่าเพื่อนำไปใช้งาน</span>`,
+          timer: 2400,
+          showConfirmButton: false
+        });
+      };
+      img.onerror = () => {
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถเปิดรูปภาพได้', text: 'เกิดข้อผิดพลาดในการประมวลผลไฟล์ภาพ' });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImageFile(file, selectedConfigMenu);
+    }
+    e.target.value = '';
+  };
+
+  const handleResetImage = (menuKey) => {
+    Swal.fire({
+      title: 'คืนค่ารูปภาพมาตรฐาน?',
+      text: `ต้องการยกเลิกภาพที่แนบ และกลับไปใช้รูปภาพทางการของคลินิกสำหรับแบบนี้`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'คืนค่าภาพมาตรฐาน',
+      cancelButtonText: 'ยกเลิก'
+    }).then(res => {
+      if (res.isConfirmed) {
+        setCustomImages(prev => {
+          const next = { ...prev };
+          next[menuKey] = 'default';
+          return next;
+        });
+        Swal.fire({ icon: 'success', title: 'คืนค่าภาพมาตรฐานสำเร็จ', timer: 1200, showConfirmButton: false });
+      }
+    });
+  };
+
+  const scrollToSlot = (index) => {
+    setHighlightedSlot(index);
+    const el = document.getElementById(`slot-card-${index}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => {
+      setHighlightedSlot(null);
+    }, 2200);
+  };
 
   // Update slot field
   const handleSlotChange = (menuKey, slotIndex, field, value) => {
@@ -218,7 +316,10 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
       const res = await fetch('/api/line-richmenu?action=save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: customConfigs })
+        body: JSON.stringify({ 
+          config: customConfigs,
+          images: customImages
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'บันทึกการตั้งค่าไม่สำเร็จ');
@@ -229,7 +330,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         Swal.fire({
           icon: 'success',
           title: 'บันทึกการตั้งค่าสำเร็จ! 💾',
-          text: 'บันทึกการปรับแต่งปุ่มเมนูเรียบร้อยแล้ว หากต้องการให้มีผลบน LINE ทันที ให้กดปุ่ม Deploy',
+          text: 'บันทึกการปรับแต่งปุ่มเมนูและรูปภาพเรียบร้อยแล้ว หากต้องการให้มีผลบน LINE ทันที ให้กดปุ่ม Deploy',
           timer: 2200,
           showConfirmButton: false
         });
@@ -692,6 +793,8 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.25rem' }}>
             {richMenuCards.map(menu => {
               const activeButtons = (customConfigs?.[menu.key] || DEFAULT_CONFIGS[menu.key] || []).map(s => s.label) || menu.buttons;
+              const isCustomImg = !!(customImages[menu.key] && customImages[menu.key] !== 'default');
+              const displayImg = isCustomImg ? customImages[menu.key] : menu.image;
 
               return (
                 <div 
@@ -709,7 +812,7 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                   {/* Image Preview */}
                   <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
                     <img 
-                      src={menu.image} 
+                      src={displayImg} 
                       alt={menu.title}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => {
@@ -731,22 +834,34 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
                       แบบที่ {menu.number}
                     </div>
 
-                    {menu.isDefault && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        backgroundColor: '#10B981',
-                        color: '#FFFFFF',
-                        padding: '4px 12px',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: '700',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                      }}>
-                        ⭐ ค่าเริ่มต้น (Default)
-                      </div>
-                    )}
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px' }}>
+                      {isCustomImg && (
+                        <div style={{
+                          backgroundColor: '#F59E0B',
+                          color: '#FFFFFF',
+                          padding: '4px 10px',
+                          borderRadius: '9999px',
+                          fontSize: '0.72rem',
+                          fontWeight: '800',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                        }}>
+                          ✨ ภาพกำหนดเอง
+                        </div>
+                      )}
+                      {menu.isDefault && (
+                        <div style={{
+                          backgroundColor: '#10B981',
+                          color: '#FFFFFF',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                        }}>
+                          ⭐ ค่าเริ่มต้น
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Card Body */}
@@ -925,6 +1040,276 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
             </div>
           </div>
 
+          {/* VISUAL LAYOUT PREVIEW CARD (Large, Crisp, 6-Slot Interactive Grid Overlay) */}
+          {(() => {
+            const currentMenuSpec = richMenuCards.find(m => m.key === selectedConfigMenu) || richMenuCards[0];
+            const isCustomImg = !!(customImages[selectedConfigMenu] && customImages[selectedConfigMenu] !== 'default');
+            const currentDisplayImage = isCustomImg ? customImages[selectedConfigMenu] : currentMenuSpec.image;
+
+            return (
+              <div style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '20px',
+                border: `2px solid ${currentMenuSpec.borderColor || '#E2E8F0'}`,
+                padding: '1.5rem',
+                marginBottom: '1.75rem',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+                position: 'relative'
+              }}>
+                {/* Card Top Toolbar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '1.25rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: currentMenuSpec.bgColor, border: `1.5px solid ${currentMenuSpec.borderColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentMenuSpec.color, fontWeight: '800', fontSize: '1.15rem' }}>
+                      {currentMenuSpec.number}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0, color: '#0F172A' }}>
+                          ผังโครงสร้างภาพ & ตำแหน่ง 6 ช่อง (Visual Layout Blueprint)
+                        </h3>
+                        {isCustomImg && (
+                          <span style={{ fontSize: '0.72rem', fontWeight: '800', padding: '3px 8px', borderRadius: '9999px', backgroundColor: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
+                            ✨ ใช้ภาพที่แนบใหม่ (Custom)
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                        แบบที่ {currentMenuSpec.number}: {currentMenuSpec.title} | ขนาดมาตรฐาน 2,500 x 1,686 px (อัตราส่วน 3:2)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons for Image */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleImageFileChange} 
+                      accept="image/png,image/jpeg,image/webp" 
+                      style={{ display: 'none' }} 
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn"
+                      style={{
+                        backgroundColor: '#4338CA',
+                        color: '#FFFFFF',
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        border: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(67, 56, 202, 0.25)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Upload size={15} /> แนบ/เปลี่ยนรูปภาพใหม่
+                    </button>
+
+                    {isCustomImg && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetImage(selectedConfigMenu)}
+                        className="btn btn-light"
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: '600',
+                          color: '#DC2626',
+                          borderColor: '#FCA5A5',
+                          backgroundColor: '#FEF2F2',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          cursor: 'pointer'
+                        }}
+                        title="ยกเลิกภาพที่แนบ และกลับไปใช้รูปภาพมาตรฐานของคลินิก"
+                      >
+                        <RotateCcw size={14} /> คืนค่าภาพมาตรฐาน
+                      </button>
+                    )}
+
+                    <a
+                      href="/richmenu_images/richmenu_grid_template.png"
+                      download={`hugdeehome_richmenu_template_${selectedConfigMenu}.png`}
+                      className="btn btn-light"
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        fontSize: '0.82rem',
+                        fontWeight: '600',
+                        color: '#475569',
+                        borderColor: '#CBD5E1',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                      title="ดาวน์โหลดแม่แบบเปล่าขนาด 2500x1686 px สำหรับนำไปออกแบบใน Canva หรือ Photoshop"
+                    >
+                      <Download size={14} /> โหลดแม่แบบเปล่า
+                    </a>
+
+                    <a
+                      href={currentDisplayImage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-light"
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        fontSize: '0.82rem',
+                        fontWeight: '600',
+                        color: '#475569',
+                        borderColor: '#CBD5E1',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                      title="ดูรูปภาพขนาดเต็มในแท็บใหม่"
+                    >
+                      <Maximize2 size={14} /> ดูภาพเต็ม HD
+                    </a>
+                  </div>
+                </div>
+
+                {/* Main Large Image Display with 6 Interactive Slots Grid Overlay */}
+                <div 
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) processImageFile(file, selectedConfigMenu);
+                  }}
+                  style={{
+                    maxWidth: '880px',
+                    margin: '0 auto',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    border: '2px solid #CBD5E1',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
+                    position: 'relative',
+                    aspectRatio: '2500 / 1686',
+                    backgroundColor: '#1E293B'
+                  }}
+                >
+                  {/* Background Image */}
+                  <img 
+                    src={currentDisplayImage} 
+                    alt={`Rich Menu ${currentMenuSpec.title}`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                    onError={(e) => {
+                      e.target.src = currentMenuSpec.image;
+                    }}
+                  />
+
+                  {/* 6 Grid Slots Overlay (3 cols x 2 rows) */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gridTemplateRows: 'repeat(2, 1fr)'
+                  }}>
+                    {([0, 1, 2, 3, 4, 5]).map(index => {
+                      const slotConfig = customConfigs?.[selectedConfigMenu]?.[index] || DEFAULT_CONFIGS[selectedConfigMenu]?.[index] || {};
+                      const isHovered = highlightedSlot === index;
+                      const slotTitle = slotConfig.label || `ปุ่มที่ ${index + 1}`;
+                      const slotActionType = slotConfig.type === 'message' ? '💬 ข้อความ' : '🔗 ลิงก์';
+
+                      return (
+                        <div
+                          key={index}
+                          onClick={() => scrollToSlot(index)}
+                          title={`คลิกเพื่อแก้ไขช่อง ${index + 1}: ${slotTitle}`}
+                          style={{
+                            border: isHovered ? '3px solid #F59E0B' : '1.5px dashed rgba(255, 255, 255, 0.7)',
+                            backgroundColor: isHovered ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0, 0, 0, 0.08)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            padding: '12px',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                            backdropFilter: isHovered ? 'blur(2px)' : 'none',
+                            boxShadow: isHovered ? 'inset 0 0 24px rgba(245, 158, 11, 0.5)' : 'none'
+                          }}
+                        >
+                          {/* Slot Badge */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{
+                              backgroundColor: currentMenuSpec.color || '#4F46E5',
+                              color: '#FFFFFF',
+                              fontSize: '0.72rem',
+                              fontWeight: '800',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              ช่อง {index + 1}
+                            </span>
+                            <span style={{
+                              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                              color: '#FFFFFF',
+                              fontSize: '0.65rem',
+                              fontWeight: '600',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {slotActionType}
+                            </span>
+                          </div>
+
+                          {/* Live Dynamic Label Pill */}
+                          <div style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                            color: '#0F172A',
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: '800',
+                            textAlign: 'center',
+                            boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            border: '1px solid rgba(0,0,0,0.1)'
+                          }}>
+                            {slotTitle}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.8rem', color: '#64748B' }}>
+                  💡 <strong>เทคนิค:</strong> คลิกที่ช่องบนรูปภาพเพื่อเลื่อนลงไปแก้ไขข้อมูลช่องนั้น หรือลากไฟล์ภาพ (.png, .jpg) มาวางที่กรอบด้านบนเพื่อเปลี่ยนรูปภาพได้ทันที
+                </div>
+              </div>
+            );
+          })()}
+
           {/* 6 Grid Slots (3 Columns x 2 Rows) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
             {([0, 1, 2, 3, 4, 5]).map(index => {
@@ -947,15 +1332,17 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
               return (
                 <div
                   key={index}
+                  id={`slot-card-${index}`}
                   style={{
                     backgroundColor: '#FFFFFF',
-                    border: '1.5px solid #E2E8F0',
+                    border: highlightedSlot === index ? '2.5px solid #4F46E5' : '1.5px solid #E2E8F0',
                     borderRadius: '16px',
                     padding: '1.25rem',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    boxShadow: highlightedSlot === index ? '0 0 18px rgba(79, 70, 229, 0.3)' : '0 2px 8px rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '10px'
+                    gap: '10px',
+                    transition: 'all 0.25s ease'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

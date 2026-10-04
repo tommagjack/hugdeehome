@@ -129,29 +129,65 @@ export default async function handler(req, res) {
       });
     }
 
-    // 1.1 ACTION: GET BUTTON CONFIG
+    // 1.1 ACTION: GET BUTTON CONFIG & CUSTOM IMAGES
     if (action === 'get-config') {
       const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
+      let configData = null;
+      let imagesData = {};
+
       if (fs.existsSync(cfgPath)) {
         try {
-          const cfgData = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-          return res.status(200).json({ success: true, config: cfgData });
+          const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+          if (parsed.config) {
+            configData = parsed.config;
+            imagesData = parsed.images || {};
+          } else {
+            configData = parsed;
+          }
         } catch (e) {
-          return res.status(500).json({ error: 'Failed to read config: ' + e.message });
+          console.warn('Failed to parse richmenu_config.json:', e);
         }
       }
-      return res.status(404).json({ error: 'Config file not found' });
+
+      // Check for any physical custom image files on disk
+      const imgDir = path.join(process.cwd(), 'public/richmenu_images');
+      ['guest', 'parent', 'staff', 'ot', 'admin'].forEach(k => {
+        const customPath = path.join(imgDir, `custom_${k}.png`);
+        if (fs.existsSync(customPath)) {
+          imagesData[k] = `/richmenu_images/custom_${k}.png?t=${fs.statSync(customPath).mtimeMs}`;
+        }
+      });
+
+      return res.status(200).json({ success: true, config: configData, images: imagesData });
     }
 
-    // 1.2 ACTION: SAVE BUTTON CONFIG
+    // 1.2 ACTION: SAVE BUTTON CONFIG & CUSTOM IMAGES
     if (action === 'save-config') {
-      const { config } = req.body || {};
+      const { config, images } = req.body || {};
       if (!config) {
         return res.status(400).json({ error: 'Missing config payload' });
       }
+
+      // Handle custom images if provided
+      if (images && typeof images === 'object') {
+        const imgDir = path.join(process.cwd(), 'public/richmenu_images');
+        if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
+
+        for (const [key, val] of Object.entries(images)) {
+          const customFile = path.join(imgDir, `custom_${key}.png`);
+          if (val === null || val === 'default') {
+            if (fs.existsSync(customFile)) fs.unlinkSync(customFile);
+          } else if (typeof val === 'string' && val.includes('base64,')) {
+            const base64Data = val.split('base64,').pop();
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(customFile, buffer);
+          }
+        }
+      }
+
       const cfgPath = path.join(process.cwd(), 'public/richmenu_config.json');
       fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
-      return res.status(200).json({ success: true, message: 'บันทึกการตั้งค่าปุ่ม Rich Menu สำเร็จ' });
+      return res.status(200).json({ success: true, message: 'บันทึกการตั้งค่าปุ่มและรูปภาพ Rich Menu สำเร็จ' });
     }
 
     // 2. ACTION: DEPLOY ALL 5 RICH MENUS
@@ -311,8 +347,11 @@ export default async function handler(req, res) {
         const { richMenuId } = await createRes.json();
         console.log(`Created ${cfg.name} with ID: ${richMenuId}`);
 
-        // 2. Upload Image
-        const imgPath = path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile);
+        // 2. Upload Image (Prioritize custom uploaded image if available, fallback to default)
+        let imgPath = path.join(process.cwd(), 'public/richmenu_images', `custom_${cfg.key}.png`);
+        if (!fs.existsSync(imgPath)) {
+          imgPath = path.join(process.cwd(), 'public/richmenu_images', cfg.imageFile);
+        }
         if (fs.existsSync(imgPath)) {
           const imgBuffer = fs.readFileSync(imgPath);
           const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
