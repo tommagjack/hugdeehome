@@ -1,7 +1,7 @@
 import * as mock from './mockData';
 import { supabase } from './supabaseClient';
 
-const KEYS = {
+export const KEYS = {
   CLINIC_INFO: 'hdh_clinic_info',
   USERS: 'hdh_users',
   THERAPISTS: 'hdh_therapists',
@@ -598,49 +598,70 @@ export const safeJsonParse = (val) => {
   return val;
 };
 
-// --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
-export const syncFromSupabase = async () => {
+// ฟังก์ชันเรียกคำสั่ง Supabase พร้อมกำหนด Timeout สูงสุดเพื่อไม่ให้ระบบค้าง
+const fetchTableWithTimeout = async (queryPromise, timeoutMs = 4000, tableName = '') => {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`Timeout: Query on ${tableName} took longer than ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
   try {
-    const tableKeys = Object.keys(TABLE_MAP);
+    return await Promise.race([queryPromise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
+export const syncFromSupabase = async (targetKeys = null) => {
+  try {
+    const tableKeys = Array.isArray(targetKeys) && targetKeys.length > 0
+      ? targetKeys.filter(k => TABLE_MAP[k])
+      : Object.keys(TABLE_MAP);
     
-    // โหลดข้อมูลทุกตารางพร้อมกันโดยดักจับ Error รายตาราง ป้องกัน RLS / Permission Denied บล็อกซิงค์พังทั้งหมด
+    // โหลดข้อมูลตามตารางที่กำหนดพร้อมกัน โดยมี Timeout 4 วินาทีต่อตาราง ป้องกันระบบค้าง
     const promises = tableKeys.map(async (key) => {
       const tableName = TABLE_MAP[key];
+      if (!tableName) return { key, data: null };
       let query = supabase.from(tableName).select('*');
       if (key === KEYS.CLINIC_INFO) {
         query = supabase.from(tableName).select('id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id, line_channel_access_token, hero_image_url');
       }
       try {
-        const { data, error } = await query;
+        const { data, error } = await fetchTableWithTimeout(query, 4000, tableName);
         if (error) {
           console.warn(`[Sync Warning] Failed to fetch ${tableName} (likely RLS / Auth):`, error.message);
           return { key, data: null }; // คืนค่า null เพื่อระบุว่าซิงค์ตารางนี้ไม่ได้เนื่องจากไม่มีสิทธิ์ RLS/Auth
         }
         return { key, data: data || [] };
       } catch (err) {
-        console.warn(`[Sync Warning] Failed to fetch ${tableName}:`, err);
+        console.warn(`[Sync Warning] Failed to fetch ${tableName}:`, err.message || err);
         return { key, data: null };
       }
     });
     
     const results = await Promise.all(promises);
     
-    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (วัดจากตารางสำคัญๆ เช่น patients, appointments, receipts ที่ดึงสำเร็จ)
-    const isCloudEmpty = results.every(({ key, data }) => {
-      if (data === null) return true; // ข้ามตารางที่ดึงไม่สำเร็จเนื่องจากสิทธิ์ RLS
-      if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
-        return true; // ข้ามตารางข้อมูลตั้งต้น
-      }
-      return data.length === 0;
-    });
+    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (เฉพาะเมื่อซิงค์แบบเต็มทุกตาราง)
+    const isFullSync = !targetKeys || targetKeys.length >= Object.keys(TABLE_MAP).length;
+    if (isFullSync) {
+      const isCloudEmpty = results.every(({ key, data }) => {
+        if (data === null) return true; // ข้ามตารางที่ดึงไม่สำเร็จเนื่องจากสิทธิ์ RLS
+        if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
+          return true; // ข้ามตารางข้อมูลตั้งต้น
+        }
+        return data.length === 0;
+      });
 
-    // หากคลาวด์ว่างเปล่า และในเครื่องของผู้ใช้งานมีข้อมูลอยู่แล้ว ให้ส่งกลับสถานะพิเศษเพื่อความปลอดภัย
-    if (isCloudEmpty) {
-      const patientsRaw = localStorage.getItem(KEYS.PATIENTS);
-      const hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
-      if (hasLocalPatients) {
-        console.log("Supabase database is empty but local storage has patient data. Skipping overwrite to prevent data loss.");
-        return "empty_but_has_local";
+      // หากคลาวด์ว่างเปล่า และในเครื่องของผู้ใช้งานมีข้อมูลอยู่แล้ว ให้ส่งกลับสถานะพิเศษเพื่อความปลอดภัย
+      if (isCloudEmpty) {
+        const patientsRaw = localStorage.getItem(KEYS.PATIENTS);
+        const hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
+        if (hasLocalPatients) {
+          console.log("Supabase database is empty but local storage has patient data. Skipping overwrite to prevent data loss.");
+          return "empty_but_has_local";
+        }
       }
     }
     

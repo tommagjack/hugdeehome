@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { initDatabase, db, syncFromSupabase, syncDeltaToSupabase, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncDeltaToSupabase, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse, KEYS } from './utils/db';
 import { supabase } from './utils/supabaseClient';
 import { getRealtimeChannel, broadcastChange, removeRealtimeChannel } from './utils/realtime';
 import Sidebar from './components/Sidebar';
@@ -66,14 +66,37 @@ const cleanUserSessionProfile = (userObj) => {
 };
 
 export default function App() {
-  const [isSyncing, setIsSyncing] = useState(true);
-  const hasLoadedRef = useRef(false);
-
-  // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน (เลื่อนขึ้นมาบนสุดเพื่อป้องกัน TDZ Error ใน Hook/Function อื่นๆ ที่ทำงานก่อนหน้า)
+  // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('hdh_logged_in_user');
     return saved ? JSON.parse(saved) : null;
   });
+
+  const [isSyncing, setIsSyncing] = useState(() => {
+    const savedUser = localStorage.getItem('hdh_logged_in_user');
+    const patientsRaw = localStorage.getItem('hdh_patients');
+    let hasLocalPatients = false;
+    try {
+      hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
+    } catch {
+      hasLocalPatients = false;
+    }
+    // หากมีข้อมูลเดิมในเครื่องอยู่แล้ว หรือยังไม่ได้ล็อกอิน ให้ render ทันที (Non-blocking)
+    // จะบล็อกหน้าจอเฉพาะกรณีที่ล็อกอินอยู่แล้ว แต่เป็นเครื่องใหม่ที่ยังไม่มีข้อมูลในเครื่องเลย (First run on fresh browser)
+    return Boolean(savedUser && !hasLocalPatients);
+  });
+
+  const hasLoadedRef = useRef(Boolean(
+    !localStorage.getItem('hdh_logged_in_user') ||
+    (() => {
+      try {
+        const p = localStorage.getItem('hdh_patients');
+        return p && JSON.parse(p).length > 0;
+      } catch {
+        return false;
+      }
+    })()
+  ));
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [pendingSyncs, setPendingSyncs] = useState(() => {
@@ -288,58 +311,58 @@ export default function App() {
     }
   };
 
-  // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase
+  // 1. ตรวจสอบการรันระบบครั้งแรก และซิงค์ข้อมูลจาก Supabase แบบ Non-blocking
   useEffect(() => {
     const runInitialSync = async () => {
       initDatabase();
       
-      // ดึงข้อมูลการตั้งค่าสาธารณะของคลินิก (เช่น ชื่อคลินิก โลโก้) ขึ้นมาจาก Supabase/LocalStorage ก่อนเสมอ
+      // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth ด้วย Timeout 2.5 วินาที
+      let session = null;
       try {
-        await syncFromSupabase();
-        refreshAllLocalStates();
+        const sessionRes = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Session timeout')), 2500))
+        ]);
+        session = sessionRes?.data?.session || null;
       } catch (err) {
-        console.warn("Initial public sync warning:", err);
+        console.warn("Session retrieval timed out or failed:", err);
       }
       
-      // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // หากยังไม่ได้ล็อกอิน ให้ข้ามการซิงค์ตารางส่วนตัวอื่น
+      // หากยังไม่ได้ล็อกอิน ให้ซิงค์เฉพาะข้อมูลการตั้งค่าสาธารณะของคลินิก (รวดเร็วและไม่ติด RLS)
       if (!session) {
-        console.log("No active Supabase Auth session found. Skipping private tables sync.");
+        try {
+          await syncFromSupabase([KEYS.CLINIC_INFO, KEYS.SERVICES, KEYS.ASSESSMENT_TEMPLATES]);
+          refreshAllLocalStates();
+        } catch (err) {
+          console.warn("Initial public sync warning:", err);
+        }
         setIsSyncing(false);
         hasLoadedRef.current = true;
         return;
       }
       
-      // เช็คว่าเป็นครั้งแรกที่มีข้อมูลไหม (ถ้าไม่มีข้อมูลเลย ให้บล็อกเพื่อรอซิงค์ครั้งแรก)
+      // หากล็อกอินอยู่แล้ว: ตรวจสอบว่าเป็นเครื่องใหม่ที่ยังไม่มีข้อมูลในเครื่องเลยหรือไม่
       const isFirstRun = db.getPatients().length === 0 && db.getReceipts().length === 0;
       
       if (isFirstRun) {
         Swal.fire({
-          title: 'กำลังซิงค์ข้อมูล...',
+          title: 'กำลังซิงค์ข้อมูลเริ่มต้น...',
           text: 'กำลังโหลดข้อมูลล่าสุดจากฐานข้อมูลคลาวด์ออนไลน์',
           allowOutsideClick: false,
           didOpen: () => {
             Swal.showLoading();
           }
         });
-      } else {
-        // หากมีข้อมูลเดิมอยู่แล้ว ให้ซิงค์เบื้องหลังแบบไม่ขัดจังหวะการใช้งานของครู/แอดมิน
-        Swal.fire({
-          icon: 'info',
-          title: 'กำลังซิงค์ข้อมูลเบื้องหลัง...',
-          text: 'กำลังดึงข้อมูลล่าสุดจากระบบคลาวด์',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 2500
-        });
       }
 
       try {
+        // ทำการซิงค์ข้อมูลทั้งหมดเพียงครั้งเดียว (Single Sync Pass) พร้อม timeout 4s ต่อตาราง
         const success = await syncFromSupabase();
         
+        if (isFirstRun) {
+          Swal.close();
+        }
+
         if (success === "empty_but_has_local") {
           setIsSyncing(false);
           Swal.fire({
@@ -385,41 +408,28 @@ export default function App() {
             }
           }
           
-          Swal.fire({
-            icon: 'success',
-            title: 'ซิงค์ข้อมูลสำเร็จ',
-            text: 'ดาวน์โหลดข้อมูลล่าสุดจากคลาวด์เรียบร้อยแล้ว',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 2000
-          });
-        } else {
-          Swal.fire({
-            icon: 'warning',
-            title: 'ซิงค์ข้อมูลล้มเหลว',
-            text: 'ไม่สามารถซิงค์ข้อมูลจากคลาวด์ได้ กำลังใช้งานข้อมูลภายในเครื่องชั่วคราว',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3500
-          });
+          if (isFirstRun) {
+            Swal.fire({
+              icon: 'success',
+              title: 'ซิงค์ข้อมูลสำเร็จ',
+              text: 'ดาวน์โหลดข้อมูลล่าสุดจากคลาวด์เรียบร้อยแล้ว',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 2000
+            });
+          }
         }
       } catch (e) {
         console.error('Initial sync error:', e);
-        Swal.fire({
-          icon: 'warning',
-          title: 'ซิงค์ข้อมูลล้มเหลว',
-          text: 'ไม่สามารถดึงข้อมูลล่าสุดได้: ' + e.message,
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3500
-        });
-      }
-      
-      setTimeout(() => {
-        // อัปเดตตัวติดตามค่าดั้งเดิมให้ตรงกับที่ดึงมาจากคลาวด์ เพื่อเตรียมตรวจหาเฉพาะส่วนต่าง (Delta) ในคำสั่งถัดไป
+        if (isFirstRun) {
+          Swal.close();
+        }
+      } finally {
+        if (isFirstRun) {
+          Swal.close();
+        }
+        // อัปเดตตัวติดตามค่าดั้งเดิมทันที ไม่ต้องหน่วงเวลา 1500ms
         lastClinicInfoRef.current = db.getClinicInfo();
         lastUsersRef.current = db.getUsers();
         lastTherapistsRef.current = db.getTherapists();
@@ -439,10 +449,11 @@ export default function App() {
         lastReferralsRef.current = db.getReferrals();
         lastAssessmentTemplatesRef.current = db.getAssessmentTemplates();
         lastAttendanceRef.current = db.getAttendance();
+        lastItpGoalsRef.current = db.getItpGoals();
 
         setIsSyncing(false);
         hasLoadedRef.current = true;
-      }, 1500);
+      }
     };
     runInitialSync();
   }, []);
