@@ -5,14 +5,24 @@ import {
   Search, Zap, CheckCircle2, UserX,
   Layers, ArrowUpRight, ShieldAlert, Sparkles, Sliders,
   Upload, Download, Maximize2, RotateCcw,
-  Link as LinkIcon
+  Link as LinkIcon, Award
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { SmartAvatar } from '../utils/defaultAssets';
 import LiffLinkManager from './LiffLinkManager';
+import ServicesPageEditor from './ServicesPageEditor';
 
-export default function LineOAManager({ clinicInfo, users = [], patients = [], onRefreshData }) {
-  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'customizer' | 'links' | 'users' | 'tools'
+export default function LineOAManager({ 
+  clinicInfo, 
+  setClinicInfo,
+  services = [],
+  setServices,
+  users = [], 
+  patients = [], 
+  onRefreshData,
+  logActivity
+}) {
+  const [activeTab, setActiveTab] = useState('richmenus'); // 'richmenus' | 'customizer' | 'links' | 'services-editor' | 'users' | 'tools'
   const [selectedConfigMenu, setSelectedConfigMenu] = useState('guest');
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
@@ -744,6 +754,123 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
   return (
     <div className="fade-in" style={{ padding: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
       
+      {/* 🧭 BREADCRUMB NAVIGATION BAR */}
+      <nav aria-label="breadcrumb" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '12px 20px',
+        backgroundColor: '#FFFFFF',
+        borderRadius: '16px',
+        border: '1px solid #E2E8F0',
+        marginBottom: '1.25rem',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        fontSize: '0.88rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', color: '#64748B' }}>
+          <span 
+            onClick={() => setActiveTab('richmenus')} 
+            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '600', color: '#475569' }}
+          >
+            🏠 จัดการระบบ
+          </span>
+          <span style={{ color: '#CBD5E1' }}>/</span>
+          <span 
+            onClick={() => setActiveTab('richmenus')} 
+            style={{ cursor: 'pointer', fontWeight: '600', color: '#475569' }}
+          >
+            จัดการ LINE OA
+          </span>
+          <span style={{ color: '#CBD5E1' }}>/</span>
+          <span style={{ 
+            fontWeight: '800', 
+            color: activeTab === 'services-editor' ? '#D97706' : '#7C3AED', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '6px' 
+          }}>
+            {activeTab === 'richmenus' && 'แผงผัง Rich Menu ทั้ง 5 รูปแบบ'}
+            {activeTab === 'customizer' && 'ปรับแต่งปุ่มกดเมนู (Menu Customizer)'}
+            {activeTab === 'links' && 'ศูนย์รวมลิงก์ & LIFF Portal Hub'}
+            {activeTab === 'services-editor' && '🛍️ แก้ไขข้อมูลหน้าบริการ (portal.hugdeehome.com/#/services)'}
+            {activeTab === 'users' && 'ทะเบียนผู้ใช้งาน LINE & จัดการสิทธิ์'}
+            {activeTab === 'tools' && 'ลิงก์เชื่อมต่อ & QR Code'}
+          </span>
+        </div>
+
+        {/* Quick Action Button on Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {activeTab !== 'services-editor' ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab('services-editor')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '10px',
+                backgroundColor: '#FFFBEB',
+                color: '#B45309',
+                border: '1.5px solid #FCD34D',
+                fontWeight: '700',
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="แก้ไขข้อมูลและแพ็กเกจคอร์สที่แสดงในหน้า https://portal.hugdeehome.com/#/services"
+            >
+              <span>✏️ แก้ไขข้อมูลหน้า #/services</span>
+              <ArrowUpRight size={14} />
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => window.open('#/services', '_blank')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F0FDF4',
+                  color: '#15803D',
+                  border: '1.5px solid #86EFAC',
+                  fontWeight: '700',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>👁️ ดูหน้าจริง Live Preview</span>
+                <ArrowUpRight size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('richmenus')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F8FAFC',
+                  color: '#64748B',
+                  border: '1px solid #CBD5E1',
+                  fontWeight: '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>ย้อนกลับ</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+
       {/* Top Banner Header */}
       <div style={{
         background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)',
@@ -927,6 +1054,28 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
         >
           <LinkIcon size={18} /> ศูนย์รวมลิงก์ & LIFF Portal Hub
           <span style={{ fontSize: '0.7rem', backgroundColor: '#EDE9FE', color: '#7C3AED', padding: '2px 8px', borderRadius: '9999px', fontWeight: '800' }}>ใหม่</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('services-editor')}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'services-editor' ? '3px solid #D97706' : '3px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'services-editor' ? '#D97706' : '#64748B',
+            fontWeight: '700',
+            fontSize: '0.95rem',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Award size={18} color={activeTab === 'services-editor' ? '#D97706' : '#64748B'} />
+          แก้ไขหน้าบริการ (#/services)
+          <span style={{ fontSize: '0.7rem', backgroundColor: '#FEF3C7', color: '#B45309', padding: '2px 8px', borderRadius: '9999px', fontWeight: '800' }}>Web / LIFF</span>
         </button>
 
         <button
@@ -2032,7 +2181,23 @@ export default function LineOAManager({ clinicInfo, users = [], patients = [], o
 
       {/* TAB: DYNAMIC LINK & LIFF PORTAL HUB */}
       {activeTab === 'links' && (
-        <LiffLinkManager clinicInfo={clinicInfo} />
+        <LiffLinkManager 
+          clinicInfo={clinicInfo} 
+          onNavigateToServicesEditor={() => setActiveTab('services-editor')}
+        />
+      )}
+
+      {/* TAB: SERVICES PAGE EDITOR (https://portal.hugdeehome.com/#/services) */}
+      {activeTab === 'services-editor' && (
+        <ServicesPageEditor
+          clinicInfo={clinicInfo}
+          setClinicInfo={setClinicInfo}
+          services={services}
+          setServices={setServices}
+          onRefreshData={onRefreshData}
+          logActivity={logActivity}
+          onBack={() => setActiveTab('richmenus')}
+        />
       )}
 
     </div>

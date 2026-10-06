@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-export default function LiffLinkManager({ clinicInfo }) {
+export default function LiffLinkManager({ clinicInfo, onNavigateToServicesEditor }) {
   const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://hugdeehome.vercel.app';
 
@@ -518,6 +518,17 @@ export default function LiffLinkManager({ clinicInfo }) {
                     >
                       <ExternalLink size={14} />
                     </a>
+                    {(link.targetUrl?.includes('/services') || link.alias === 'clinic-services') && onNavigateToServicesEditor && (
+                      <button
+                        type="button"
+                        onClick={onNavigateToServicesEditor}
+                        className="btn btn-light"
+                        style={{ padding: '9px 12px', borderRadius: '10px', fontSize: '0.8rem', backgroundColor: '#FFFBEB', color: '#B45309', border: '1px solid #FCD34D', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '700' }}
+                        title="แก้ไขข้อมูลและเนื้อหาหน้าบริการนี้"
+                      >
+                        ✏️ แก้ไขหน้าบริการ
+                      </button>
+                    )}
                     {!['staff-finance', 'staff-attendance', 'parent-appointments'].includes(link.id) && (
                       <button
                         onClick={() => handleDeleteLink(link.id, link.title)}

@@ -799,11 +799,13 @@ export const syncFromSupabase = async (targetKeys = null) => {
             parsedFolder = safeJsonParse(infoObj.folder_url, null);
           }
 
-          if (parsedFolder && parsedFolder.operatingHours) {
-            infoObj.operatingHours = parsedFolder.operatingHours;
-            if (parsedFolder.operatingHoursSummary) {
-              infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
-            }
+          if (parsedFolder && (parsedFolder.operatingHours || parsedFolder.servicesSubtitle || parsedFolder.servicePrograms || parsedFolder.servicesFooterTitle || parsedFolder.mapsUrl)) {
+            if (parsedFolder.operatingHours) infoObj.operatingHours = parsedFolder.operatingHours;
+            if (parsedFolder.operatingHoursSummary) infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
+            if (parsedFolder.servicesSubtitle) infoObj.servicesSubtitle = parsedFolder.servicesSubtitle;
+            if (parsedFolder.servicesFooterTitle) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
+            if (parsedFolder.servicePrograms) infoObj.servicePrograms = parsedFolder.servicePrograms;
+            if (parsedFolder.mapsUrl) infoObj.mapsUrl = parsedFolder.mapsUrl;
             // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ
             infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
             infoObj.folder_url = parsedFolder.original !== undefined ? parsedFolder.original : '';
@@ -894,7 +896,7 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
     if (key === KEYS.CLINIC_INFO) {
       const info = Array.isArray(value) ? (value[0] || {}) : (value || {});
       const record = { ...info, id: 1 };
-      if (record.operatingHours) {
+      if (record.operatingHours || record.servicesSubtitle || record.servicePrograms || record.servicesFooterTitle || record.mapsUrl) {
         try {
           let origUrl = '';
           if (typeof record.folderUrl === 'string' && !record.folderUrl.startsWith('{')) {
@@ -907,7 +909,11 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
           const packed = {
             original: origUrl,
             operatingHours: record.operatingHours,
-            operatingHoursSummary: record.operatingHoursSummary || ''
+            operatingHoursSummary: record.operatingHoursSummary || '',
+            servicesSubtitle: record.servicesSubtitle || '',
+            servicesFooterTitle: record.servicesFooterTitle || '',
+            servicePrograms: record.servicePrograms || null,
+            mapsUrl: record.mapsUrl || ''
           };
           const jsonPacked = JSON.stringify(packed);
           record.folder_url = jsonPacked;

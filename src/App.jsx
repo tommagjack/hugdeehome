@@ -2887,9 +2887,13 @@ export default function App() {
         {activeTab === 'lineManager' && ['Admin', 'admin'].includes(currentUser?.role) && (
           <LineOAManager 
             clinicInfo={clinicInfo}
+            setClinicInfo={setClinicInfo}
+            services={services}
+            setServices={setServices}
             users={users}
             patients={patients}
             onRefreshData={refreshAllLocalStates}
+            logActivity={logActivity}
           />
         )}
 

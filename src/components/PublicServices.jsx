@@ -8,13 +8,16 @@ import { DEFAULT_CLINIC_LOGO } from '../utils/defaultAssets';
 export default function PublicServices({ clinicInfo, services = [] }) {
   const phone = clinicInfo?.phone || '0946753557';
   const cleanPhone = phone.replace(/\D/g, '') || '0946753557';
-  const clinicName = clinicInfo?.name || 'คลินิกกิจกรรมบำบัด บ้านฮักดี';
+  const clinicName = clinicInfo?.name || 'บ้านฮักดี';
   const lineId = clinicInfo?.lineId || '@hugdeehome';
   const logoUrl = clinicInfo?.logoUrl || DEFAULT_CLINIC_LOGO;
-  const address = clinicInfo?.address || 'อำเภอเมือง จังหวัดเชียงใหม่';
+  const address = clinicInfo?.address || '104/7 หมู่ 17 ตำบลบ้านต๋อม อำเภอเมือง จังหวัดพะเยา 56000';
+  const subtitle = clinicInfo?.servicesSubtitle || 'บริการกิจกรรมบำบัดและส่งเสริมพัฒนาการเด็ก โดยทีมนักกิจกรรมบำบัดวิชาชีพ 🤎';
+  const footerTitle = clinicInfo?.servicesFooterTitle || 'พร้อมร่วมดูแลพัฒนาการลูกรักกับบ้านฮักดี';
+  const mapsUrl = clinicInfo?.mapsUrl || 'https://maps.google.com/?q=Hug+Dee+Home+Clinic';
 
   // Highlight therapeutic domains
-  const highlightDomains = [
+  const defaultHighlightDomains = [
     {
       title: 'กิจกรรมบำบัด (Occupational Therapy)',
       desc: 'ฟื้นฟูและส่งเสริมพัฒนาการกล้ามเนื้อมัดเล็ก การหยิบจับ การเขียน ทักษะชีวิตประจำวัน และการช่วยเหลือตนเอง',
@@ -48,6 +51,10 @@ export default function PublicServices({ clinicInfo, services = [] }) {
       badge: 'ครบวงจร'
     }
   ];
+
+  const highlightDomains = (Array.isArray(clinicInfo?.servicePrograms) && clinicInfo.servicePrograms.length > 0)
+    ? clinicInfo.servicePrograms
+    : defaultHighlightDomains;
 
   return (
     <div style={{
@@ -86,7 +93,7 @@ export default function PublicServices({ clinicInfo, services = [] }) {
           {clinicName}
         </h1>
         <p style={{ fontSize: '0.98rem', opacity: 0.95, margin: '0 auto', maxWidth: '500px', lineHeight: 1.5 }}>
-          บริการกิจกรรมบำบัดและส่งเสริมพัฒนาการเด็ก โดยทีมนักกิจกรรมบำบัดวิชาชีพ 🤎
+          {subtitle}
         </p>
 
         {/* Quick Action Buttons */}
@@ -248,7 +255,7 @@ export default function PublicServices({ clinicInfo, services = [] }) {
           textAlign: 'center'
         }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: '800', margin: '0 0 0.5rem 0', color: '#4A4036' }}>
-            พร้อมร่วมดูแลพัฒนาการลูกรักกับบ้านฮักดี
+            {footerTitle}
           </h2>
           <p style={{ fontSize: '0.88rem', color: '#78716C', margin: '0 auto 1.5rem', maxWidth: '460px', lineHeight: 1.5 }}>
             {address}
@@ -292,7 +299,7 @@ export default function PublicServices({ clinicInfo, services = [] }) {
               <MessageCircle size={18} /> เชื่อมต่อ LINE OA
             </a>
             <a
-              href="https://maps.google.com/?q=Hug+Dee+Home+Clinic"
+              href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
