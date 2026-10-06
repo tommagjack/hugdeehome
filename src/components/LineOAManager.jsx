@@ -616,6 +616,14 @@ export default function LineOAManager({
 
   // 1. One-Click Deploy All 5 Menus
   const handleDeployAll = async (overrideImages = null) => {
+    // ป้องกันกรณีถูกเรียกจาก onClick โดยตรง แล้ว React ส่ง SyntheticEvent เข้ามา
+    const isEvent = overrideImages && (
+      overrideImages.nativeEvent !== undefined ||
+      overrideImages.target !== undefined ||
+      typeof overrideImages.preventDefault === 'function'
+    );
+    const validImages = (!isEvent && overrideImages && typeof overrideImages === 'object') ? overrideImages : null;
+
     const result = await Swal.fire({
       title: 'ยืนยันการ Deploy Rich Menu?',
       html: `ระบบจะดำเนินการ:
@@ -636,7 +644,7 @@ export default function LineOAManager({
 
     setIsDeploying(true);
     try {
-      const imagesToSend = overrideImages || customImages;
+      const imagesToSend = validImages || customImages;
       const res = await fetch('/api/line-richmenu?action=deploy-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -980,7 +988,7 @@ export default function LineOAManager({
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
-              onClick={handleDeployAll}
+              onClick={() => handleDeployAll()}
               disabled={isDeploying}
               className="btn"
               style={{
