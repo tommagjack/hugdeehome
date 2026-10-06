@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 
 export default function LiffLinkManager({ clinicInfo, setClinicInfo, onNavigateToServicesEditor }) {
   const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
-  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://hugdeehome.vercel.app';
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://portal.hugdeehome.com';
 
   // State: Dynamic Links List
   const [links, setLinks] = useState([]);
@@ -27,7 +27,7 @@ export default function LiffLinkManager({ clinicInfo, setClinicInfo, onNavigateT
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAlias, setNewAlias] = useState('');
-  const [newTarget, setNewTarget] = useState('/#services');
+  const [newTarget, setNewTarget] = useState('/#/services');
   const [newCategory, setNewCategory] = useState('general');
   const [newRoles, setNewRoles] = useState('all');
 
@@ -158,7 +158,7 @@ export default function LiffLinkManager({ clinicInfo, setClinicInfo, onNavigateT
     setShowAddModal(false);
     setNewTitle('');
     setNewAlias('');
-    setNewTarget('/#services');
+    setNewTarget('/#/services');
 
     try {
       await fetch('/api/link?action=save-all', {
@@ -502,7 +502,7 @@ export default function LiffLinkManager({ clinicInfo, setClinicInfo, onNavigateT
                       <option value="/#line-link?tab=itp">🧩 พัฒนาการ & แผน ITP</option>
                       <option value="/#line-link?tab=homeprogram">🏠 กิจกรรมฝึกที่บ้าน</option>
                       <option value="/#register-patient">📝 ลงทะเบียนคนไข้ใหม่ (/#register-patient)</option>
-                      <option value="/#services">🌟 ข้อมูลบริการและแพ็กเกจ (/#services)</option>
+                      <option value="/#/services">🌟 ข้อมูลบริการและแพ็กเกจ (/#/services)</option>
                       <option value="/#dashboard">📊 แดชบอร์ดภาพรวมคลินิก (/#dashboard)</option>
                     </select>
                   </div>

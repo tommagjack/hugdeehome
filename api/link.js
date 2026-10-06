@@ -117,9 +117,12 @@ async function saveDynamicLinks(links, env) {
 export default async function handler(req, res) {
   const env = loadEnv();
   const { alias, id, action } = req.query || {};
-  const origin = req.headers['x-forwarded-host'] 
-    ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers['x-forwarded-host']}` 
-    : (req.headers.host ? `https://${req.headers.host}` : 'https://hugdeehome.vercel.app');
+  let origin = 'https://portal.hugdeehome.com';
+  const reqHost = req.headers['x-forwarded-host'] || req.headers.host;
+  const reqProto = req.headers['x-forwarded-proto'] || 'https';
+  if (reqHost && !reqHost.includes('vercel.app')) {
+    origin = `${reqProto}://${reqHost}`;
+  }
 
   // 1. ACTION: LIST ALL DYNAMIC LINKS
   if (action === 'list') {

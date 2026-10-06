@@ -37,12 +37,20 @@ function loadEnv() {
 }
 
 // Helper to fetch clinic credentials
-async function getClinicCredentials(env) {
+async function getClinicCredentials(env, req = null) {
   const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
   let token = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
   let liffId = '2008270606-7bkwSGyt';
   let phone = '0946753557';
-  let appUrl = 'https://hugdeehome.vercel.app';
+  let appUrl = 'https://portal.hugdeehome.com';
+
+  if (req?.headers) {
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    if (host && !host.includes('vercel.app')) {
+      appUrl = `${proto}://${host}`;
+    }
+  }
 
   try {
     const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id&limit=1`, {
@@ -151,7 +159,7 @@ export default async function handler(req, res) {
   const { action } = req.query;
 
   try {
-    const { token, liffId, phone, appUrl } = await getClinicCredentials(env);
+    const { token, liffId, phone, appUrl } = await getClinicCredentials(env, req);
     const liffBase = liffId ? `https://liff.line.me/${liffId}` : appUrl;
 
     if (!token) {

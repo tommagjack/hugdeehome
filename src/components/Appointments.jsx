@@ -494,7 +494,7 @@ export default function Appointments({
         if (choice.isConfirmed) {
           const phone = clinicInfo?.phone || '0946753557';
           const oaId = clinicInfo?.lineId || '';
-          const fallbackLiffUrl = `https://hugdeehome.vercel.app/liff/index.html?liffId=${encodeURIComponent(liffId)}&nickname=${encodeURIComponent(nickname)}&date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}&therapist=${encodeURIComponent(therapistName)}&phone=${encodeURIComponent(phone)}&oaId=${encodeURIComponent(oaId)}&appId=${encodeURIComponent(app.id)}`;
+          const fallbackLiffUrl = `https://portal.hugdeehome.com/liff/index.html?liffId=${encodeURIComponent(liffId)}&nickname=${encodeURIComponent(nickname)}&date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(timeStr)}&therapist=${encodeURIComponent(therapistName)}&phone=${encodeURIComponent(phone)}&oaId=${encodeURIComponent(oaId)}&appId=${encodeURIComponent(app.id)}`;
           window.open(fallbackLiffUrl, '_blank', 'noopener');
         }
       });

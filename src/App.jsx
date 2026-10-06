@@ -1199,21 +1199,83 @@ export default function App() {
   // สถานะการเปิด Sidebar บนหน้าจอมือถือ
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // ตรวจจับเส้นทางหน้าบริการของคลินิก (สาธารณะ) ครอบคลุมทั้ง path, hash, query, trailing slash และ LIFF
+  const isServicesRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const hash = (window.location.hash || '').toLowerCase();
+    const pathname = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+
+    // 1. ตรวจสอบ Path เช่น /services, /services/
+    if (pathname === '/services' || pathname.startsWith('/services/')) return true;
+
+    // 2. ตรวจสอบ Hash เช่น #/services, #services, #/services/..., #services?...
+    if (hash.startsWith('#/services') || hash.startsWith('#services')) return true;
+    if (hash.includes('/services') || hash.includes('action=services')) return true;
+
+    // 3. ตรวจสอบ Query params เช่น ?action=services, ?services, ?tab=services
+    if (search.includes('services')) return true;
+
+    // 4. ตรวจสอบ LIFF state parameter (กรณี redirect มาจาก LINE LIFF)
+    if (search.includes('liff.state')) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const liffState = decodeURIComponent(urlParams.get('liff.state') || '').toLowerCase();
+        if (liffState.includes('services')) return true;
+      } catch (e) {}
+    }
+
+    return false;
+  };
+
+  // ตรวจจับเส้นทางลงเวลาเข้า-ออกงาน (Check-in) สาธารณะ
+  const isCheckInRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const hash = (window.location.hash || '').toLowerCase();
+    const pathname = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    return (
+      pathname === '/checkin' || pathname.startsWith('/checkin/') ||
+      hash.startsWith('#/checkin') || hash.startsWith('#checkin') || hash.includes('/checkin') ||
+      search.includes('checkin')
+    );
+  };
+
+  // ตรวจจับเส้นทางสมัครงานออนไลน์ (Apply) สาธารณะ
+  const isApplyRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const hash = (window.location.hash || '').toLowerCase();
+    const pathname = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    return (
+      pathname === '/apply' || pathname.startsWith('/apply/') ||
+      hash.startsWith('#/apply') || hash.startsWith('#apply') || hash.includes('/apply') ||
+      search.includes('apply')
+    );
+  };
+
+  // ตรวจจับเส้นทางแบบฟอร์มลงทะเบียนคนไข้ใหม่สำหรับผู้ปกครอง (Patient Register) สาธารณะ
+  const isPatientRegisterRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const hash = (window.location.hash || '').toLowerCase();
+    const pathname = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    return (
+      pathname === '/register-patient' || pathname.startsWith('/register-patient/') ||
+      hash.startsWith('#/register-patient') || hash.startsWith('#register-patient') ||
+      hash.startsWith('#/patient-form') || hash.startsWith('#patient-form') ||
+      hash.includes('/register-patient') || hash.includes('register-patient') ||
+      search.includes('register-patient')
+    );
+  };
+
   // สถานะเปิดหน้าสมัครงานออนไลน์สาธารณะ
-  const [isApplyPage, setIsApplyPage] = useState(() => window.location.hash === '#/apply');
+  const [isApplyPage, setIsApplyPage] = useState(isApplyRoute);
   // สถานะเปิดหน้าระบบลงเวลาเข้า-ออกงาน (Check-in) สาธารณะ
-  const [isCheckInPage, setIsCheckInPage] = useState(() => 
-    window.location.hash === '#/checkin' || 
-    window.location.pathname === '/checkin' ||
-    window.location.search.includes('checkin')
-  );
+  const [isCheckInPage, setIsCheckInPage] = useState(isCheckInRoute);
   // สถานะเปิดหน้าแบบฟอร์มลงทะเบียนผู้รับบริการสำหรับผู้ปกครอง (สาธารณะ)
-  const [isPatientRegisterPage, setIsPatientRegisterPage] = useState(() => 
-    window.location.hash === '#/register-patient' || 
-    window.location.hash === '#/patient-form' ||
-    window.location.pathname === '/register-patient' ||
-    window.location.search.includes('register-patient')
-  );
+  const [isPatientRegisterPage, setIsPatientRegisterPage] = useState(isPatientRegisterRoute);
+
   // ตรวจจับเส้นทางเชื่อมต่อ LINE OA และพอร์ทัลผู้ปกครอง (รองรับทุกแท็บและแอ็กชัน)
   const isLineLinkRoute = () => {
     const hash = window.location.hash || '';
@@ -1243,33 +1305,15 @@ export default function App() {
   // สถานะเปิดหน้าเชื่อมต่อบัญชี LINE OA (สาธารณะ / LIFF)
   const [isLineLinkPage, setIsLineLinkPage] = useState(isLineLinkRoute);
   // สถานะเปิดหน้าบริการของคลินิก (สาธารณะ)
-  const [isServicesPage, setIsServicesPage] = useState(() =>
-    window.location.hash === '#/services' ||
-    window.location.pathname === '/services' ||
-    window.location.search.includes('services')
-  );
-
+  const [isServicesPage, setIsServicesPage] = useState(isServicesRoute);
 
   useEffect(() => {
     const handleHash = () => {
-      setIsApplyPage(window.location.hash === '#/apply');
-      setIsCheckInPage(
-        window.location.hash === '#/checkin' || 
-        window.location.pathname === '/checkin' ||
-        window.location.search.includes('checkin')
-      );
-      setIsPatientRegisterPage(
-        window.location.hash === '#/register-patient' || 
-        window.location.hash === '#/patient-form' ||
-        window.location.pathname === '/register-patient' ||
-        window.location.search.includes('register-patient')
-      );
+      setIsApplyPage(isApplyRoute());
+      setIsCheckInPage(isCheckInRoute());
+      setIsPatientRegisterPage(isPatientRegisterRoute());
       setIsLineLinkPage(isLineLinkRoute());
-      setIsServicesPage(
-        window.location.hash === '#/services' ||
-        window.location.pathname === '/services' ||
-        window.location.search.includes('services')
-      );
+      setIsServicesPage(isServicesRoute());
     };
     window.addEventListener('hashchange', handleHash);
     window.addEventListener('popstate', handleHash);

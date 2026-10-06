@@ -178,7 +178,7 @@
       "title": "บริการ & โปรโมชันคลินิก",
       "category": "guest",
       "description": "หน้ารายละเอียดบริการกิจกรรมบำบัด ข้อมูลคลินิก และโปรโมชัน",
-      "targetUrl": "/#services",
+      "targetUrl": "/#/services",
       "allowedRoles": [
         "guest",
         "parent"
@@ -186,7 +186,7 @@
       "presetOptions": [
         {
           "label": "🌟 หน้าบริการของคลินิก",
-          "url": "/#services"
+          "url": "/#/services"
         }
       ],
       "clickCount": 0,
@@ -198,7 +198,7 @@
       "title": "แบบประเมินความพึงพอใจการบริการ",
       "category": "survey",
       "description": "แบบสอบถามความพึงพอใจและข้อเสนอแนะของผู้ปกครอง",
-      "targetUrl": "/#services",
+      "targetUrl": "/#/services",
       "allowedRoles": [
         "parent",
         "guest"
@@ -206,7 +206,7 @@
       "presetOptions": [
         {
           "label": "📋 หน้าข้อมูลบริการคลินิก",
-          "url": "/#services"
+          "url": "/#/services"
         }
       ],
       "clickCount": 0,
