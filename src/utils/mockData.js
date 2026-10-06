@@ -10,6 +10,49 @@ export const DEFAULT_OPERATING_HOURS = {
   Sunday: { isOpen: true, openTime: "08:30", closeTime: "17:30", note: "เปิดทำการปกติ" }
 };
 
+export const DEFAULT_RICHMENU_CONFIG = {
+  guest: [
+    { slot: 1, label: 'บริการของเรา', type: 'uri', value: '?action=services' },
+    { slot: 2, label: 'ลงทะเบียนคนไข้ใหม่', type: 'uri', value: '?action=register-patient' },
+    { slot: 3, label: 'แผนที่คลินิก', type: 'uri', value: 'https://maps.google.com/?q=Hug+Dee+Home+Clinic' },
+    { slot: 4, label: 'โทรติดต่อคลินิก', type: 'uri', value: '?action=call' },
+    { slot: 5, label: 'เชื่อมต่อบัญชี / ตรวจสิทธิ์', type: 'uri', value: '?action=line-link' },
+    { slot: 6, label: 'บริการ & โปรโมชันคลินิก', type: 'uri', value: 'alias:clinic-services' }
+  ],
+  parent: [
+    { slot: 1, label: 'นัดหมาย / ตาราง', type: 'uri', value: '?action=parent-appointments' },
+    { slot: 2, label: 'พัฒนาการ / ความก้าวหน้า', type: 'uri', value: '?action=parent-itp' },
+    { slot: 3, label: 'กิจกรรมที่บ้าน / คำแนะนำ', type: 'uri', value: '?action=parent-homeprogram' },
+    { slot: 4, label: 'คะแนนสะสม / สิทธิพิเศษ', type: 'uri', value: '?action=parent-courses' },
+    { slot: 5, label: 'สอบถาม / ติดต่อเรา', type: 'message', value: 'ขออนุญาตติดต่อเจ้าหน้าที่คลินิกฮักดีโฮมค่ะ 🤎' },
+    { slot: 6, label: 'ข้อมูลน้อง / ประวัติ', type: 'uri', value: 'alias:patient-profile' }
+  ],
+  staff: [
+    { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
+    { slot: 2, label: 'Check-in รับคนไข้', type: 'uri', value: '?action=reception-intake' },
+    { slot: 3, label: 'ส่ง LINE เตือนนัดกลุ่ม', type: 'uri', value: '?action=batch-reminders' },
+    { slot: 4, label: 'ออกใบเสร็จ / สลิปเงินเดือน', type: 'uri', value: 'alias:staff-finance' },
+    { slot: 5, label: 'คนไข้ขาดการติดต่อ', type: 'uri', value: '?action=dormant-tracker' },
+    { slot: 6, label: 'สลับมุมมอง (1, 3)', type: 'uri', value: '?action=menu-switch&role=staff' }
+  ],
+  ot: [
+    { slot: 1, label: 'ลงเวลางาน GPS', type: 'uri', value: '?action=checkin' },
+    { slot: 2, label: 'ตารางเคสของฉันวันนี้', type: 'uri', value: '?action=my-cases' },
+    { slot: 3, label: 'บันทึกผลการฝึก (OPD)', type: 'uri', value: '?action=opd-soap' },
+    { slot: 4, label: 'เป้าหมายบำบัด (ITP)', type: 'uri', value: '?action=itp-tracker' },
+    { slot: 5, label: 'กิจกรรมฝึกที่บ้าน', type: 'uri', value: '?action=home-program-planner' },
+    { slot: 6, label: 'สลับมุมมอง (1, 4)', type: 'uri', value: '?action=menu-switch&role=ot' }
+  ],
+  admin: [
+    { slot: 1, label: 'แดชบอร์ดภาพรวมคลินิก', type: 'uri', value: '?action=dashboard' },
+    { slot: 2, label: 'ตรวจสอบเวลาบุคลากร', type: 'uri', value: '?action=staff-attendance' },
+    { slot: 3, label: 'สรุปการเงิน & Payroll', type: 'uri', value: '?action=financial-payroll' },
+    { slot: 4, label: 'คนไข้ขาดการติดต่อ', type: 'uri', value: '?action=dormant-tracker' },
+    { slot: 5, label: 'ควบคุม LINE & ระบบ', type: 'uri', value: '?action=line-manager' },
+    { slot: 6, label: 'สลับมุมมองอิสระทุกแบบ', type: 'uri', value: '?action=menu-switch&role=admin' }
+  ]
+};
+
 export const INITIAL_CLINIC_INFO = {
   name: "บ้านฮักดี (Hug Dee Home)",
   type: "คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด",
@@ -24,7 +67,12 @@ export const INITIAL_CLINIC_INFO = {
   folderId: "1A2B3C4D5E6F7G8H9I0J",
   folderUrl: "https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J",
   operatingHours: DEFAULT_OPERATING_HOURS,
-  operatingHoursSummary: "อังคาร - อาทิตย์ 08:30 - 17:30 น. (หยุดทุกวันจันทร์)"
+  operatingHoursSummary: "อังคาร - อาทิตย์ 08:30 - 17:30 น. (หยุดทุกวันจันทร์)",
+  servicesSubtitle: "คลินิกกิจกรรมบำบัดและกระตุ้นพัฒนาการเด็กโดยนักกิจกรรมบำบัดวิชาชีพ",
+  servicesFooterTitle: "นัดหมายหรือปรึกษาประเมินพัฒนาการเบื้องต้นได้ทุกวันทำการ",
+  mapsUrl: "https://maps.google.com/?q=Hug+Dee+Home+Clinic",
+  richmenuConfig: DEFAULT_RICHMENU_CONFIG,
+  richmenuImages: {}
 };
 
 export const INITIAL_USERS = [

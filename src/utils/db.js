@@ -145,18 +145,26 @@ export const db = {
     let info = Array.isArray(data) ? (data[0] || mock.INITIAL_CLINIC_INFO) : data;
     if (info) {
       let parsed = null;
-      if (typeof info.folderUrl === 'object' && info.folderUrl?.operatingHours) {
+      if (typeof info.folderUrl === 'object' && (info.folderUrl?.operatingHours || info.folderUrl?.richmenuConfig)) {
         parsed = info.folderUrl;
       } else if (typeof info.folderUrl === 'string' && info.folderUrl.startsWith('{')) {
         parsed = safeJsonParse(info.folderUrl, null);
       } else if (typeof info.folder_url === 'string' && info.folder_url.startsWith('{')) {
         parsed = safeJsonParse(info.folder_url, null);
       }
-      if (parsed?.operatingHours) {
+      if (parsed && typeof parsed === 'object') {
         info = {
           ...info,
-          operatingHours: parsed.operatingHours,
+          operatingHours: parsed.operatingHours || info.operatingHours || mock.DEFAULT_OPERATING_HOURS,
           operatingHoursSummary: parsed.operatingHoursSummary || info.operatingHoursSummary || mock.INITIAL_CLINIC_INFO.operatingHoursSummary,
+          servicesSubtitle: parsed.servicesSubtitle !== undefined ? parsed.servicesSubtitle : (info.servicesSubtitle || mock.INITIAL_CLINIC_INFO.servicesSubtitle),
+          servicesFooterTitle: parsed.servicesFooterTitle !== undefined ? parsed.servicesFooterTitle : (info.servicesFooterTitle || mock.INITIAL_CLINIC_INFO.servicesFooterTitle),
+          servicePrograms: parsed.servicePrograms !== undefined ? parsed.servicePrograms : (info.servicePrograms || null),
+          mapsUrl: parsed.mapsUrl !== undefined ? parsed.mapsUrl : (info.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl),
+          richmenuConfig: parsed.richmenuConfig || info.richmenuConfig || null,
+          richmenuImages: parsed.richmenuImages || info.richmenuImages || null,
+          richmenuUpdatedAt: parsed.richmenuUpdatedAt || info.richmenuUpdatedAt || '',
+          dynamicLinks: parsed.dynamicLinks || info.dynamicLinks || null,
           folderUrl: parsed.original !== undefined ? parsed.original : (typeof info.folderUrl === 'string' && !info.folderUrl.startsWith('{') ? info.folderUrl : ''),
           folder_url: parsed.original !== undefined ? parsed.original : (typeof info.folder_url === 'string' && !info.folder_url.startsWith('{') ? info.folder_url : '')
         };
@@ -166,6 +174,32 @@ export const db = {
           operatingHours: mock.DEFAULT_OPERATING_HOURS,
           operatingHoursSummary: mock.INITIAL_CLINIC_INFO.operatingHoursSummary
         };
+      }
+
+      // ตรวจสอบและดึงข้อมูลสำรองจาก localStorage หากใน info ยังไม่มี
+      if (!info.richmenuConfig) {
+        try {
+          const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
+          if (localCfg) info.richmenuConfig = JSON.parse(localCfg);
+          else info.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+        } catch {
+          info.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+        }
+      }
+      if (!info.richmenuImages) {
+        try {
+          const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+          if (localImgs) info.richmenuImages = JSON.parse(localImgs);
+          else info.richmenuImages = {};
+        } catch {
+          info.richmenuImages = {};
+        }
+      }
+      if (!info.dynamicLinks) {
+        try {
+          const localLinks = localStorage.getItem('hdh_dynamic_links');
+          if (localLinks) info.dynamicLinks = JSON.parse(localLinks);
+        } catch {}
       }
     }
     return info;
@@ -598,6 +632,72 @@ export const safeJsonParse = (val) => {
   return val;
 };
 
+// ฟังก์ชันแพ็กข้อมูลโครงสร้าง clinic_info.folder_url เพื่อเก็บ operatingHours, ค่าหน้า services, Rich Menu buttons & images, dynamic links ครบถ้วนโดยไม่สูญหาย
+export const packClinicFolderUrl = (record, existingRaw = null) => {
+  let baseFolder = {};
+
+  const parseCandidate = (cand) => {
+    if (!cand) return null;
+    if (typeof cand === 'object') return cand;
+    if (typeof cand === 'string' && cand.trim().startsWith('{')) {
+      try { return JSON.parse(cand); } catch { return null; }
+    }
+    return null;
+  };
+
+  const parsedExisting = parseCandidate(existingRaw) || 
+                         parseCandidate(record?.folderUrl) || 
+                         parseCandidate(record?.folder_url);
+
+  if (parsedExisting && typeof parsedExisting === 'object') {
+    baseFolder = { ...parsedExisting };
+  }
+
+  // กำหนด folderUrl ดั้งเดิมที่เป็น Google Drive URL
+  let origUrl = baseFolder.original || '';
+  if (typeof record?.folderUrl === 'string' && !record.folderUrl.trim().startsWith('{')) {
+    origUrl = record.folderUrl;
+  } else if (typeof record?.folder_url === 'string' && !record.folder_url.trim().startsWith('{')) {
+    origUrl = record.folder_url;
+  } else if (typeof existingRaw === 'string' && !existingRaw.trim().startsWith('{')) {
+    origUrl = existingRaw;
+  }
+
+  // ดึงข้อมูลสำรองจาก LocalStorage หากไม่มีใน record หรือ baseFolder
+  let localRichmenuConfig = null;
+  let localRichmenuImages = null;
+  let localDynamicLinks = null;
+  try {
+    const rawCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
+    if (rawCfg) localRichmenuConfig = JSON.parse(rawCfg);
+  } catch {}
+  try {
+    const rawImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+    if (rawImgs) localRichmenuImages = JSON.parse(rawImgs);
+  } catch {}
+  try {
+    const rawLinks = localStorage.getItem('hdh_dynamic_links');
+    if (rawLinks) localDynamicLinks = JSON.parse(rawLinks);
+  } catch {}
+
+  const packed = {
+    ...baseFolder,
+    original: origUrl,
+    operatingHours: record?.operatingHours !== undefined ? record.operatingHours : (baseFolder.operatingHours || mock.DEFAULT_OPERATING_HOURS),
+    operatingHoursSummary: record?.operatingHoursSummary !== undefined ? record.operatingHoursSummary : (baseFolder.operatingHoursSummary || ''),
+    servicesSubtitle: record?.servicesSubtitle !== undefined ? record.servicesSubtitle : (baseFolder.servicesSubtitle || mock.INITIAL_CLINIC_INFO.servicesSubtitle),
+    servicesFooterTitle: record?.servicesFooterTitle !== undefined ? record.servicesFooterTitle : (baseFolder.servicesFooterTitle || mock.INITIAL_CLINIC_INFO.servicesFooterTitle),
+    servicePrograms: record?.servicePrograms !== undefined ? record.servicePrograms : (baseFolder.servicePrograms || null),
+    mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl),
+    richmenuConfig: record?.richmenuConfig || baseFolder.richmenuConfig || localRichmenuConfig || mock.DEFAULT_RICHMENU_CONFIG,
+    richmenuImages: record?.richmenuImages || baseFolder.richmenuImages || localRichmenuImages || {},
+    richmenuUpdatedAt: record?.richmenuUpdatedAt || baseFolder.richmenuUpdatedAt || new Date().toISOString(),
+    dynamicLinks: record?.dynamicLinks || baseFolder.dynamicLinks || localDynamicLinks || null
+  };
+
+  return JSON.stringify(packed);
+};
+
 // ฟังก์ชันเรียกคำสั่ง Supabase พร้อมกำหนด Timeout สูงสุดเพื่อไม่ให้ระบบค้าง
 const fetchTableWithTimeout = async (queryPromise, timeoutMs = 4000, tableName = '') => {
   let timer;
@@ -789,9 +889,9 @@ export const syncFromSupabase = async (targetKeys = null) => {
       if (key === KEYS.CLINIC_INFO) {
         const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
         if (infoObj && Object.keys(infoObj).length > 0) {
-          // ถอดรหัส operatingHours จาก folderUrl หรือ folder_url หรือ operating_hours
+          // ถอดรหัส operatingHours, ค่าหน้า services, rich menu configs, rich menu images, dynamic links จาก folderUrl หรือ folder_url
           let parsedFolder = null;
-          if (infoObj.folderUrl && typeof infoObj.folderUrl === 'object' && infoObj.folderUrl.operatingHours) {
+          if (infoObj.folderUrl && typeof infoObj.folderUrl === 'object' && (infoObj.folderUrl.operatingHours || infoObj.folderUrl.richmenuConfig)) {
             parsedFolder = infoObj.folderUrl;
           } else if (typeof infoObj.folderUrl === 'string' && infoObj.folderUrl.startsWith('{')) {
             parsedFolder = safeJsonParse(infoObj.folderUrl, null);
@@ -799,18 +899,66 @@ export const syncFromSupabase = async (targetKeys = null) => {
             parsedFolder = safeJsonParse(infoObj.folder_url, null);
           }
 
-          if (parsedFolder && (parsedFolder.operatingHours || parsedFolder.servicesSubtitle || parsedFolder.servicePrograms || parsedFolder.servicesFooterTitle || parsedFolder.mapsUrl)) {
+          if (parsedFolder && typeof parsedFolder === 'object') {
             if (parsedFolder.operatingHours) infoObj.operatingHours = parsedFolder.operatingHours;
             if (parsedFolder.operatingHoursSummary) infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
-            if (parsedFolder.servicesSubtitle) infoObj.servicesSubtitle = parsedFolder.servicesSubtitle;
-            if (parsedFolder.servicesFooterTitle) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
-            if (parsedFolder.servicePrograms) infoObj.servicePrograms = parsedFolder.servicePrograms;
-            if (parsedFolder.mapsUrl) infoObj.mapsUrl = parsedFolder.mapsUrl;
+            if (parsedFolder.servicesSubtitle !== undefined) infoObj.servicesSubtitle = parsedFolder.servicesSubtitle;
+            if (parsedFolder.servicesFooterTitle !== undefined) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
+            if (parsedFolder.servicePrograms !== undefined) infoObj.servicePrograms = parsedFolder.servicePrograms;
+            if (parsedFolder.mapsUrl !== undefined) infoObj.mapsUrl = parsedFolder.mapsUrl;
+
+            // กู้คืนการตั้งค่าปุ่ม Rich Menu (richmenuConfig) สู่ LocalStorage และ infoObj
+            if (parsedFolder.richmenuConfig && typeof parsedFolder.richmenuConfig === 'object') {
+              infoObj.richmenuConfig = parsedFolder.richmenuConfig;
+              try {
+                localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(parsedFolder.richmenuConfig));
+              } catch {}
+            }
+
+            // กู้คืนรูปภาพเมนู Rich Menu (richmenuImages) สู่ LocalStorage และ infoObj
+            if (parsedFolder.richmenuImages && typeof parsedFolder.richmenuImages === 'object') {
+              infoObj.richmenuImages = parsedFolder.richmenuImages;
+              try {
+                localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(parsedFolder.richmenuImages));
+              } catch {}
+            }
+
+            // กู้คืน Dynamic Links สู่ LocalStorage
+            if (Array.isArray(parsedFolder.dynamicLinks) && parsedFolder.dynamicLinks.length > 0) {
+              infoObj.dynamicLinks = parsedFolder.dynamicLinks;
+              try {
+                localStorage.setItem('hdh_dynamic_links', JSON.stringify(parsedFolder.dynamicLinks));
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: parsedFolder.dynamicLinks }));
+                }
+              } catch {}
+            }
+
             // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ
             infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
             infoObj.folder_url = parsedFolder.original !== undefined ? parsedFolder.original : '';
           } else if (infoObj.operating_hours) {
             infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
+          }
+
+          // Fallbacks สำหรับ Rich Menu หาก Supabase ยังไม่มี
+          if (!infoObj.richmenuConfig) {
+            try {
+              const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
+              if (localCfg) infoObj.richmenuConfig = JSON.parse(localCfg);
+              else infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+            } catch {
+              infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+            }
+          }
+          if (!infoObj.richmenuImages) {
+            try {
+              const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+              if (localImgs) infoObj.richmenuImages = JSON.parse(localImgs);
+              else infoObj.richmenuImages = {};
+            } catch {
+              infoObj.richmenuImages = {};
+            }
           }
 
           // หากยังไม่มี ให้ดึงจากข้อมูล Local เดิม หรือค่าเริ่มต้น
@@ -896,32 +1044,9 @@ export const syncToSupabase = async (key, value, throwOnError = false) => {
     if (key === KEYS.CLINIC_INFO) {
       const info = Array.isArray(value) ? (value[0] || {}) : (value || {});
       const record = { ...info, id: 1 };
-      if (record.operatingHours || record.servicesSubtitle || record.servicePrograms || record.servicesFooterTitle || record.mapsUrl) {
-        try {
-          let origUrl = '';
-          if (typeof record.folderUrl === 'string' && !record.folderUrl.startsWith('{')) {
-            origUrl = record.folderUrl;
-          } else if (typeof record.folder_url === 'string' && !record.folder_url.startsWith('{')) {
-            origUrl = record.folder_url;
-          } else if (typeof record.folderUrl === 'object' && record.folderUrl?.original) {
-            origUrl = record.folderUrl.original;
-          }
-          const packed = {
-            original: origUrl,
-            operatingHours: record.operatingHours,
-            operatingHoursSummary: record.operatingHoursSummary || '',
-            servicesSubtitle: record.servicesSubtitle || '',
-            servicesFooterTitle: record.servicesFooterTitle || '',
-            servicePrograms: record.servicePrograms || null,
-            mapsUrl: record.mapsUrl || ''
-          };
-          const jsonPacked = JSON.stringify(packed);
-          record.folder_url = jsonPacked;
-          record.folderUrl = jsonPacked;
-        } catch {
-          /* ignore folderUrl parse error */
-        }
-      }
+      const packedJson = packClinicFolderUrl(record);
+      record.folder_url = packedJson;
+      record.folderUrl = packedJson;
       records = [record];
     } else if (key === KEYS.SALARY_RULES) {
       const rules = Array.isArray(value) ? (value[0] || {}) : (value || {});
@@ -1074,28 +1199,9 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
         let recordWithId = record;
         if (tableName === 'clinic_info') {
           recordWithId = { ...record, id: 1 };
-          if (recordWithId.operatingHours) {
-            try {
-              let origUrl = '';
-              if (typeof recordWithId.folderUrl === 'string' && !recordWithId.folderUrl.startsWith('{')) {
-                origUrl = recordWithId.folderUrl;
-              } else if (typeof recordWithId.folder_url === 'string' && !recordWithId.folder_url.startsWith('{')) {
-                origUrl = recordWithId.folder_url;
-              } else if (typeof recordWithId.folderUrl === 'object' && recordWithId.folderUrl?.original) {
-                origUrl = recordWithId.folderUrl.original;
-              }
-              const packed = {
-                original: origUrl,
-                operatingHours: recordWithId.operatingHours,
-                operatingHoursSummary: recordWithId.operatingHoursSummary || ''
-              };
-              const jsonPacked = JSON.stringify(packed);
-              recordWithId.folder_url = jsonPacked;
-              recordWithId.folderUrl = jsonPacked;
-            } catch {
-              /* ignore folderUrl parse error */
-            }
-          }
+          const packedJson = packClinicFolderUrl(recordWithId);
+          recordWithId.folder_url = packedJson;
+          recordWithId.folderUrl = packedJson;
         } else if (tableName === 'salary_rules') {
           recordWithId = { ...record, id: 1 };
         }

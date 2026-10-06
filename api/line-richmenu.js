@@ -116,8 +116,18 @@ async function saveRichMenuConfigToSupabase(config, images, env) {
     if (res.ok) {
       const data = await res.json();
       const currentFolder = data?.[0]?.folder_url ? (typeof data[0].folder_url === 'string' ? JSON.parse(data[0].folder_url) : data[0].folder_url) : {};
-      if (config) currentFolder.richmenuConfig = config;
-      if (images) currentFolder.richmenuImages = images;
+      if (config && typeof config === 'object') {
+        currentFolder.richmenuConfig = {
+          ...(currentFolder.richmenuConfig || {}),
+          ...config
+        };
+      }
+      if (images && typeof images === 'object') {
+        currentFolder.richmenuImages = {
+          ...(currentFolder.richmenuImages || {}),
+          ...images
+        };
+      }
       currentFolder.richmenuUpdatedAt = new Date().toISOString();
 
       await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?id=eq.1`, {

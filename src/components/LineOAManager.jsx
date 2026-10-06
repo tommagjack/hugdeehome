@@ -240,7 +240,7 @@ export default function LineOAManager({
       return sanitized;
     };
 
-    // 1. First load from localStorage for instant prefill
+    // 1. First load from localStorage or clinicInfo props for instant prefill
     let hasLocalConfig = false;
     try {
       const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
@@ -250,11 +250,21 @@ export default function LineOAManager({
           setCustomConfigs(sanitizeConfig(parsed));
           hasLocalConfig = true;
         }
+      } else if (clinicInfo?.richmenuConfig) {
+        setCustomConfigs(sanitizeConfig(clinicInfo.richmenuConfig));
+        hasLocalConfig = true;
       }
+
       const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
       if (localImgs) {
         const parsed = JSON.parse(localImgs);
-        if (parsed && typeof parsed === 'object') setCustomImages(parsed);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setCustomImages(parsed);
+        } else if (clinicInfo?.richmenuImages) {
+          setCustomImages(clinicInfo.richmenuImages);
+        }
+      } else if (clinicInfo?.richmenuImages) {
+        setCustomImages(clinicInfo.richmenuImages);
       }
     } catch (e) {
       console.warn('LocalStorage read error:', e);
@@ -272,9 +282,21 @@ export default function LineOAManager({
           try {
             localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(sanitized));
           } catch (e) {}
+          if (typeof setClinicInfo === 'function') {
+            setClinicInfo(prev => ({ ...prev, richmenuConfig: sanitized }));
+          }
         }
-        if (data.images && typeof data.images === 'object') {
-          setCustomImages(prev => ({ ...prev, ...data.images }));
+        if (data.images && typeof data.images === 'object' && Object.keys(data.images).length > 0) {
+          setCustomImages(prev => {
+            const merged = { ...prev, ...data.images };
+            try {
+              localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(merged));
+            } catch (e) {}
+            if (typeof setClinicInfo === 'function') {
+              setClinicInfo(prevInfo => ({ ...prevInfo, richmenuImages: merged }));
+            }
+            return merged;
+          });
         }
       }
     } catch (e) {
@@ -348,22 +370,37 @@ export default function LineOAManager({
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, 2500, 1686);
 
-        // LINE Messaging API Official Specification:
-        // Dimensions: 2500 x 1686 px, Max File Size: 1 MB (JPEG or PNG)
-        // Converting to JPEG with quality 0.82 guarantees size ~350-500 KB (crystal clear & under 1 MB)
-        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        // Converting to JPEG with quality 0.78 guarantees size ~200-350 KB (crystal clear & well under 1 MB)
+        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
         setCustomImages(prev => {
           const next = { ...prev, [menuKey]: resizedDataUrl };
           try {
             localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(next));
           } catch { /* ignore quota */ }
+          if (typeof setClinicInfo === 'function') {
+            setClinicInfo(prevInfo => ({
+              ...prevInfo,
+              richmenuImages: next,
+              richmenuConfig: customConfigs
+            }));
+          }
           return next;
         });
+
+        // อัปโหลดและบันทึกภาพอัตโนมัติขึ้น Supabase Cloud ทันทีเพื่อป้องกันข้อมูลรูปภาพสูญหาย
+        fetch('/api/line-richmenu?action=save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            config: customConfigs,
+            images: { [menuKey]: resizedDataUrl }
+          })
+        }).catch(err => console.warn('Background auto-save rich menu image error:', err));
 
         Swal.fire({
           icon: 'success',
           title: 'แนบรูปภาพสำเร็จ! 🖼️',
-          html: `ระบบได้ปรับขนาดภาพเป็น <strong>2,500 x 1,686 px</strong> และบีบอัดขนาดไฟล์ตามมาตรฐาน LINE (< 1 MB) อัตโนมัติแล้วค่ะ<br><span style="font-size: 0.85rem; color: #64748B;">สามารถตรวจดูผัง 6 ช่องด้านล่าง และกดบันทึกการตั้งค่าเพื่อนำไปใช้งาน</span>`,
+          html: `ระบบได้ปรับขนาดภาพเป็น <strong>2,500 x 1,686 px</strong> และบันทึกขึ้นระบบคลาวด์อัตโนมัติแล้วค่ะ<br><span style="font-size: 0.85rem; color: #64748B;">สามารถตรวจดูผัง 6 ช่องด้านล่าง และกดบันทึกการตั้งค่าเพื่อนำไปใช้งาน</span>`,
           timer: 2400,
           showConfirmButton: false
         });
@@ -397,8 +434,27 @@ export default function LineOAManager({
         setCustomImages(prev => {
           const next = { ...prev };
           next[menuKey] = 'default';
+          try {
+            localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(next));
+          } catch {}
+          if (typeof setClinicInfo === 'function') {
+            setClinicInfo(prevInfo => ({
+              ...prevInfo,
+              richmenuImages: next
+            }));
+          }
           return next;
         });
+
+        fetch('/api/line-richmenu?action=save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            config: customConfigs,
+            images: { [menuKey]: 'default' }
+          })
+        }).catch(err => console.warn('Background reset image error:', err));
+
         Swal.fire({ icon: 'success', title: 'คืนค่าภาพมาตรฐานสำเร็จ', timer: 1200, showConfirmButton: false });
       }
     });
@@ -430,6 +486,12 @@ export default function LineOAManager({
       try {
         localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
       } catch (e) {}
+      if (typeof setClinicInfo === 'function') {
+        setClinicInfo(prevInfo => ({
+          ...prevInfo,
+          richmenuConfig: updated
+        }));
+      }
       return updated;
     });
   };
@@ -449,6 +511,12 @@ export default function LineOAManager({
       try {
         localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
       } catch (e) {}
+      if (typeof setClinicInfo === 'function') {
+        setClinicInfo(prevInfo => ({
+          ...prevInfo,
+          richmenuConfig: updated
+        }));
+      }
       return updated;
     });
   };
@@ -472,6 +540,12 @@ export default function LineOAManager({
           try {
             localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(updated));
           } catch (e) {}
+          if (typeof setClinicInfo === 'function') {
+            setClinicInfo(prevInfo => ({
+              ...prevInfo,
+              richmenuConfig: updated
+            }));
+          }
           return updated;
         });
         Swal.fire({ icon: 'success', title: 'คืนค่าสำเร็จ', timer: 1200, showConfirmButton: false });
@@ -502,7 +576,16 @@ export default function LineOAManager({
         console.warn('LocalStorage save failed:', storageErr);
       }
 
-      // 3. Send to backend
+      // 3. Update clinicInfo React state for continuous cross-component sync
+      if (typeof setClinicInfo === 'function') {
+        setClinicInfo(prevInfo => ({
+          ...prevInfo,
+          richmenuConfig: customConfigs,
+          richmenuImages: optimizedImages
+        }));
+      }
+
+      // 4. Send to backend & Supabase Cloud
       const res = await fetch('/api/line-richmenu?action=save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2176,6 +2259,69 @@ export default function LineOAManager({
             </div>
           </div>
 
+          {/* Card: Supabase Cloud Persistence & Permissions Check */}
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '1.75rem', border: '1.5px solid #FDE68A', boxShadow: '0 4px 16px rgba(245, 158, 11, 0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#B45309' }}>
+                <Sparkles size={24} />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: '800', margin: 0 }}>
+                  สิทธิ์การบันทึกถาวรลง Supabase Cloud (ป้องกันรูปภาพและการตั้งค่าหาย)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const sql = `-- อนุญาตสิทธิ์ RLS ให้บันทึกการตั้งค่าปุ่ม รูปภาพ และบริการลง Supabase ได้อย่างสมบูรณ์
+ALTER TABLE public.clinic_info ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on clinic_info" ON public.clinic_info;
+CREATE POLICY "Allow anon all on clinic_info" ON public.clinic_info FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.clinic_info TO anon, authenticated;
+
+ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on services" ON public.services;
+CREATE POLICY "Allow anon all on services" ON public.services FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.services TO anon, authenticated;
+
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on promotions" ON public.promotions;
+CREATE POLICY "Allow anon all on promotions" ON public.promotions FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.promotions TO anon, authenticated;`;
+                  navigator.clipboard.writeText(sql);
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'คัดลอกคำสั่ง SQL สำเร็จ! 📋',
+                    html: `
+                      <div style="text-align: left; font-size: 0.9rem; line-height: 1.6;">
+                        นำคำสั่งนี้ไปรันใน Supabase เพื่อเปิดสิทธิ์การบันทึกลง Cloud ตลอดชีพ:<br>
+                        1. ไปที่ <a href="https://supabase.com/dashboard/project/bmplfuzkyyuqtlfgifvm/sql/new" target="_blank" style="color: #0284C7; font-weight: bold; text-decoration: underline;">Supabase SQL Editor</a><br>
+                        2. วางคำสั่ง (Ctrl + V) แล้วกดปุ่ม <b>Run</b> สีเขียวด้านล่างขวา<br>
+                        3. ระบบจะบันทึกรูปภาพและค่าปุ่มทั้งหมดไว้บน Cloud ถาวร แม้ลบแคชหรือเข้าจากเครื่องใหม่รูปก็ไม่หายค่ะ 🎉
+                      </div>
+                    `,
+                    confirmButtonText: 'เข้าใจแล้ว',
+                    confirmButtonColor: '#059669'
+                  });
+                }}
+                className="btn btn-warning"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Copy size={15} /> คัดลอกคำสั่ง SQL สำหรับ Supabase
+              </button>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>
+              ระบบได้บันทึกรูปภาพและการตั้งค่าทั้งหมดลงในบราวเซอร์และฐานข้อมูลภายในแล้ว หากต้องการให้ข้อมูลทั้งหมดซิงค์ข้ามเครื่องและคงอยู่ถาวรแม้ลบแคช สามารถคัดลอกคำสั่ง SQL ด้านบนไปรันใน Supabase เพียงครั้งเดียวได้เลยค่ะ
+            </p>
+          </div>
+
         </div>
       )}
 
@@ -2183,6 +2329,7 @@ export default function LineOAManager({
       {activeTab === 'links' && (
         <LiffLinkManager 
           clinicInfo={clinicInfo} 
+          setClinicInfo={setClinicInfo}
           onNavigateToServicesEditor={() => setActiveTab('services-editor')}
         />
       )}

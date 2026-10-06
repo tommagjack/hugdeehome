@@ -2595,7 +2595,23 @@ ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;
 
 -- 4. เพิ่มคอลัมน์เวลาเปิด-ปิดทำการในตารางข้อมูลคลินิก
-ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;`} 
+ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;
+
+-- 5. อนุญาตสิทธิ์ RLS ให้ระบบบันทึกข้อมูลคลินิก บริการ และโปรโมชันได้อย่างสมบูรณ์ (ป้องกันข้อมูลสูญหาย/คืนค่าว่าง)
+ALTER TABLE clinic_info ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on clinic_info" ON clinic_info;
+CREATE POLICY "Allow anon all on clinic_info" ON clinic_info FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON clinic_info TO anon, authenticated;
+
+ALTER TABLE services ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on services" ON services;
+CREATE POLICY "Allow anon all on services" ON services FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON services TO anon, authenticated;
+
+ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on promotions" ON promotions;
+CREATE POLICY "Allow anon all on promotions" ON promotions FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON promotions TO anon, authenticated;`} 
                       style={{ 
                         fontFamily: 'monospace', 
                         fontSize: '0.8rem', 
@@ -2653,7 +2669,23 @@ ALTER TABLE services ADD COLUMN IF NOT EXISTS start_date TEXT;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS end_date TEXT;
 
 -- 4. เพิ่มคอลัมน์เวลาเปิด-ปิดทำการในตารางข้อมูลคลินิก
-ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;`;
+ALTER TABLE clinic_info ADD COLUMN IF NOT EXISTS operating_hours JSONB;
+
+-- 5. อนุญาตสิทธิ์ RLS ให้ระบบบันทึกข้อมูลคลินิก บริการ และโปรโมชันได้อย่างสมบูรณ์ (ป้องกันข้อมูลสูญหาย/คืนค่าว่าง)
+ALTER TABLE clinic_info ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on clinic_info" ON clinic_info;
+CREATE POLICY "Allow anon all on clinic_info" ON clinic_info FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON clinic_info TO anon, authenticated;
+
+ALTER TABLE services ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on services" ON services;
+CREATE POLICY "Allow anon all on services" ON services FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON services TO anon, authenticated;
+
+ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow anon all on promotions" ON promotions;
+CREATE POLICY "Allow anon all on promotions" ON promotions FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON promotions TO anon, authenticated;`;
                         navigator.clipboard.writeText(sqlText);
                         Swal.fire({
                           icon: 'success',

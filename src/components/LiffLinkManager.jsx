@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-export default function LiffLinkManager({ clinicInfo, onNavigateToServicesEditor }) {
+export default function LiffLinkManager({ clinicInfo, setClinicInfo, onNavigateToServicesEditor }) {
   const liffId = clinicInfo?.liffId || '2008270606-7bkwSGyt';
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://hugdeehome.vercel.app';
 
@@ -86,6 +86,9 @@ export default function LiffLinkManager({ clinicInfo, onNavigateToServicesEditor
       localStorage.setItem('hdh_dynamic_links', JSON.stringify(updatedList));
       window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: updatedList }));
     } catch (e) {}
+    if (typeof setClinicInfo === 'function') {
+      setClinicInfo(prev => ({ ...prev, dynamicLinks: updatedList }));
+    }
 
     try {
       const res = await fetch('/api/link?action=update', {
@@ -148,6 +151,9 @@ export default function LiffLinkManager({ clinicInfo, onNavigateToServicesEditor
       localStorage.setItem('hdh_dynamic_links', JSON.stringify(updatedList));
       window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: updatedList }));
     } catch (e) {}
+    if (typeof setClinicInfo === 'function') {
+      setClinicInfo(prev => ({ ...prev, dynamicLinks: updatedList }));
+    }
 
     setShowAddModal(false);
     setNewTitle('');
@@ -191,6 +197,9 @@ export default function LiffLinkManager({ clinicInfo, onNavigateToServicesEditor
       localStorage.setItem('hdh_dynamic_links', JSON.stringify(filtered));
       window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: filtered }));
     } catch (e) {}
+    if (typeof setClinicInfo === 'function') {
+      setClinicInfo(prev => ({ ...prev, dynamicLinks: filtered }));
+    }
 
     try {
       await fetch('/api/link?action=save-all', {
