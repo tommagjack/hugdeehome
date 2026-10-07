@@ -587,7 +587,7 @@ const TABLE_COLUMNS = {
     'hn', 'title', 'firstname', 'lastname', 'nickname', 'dob', 
     'gender', 'guardian', 'phone', 'status', 'allergies',
     'conditions', 'conditions_details', 'channels', 'channels_other_details', 'worries',
-    'allergies_details', 'created_by', 'line_user_id', 'activated_by', 'activated_at'
+    'allergies_details', 'created_by', 'line_user_id', 'activated_by', 'activated_at', 'created_at'
   ],
   attendance: [
     'id', 'employee_id', 'employee_name', 'date', 'time', 'type',
@@ -699,7 +699,7 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
 };
 
 // ฟังก์ชันเรียกคำสั่ง Supabase พร้อมกำหนด Timeout สูงสุดเพื่อไม่ให้ระบบค้าง
-const fetchTableWithTimeout = async (queryPromise, timeoutMs = 4000, tableName = '') => {
+const fetchTableWithTimeout = async (queryPromise, timeoutMs = 10000, tableName = '') => {
   let timer;
   const timeoutPromise = new Promise((_, reject) => {
     timer = setTimeout(() => {
@@ -720,7 +720,7 @@ export const syncFromSupabase = async (targetKeys = null) => {
       ? targetKeys.filter(k => TABLE_MAP[k])
       : Object.keys(TABLE_MAP);
     
-    // โหลดข้อมูลตามตารางที่กำหนดพร้อมกัน โดยมี Timeout 4 วินาทีต่อตาราง ป้องกันระบบค้าง
+    // โหลดข้อมูลตามตารางที่กำหนดพร้อมกัน โดยมี Timeout 10 วินาทีต่อตาราง ป้องกันระบบค้าง
     const promises = tableKeys.map(async (key) => {
       const tableName = TABLE_MAP[key];
       if (!tableName) return { key, data: null };
@@ -729,7 +729,7 @@ export const syncFromSupabase = async (targetKeys = null) => {
         query = supabase.from(tableName).select('id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id, line_channel_access_token, hero_image_url');
       }
       try {
-        const { data, error } = await fetchTableWithTimeout(query, 4000, tableName);
+        const { data, error } = await fetchTableWithTimeout(query, 10000, tableName);
         if (error) {
           console.warn(`[Sync Warning] Failed to fetch ${tableName} (likely RLS / Auth):`, error.message);
           return { key, data: null }; // คืนค่า null เพื่อระบุว่าซิงค์ตารางนี้ไม่ได้เนื่องจากไม่มีสิทธิ์ RLS/Auth

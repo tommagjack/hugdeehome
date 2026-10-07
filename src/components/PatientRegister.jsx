@@ -114,8 +114,19 @@ export default function PatientRegister({
 
       if (hasUpcoming) return;
 
+      // หาวันที่มีกิจกรรมล่าสุด (นัดหมายล่าสุด, วันที่เปิดใช้งานล่าสุด activatedAt, หรือวันที่ลงทะเบียน)
+      let latestActivity = null;
+
+      // ตรวจสอบวันที่เจ้าหน้าที่/แอดมินเปิดใช้งานสถานะ Active ล่าสุด (ให้สิทธิ์ 30 วันสำหรับนัดหมายหรือซื้อคอร์สใหม่)
+      if (p.activatedAt) {
+        const actD = new Date(p.activatedAt);
+        actD.setHours(0, 0, 0, 0);
+        if (!isNaN(actD.getTime())) {
+          latestActivity = actD.getTime();
+        }
+      }
+
       // หาวันที่นัดหมายล่าสุด
-      let lastDate = null;
       if (pApps.length > 0) {
         const ts = pApps.map(a => {
           const d = new Date(a.date);
@@ -123,25 +134,26 @@ export default function PatientRegister({
           return d.getTime();
         }).filter(t => !isNaN(t));
         if (ts.length > 0) {
-          lastDate = Math.max(...ts);
+          const maxAppDate = Math.max(...ts);
+          latestActivity = latestActivity ? Math.max(latestActivity, maxAppDate) : maxAppDate;
         }
       }
 
-      // ถ้าไม่เคยมีนัดหมายเลย ให้ใช้วันที่ลงทะเบียน (created_at)
-      if (!lastDate && p.created_at) {
+      // ถ้าไม่เคยมีนัดหมายและไม่มี activatedAt ให้ใช้วันที่ลงทะเบียน (created_at)
+      if (!latestActivity && p.created_at) {
         const d = new Date(p.created_at);
         d.setHours(0, 0, 0, 0);
         if (!isNaN(d.getTime())) {
-          lastDate = d.getTime();
+          latestActivity = d.getTime();
         }
       }
 
       let diffDays = null;
-      if (lastDate) {
-        diffDays = Math.floor((today.getTime() - lastDate) / (1000 * 60 * 60 * 24));
+      if (latestActivity) {
+        diffDays = Math.floor((today.getTime() - latestActivity) / (1000 * 60 * 60 * 24));
       }
 
-      // กรณีไม่มีนัดหมาย >= 30 วัน (หรือไม่มีประวัตินัดและลงทะเบียนมานาน >= 30 วัน)
+      // กรณีไม่มีนัดหมายและกิจกรรมใดๆ >= 30 วัน (หรือไม่มีประวัตินัดและลงทะเบียนมานาน >= 30 วัน)
       if (diffDays === null || diffDays >= 30) {
         patientsToInactivate.push(p.hn);
       }
@@ -482,6 +494,51 @@ export default function PatientRegister({
     });
   };
 
+  // ฟังก์ชันเปลี่ยนสถานะผู้รับบริการ Inactive กลับเป็น Active เพื่อให้กลับมาใช้บริการได้ (สำหรับ Staff และ Admin)
+  const handleReactivatePatient = (p) => {
+    const nick = p.nickname ? (typeof formatPatientNickname === 'function' ? formatPatientNickname(p.nickname) : `น้อง${p.nickname}`) : '';
+    Swal.fire({
+      title: 'เปลี่ยนสถานะเป็น Active',
+      html: `
+        <div style="text-align: left; font-family: var(--font-family); font-size: 0.95rem; line-height: 1.6;">
+          <p>คุณต้องการเปิดใช้งานสถานะผู้รับบริการกลับมาเป็น <strong>Active</strong> เพื่อเข้ารับบริการอีกครั้งหรือไม่?</p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <strong>HN:</strong> ${p.hn}<br/>
+            <strong>ชื่อ-นามสกุล:</strong> ${p.title || ''}${p.firstname} ${p.lastname} ${nick ? `(${nick})` : ''}<br/>
+            <strong>เบอร์โทร:</strong> ${p.phone || '-'}
+          </div>
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; color: #1e40af; font-size: 0.85rem;">
+            💡 เมื่อเปลี่ยนเป็น Active แล้ว ระบบจะให้ระยะเวลา 30 วันสำหรับการจัดตารางนัดหมายหรือซื้อคอร์สบริการใหม่
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันเปลี่ยนเป็น Active',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: 'var(--secondary)',
+      cancelButtonColor: '#94a3b8'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        const reactivatedPatient = {
+          ...p,
+          status: 'Active',
+          activatedBy: currentUser?.fullname || currentUser?.username || 'เจ้าหน้าที่',
+          activatedAt: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        onUpdatePatient(reactivatedPatient, p.hn);
+        Swal.fire({
+          icon: 'success',
+          title: 'เปลี่ยนสถานะสำเร็จ',
+          text: `เปิดสถานะ ${p.title || ''}${p.firstname} เป็น Active เรียบร้อยแล้ว`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    });
+  };
+
   // 7. บันทึกข้อมูลฟอร์ม (เพิ่ม/แก้ไข)
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -496,7 +553,9 @@ export default function PatientRegister({
     }
 
     const existingPatient = (patients || []).find(p => p.hn === formHn);
-    const isBeingActivated = isEditing && existingPatient?.status === 'Pending' && status === 'Active';
+    const isPendingBeingActivated = isEditing && existingPatient?.status === 'Pending' && status === 'Active';
+    const isInactiveBeingReactivated = isEditing && existingPatient?.status === 'Inactive' && status === 'Active';
+    const isBeingActivated = isPendingBeingActivated || isInactiveBeingReactivated;
 
     let finalHn = formHn;
     let oldHn = null;
@@ -530,8 +589,8 @@ export default function PatientRegister({
         ? (existingPatient?.createdBy || '')
         : (currentUser?.fullname || 'ผู้ดูแลระบบ'),
       activatedBy: isBeingActivated 
-        ? (currentUser?.fullname || 'ผู้ดูแลระบบ')
-        : (existingPatient?.activatedBy || (status === 'Active' ? (currentUser?.fullname || 'ผู้ดูแลระบบ') : '')),
+        ? (currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ')
+        : (existingPatient?.activatedBy || (status === 'Active' ? (currentUser?.fullname || currentUser?.username || 'ผู้ดูแลระบบ') : '')),
       activatedAt: isBeingActivated 
         ? new Date().toISOString()
         : (existingPatient?.activatedAt || (status === 'Active' ? new Date().toISOString() : ''))
@@ -1298,6 +1357,18 @@ export default function PatientRegister({
                               style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
                             >
                               <UserCheck size={16} color="var(--success, #059669)" />
+                            </button>
+                          )}
+
+                          {p.status === 'Inactive' && currentUser?.role !== 'OT' && (
+                            <button 
+                              className="btn btn-light btn-icon-only" 
+                              title="เปลี่ยนสถานะกลับเป็น Active (เปิดรับบริการใหม่)"
+                              onClick={() => handleReactivatePatient(p)}
+                              type="button"
+                              style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}
+                            >
+                              <UserCheck size={16} color="var(--secondary, #3b82f6)" />
                             </button>
                           )}
 

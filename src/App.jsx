@@ -216,26 +216,68 @@ export default function App() {
   const lastItpGoalsRef = useRef(itpGoals);
 
   const refreshAllLocalStates = () => {
-    setClinicInfo(db.getClinicInfo());
-    setUsers(db.getUsers());
-    setTherapists(db.getTherapists());
-    setServices(db.getServices());
-    setPromotions(db.getPromotions());
-    setBankAccounts(db.getBankAccounts());
-    setHolidays(db.getHolidays());
-    setPatients(db.getPatients());
-    setAppointments(db.getAppointments());
-    setReceipts(db.getReceipts());
-    setAssessments(db.getAssessments());
-    setSalaryRules(db.getSalaryRules());
-    setPayrolls(db.getPayrolls());
-    setTransactions(db.getTransactions());
-    setOpdRecords(db.getOpdRecords());
-    setRewards(db.getRewards());
-    setReferrals(db.getReferrals());
-    setAssessmentTemplates(db.getAssessmentTemplates());
-    setAttendance(db.getAttendance());
-    setItpGoals(db.getItpGoals());
+    const freshClinicInfo = db.getClinicInfo();
+    const freshUsers = db.getUsers();
+    const freshTherapists = db.getTherapists();
+    const freshServices = db.getServices();
+    const freshPromotions = db.getPromotions();
+    const freshBankAccounts = db.getBankAccounts();
+    const freshHolidays = db.getHolidays();
+    const freshPatients = db.getPatients();
+    const freshAppointments = db.getAppointments();
+    const freshReceipts = db.getReceipts();
+    const freshAssessments = db.getAssessments();
+    const freshSalaryRules = db.getSalaryRules();
+    const freshPayrolls = db.getPayrolls();
+    const freshTransactions = db.getTransactions();
+    const freshOpdRecords = db.getOpdRecords();
+    const freshRewards = db.getRewards();
+    const freshReferrals = db.getReferrals();
+    const freshAssessmentTemplates = db.getAssessmentTemplates();
+    const freshAttendance = db.getAttendance();
+    const freshItpGoals = db.getItpGoals();
+
+    setClinicInfo(freshClinicInfo);
+    setUsers(freshUsers);
+    setTherapists(freshTherapists);
+    setServices(freshServices);
+    setPromotions(freshPromotions);
+    setBankAccounts(freshBankAccounts);
+    setHolidays(freshHolidays);
+    setPatients(freshPatients);
+    setAppointments(freshAppointments);
+    setReceipts(freshReceipts);
+    setAssessments(freshAssessments);
+    setSalaryRules(freshSalaryRules);
+    setPayrolls(freshPayrolls);
+    setTransactions(freshTransactions);
+    setOpdRecords(freshOpdRecords);
+    setRewards(freshRewards);
+    setReferrals(freshReferrals);
+    setAssessmentTemplates(freshAssessmentTemplates);
+    setAttendance(freshAttendance);
+    setItpGoals(freshItpGoals);
+
+    lastClinicInfoRef.current = freshClinicInfo;
+    lastUsersRef.current = freshUsers;
+    lastTherapistsRef.current = freshTherapists;
+    lastServicesRef.current = freshServices;
+    lastPromotionsRef.current = freshPromotions;
+    lastBankAccountsRef.current = freshBankAccounts;
+    lastHolidaysRef.current = freshHolidays;
+    lastPatientsRef.current = freshPatients;
+    lastAppointmentsRef.current = freshAppointments;
+    lastReceiptsRef.current = freshReceipts;
+    lastAssessmentsRef.current = freshAssessments;
+    lastSalaryRulesRef.current = freshSalaryRules;
+    lastPayrollsRef.current = freshPayrolls;
+    lastTransactionsRef.current = freshTransactions;
+    lastOpdRecordsRef.current = freshOpdRecords;
+    lastRewardsRef.current = freshRewards;
+    lastReferralsRef.current = freshReferrals;
+    lastAssessmentTemplatesRef.current = freshAssessmentTemplates;
+    lastAttendanceRef.current = freshAttendance;
+    lastItpGoalsRef.current = freshItpGoals;
   };
 
   // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
@@ -316,26 +358,56 @@ export default function App() {
     const runInitialSync = async () => {
       initDatabase();
       
-      // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth ด้วย Timeout 2.5 วินาที
+      const savedUser = localStorage.getItem('hdh_logged_in_user');
+      
+      // ตรวจสอบเซสชันการล็อกอินจาก Supabase Auth ด้วย Timeout 6 วินาที
       let session = null;
       try {
         const sessionRes = await Promise.race([
           supabase.auth.getSession(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Session timeout')), 2500))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Session timeout')), 6000))
         ]);
         session = sessionRes?.data?.session || null;
+        
+        // หากไม่มีเซสชันแต่มี savedUser ในเครื่อง ให้ลอง refreshSession ทันที
+        if (!session && savedUser) {
+          try {
+            const refreshRes = await Promise.race([
+              supabase.auth.refreshSession(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Refresh timeout')), 5000))
+            ]);
+            session = refreshRes?.data?.session || null;
+          } catch (rErr) {
+            console.warn("Session refresh failed:", rErr);
+          }
+        }
       } catch (err) {
         console.warn("Session retrieval timed out or failed:", err);
       }
       
-      // หากยังไม่ได้ล็อกอิน ให้ซิงค์เฉพาะข้อมูลการตั้งค่าสาธารณะของคลินิก (รวดเร็วและไม่ติด RLS)
-      if (!session) {
+      // หากยังไม่ได้ล็อกอิน (ไม่มีทั้ง session และ savedUser) ให้ซิงค์เฉพาะข้อมูลการตั้งค่าสาธารณะของคลินิก (รวดเร็วและไม่ติด RLS)
+      if (!session && !savedUser) {
         try {
           await syncFromSupabase([KEYS.CLINIC_INFO, KEYS.SERVICES, KEYS.ASSESSMENT_TEMPLATES]);
           refreshAllLocalStates();
         } catch (err) {
           console.warn("Initial public sync warning:", err);
         }
+        setIsSyncing(false);
+        hasLoadedRef.current = true;
+        return;
+      }
+
+      // หากมี savedUser ในเครื่องแต่เซสชันคลาวด์หมดอายุถาวรและไม่สามารถ refresh ได้ ให้แจ้งเตือนและลงชื่อออกเพื่อความปลอดภัย
+      if (!session && savedUser) {
+        console.warn("User has local profile but Supabase Auth session expired and cannot be refreshed. Forcing re-login.");
+        handleLogout();
+        Swal.fire({
+          icon: 'warning',
+          title: 'เซสชันหมดอายุ',
+          text: 'การเชื่อมต่อความปลอดภัยกับเซิร์ฟเวอร์คลาวด์หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่อีกครั้งเพื่ออัปเดตข้อมูลล่าสุด',
+          confirmButtonColor: 'var(--secondary)'
+        });
         setIsSyncing(false);
         hasLoadedRef.current = true;
         return;
@@ -696,6 +768,22 @@ export default function App() {
       console.log('[Realtime] Device/Tab became active. Verifying sync...');
       if (!isSyncing && hasLoadedRef.current && currentUser) {
         try {
+          // ตรวจสอบและฟื้นฟูเซสชันหากหลุด
+          try {
+            const { data } = await supabase.auth.getSession();
+            if (!data?.session) {
+              await supabase.auth.refreshSession();
+            }
+          } catch (sErr) {
+            console.warn('[Realtime] Session check on wake-up warning:', sErr);
+          }
+
+          // ตรวจสอบช่องสัญญาณ Realtime หากหลุดให้เชื่อมต่อใหม่
+          const currentChannel = getRealtimeChannel();
+          if (currentChannel.state !== 'joined' && currentChannel.state !== 'joining') {
+            currentChannel.subscribe();
+          }
+
           await syncFromSupabase();
           refreshAllLocalStates();
         } catch (e) {
@@ -719,7 +807,7 @@ export default function App() {
           refreshAllLocalStates();
         }).catch(() => {});
       }
-    }, 30000);
+    }, 20000);
 
     return () => {
       console.log("Cleaning up Supabase Realtime channels and listeners...");
@@ -2630,6 +2718,16 @@ export default function App() {
                 await processPendingSyncs();
               }
               
+              // ตรวจสอบและฟื้นฟูเซสชันหากหลุด
+              try {
+                const { data } = await supabase.auth.getSession();
+                if (!data?.session && currentUser) {
+                  await supabase.auth.refreshSession();
+                }
+              } catch (sErr) {
+                console.warn('Manual sync session check warning:', sErr);
+              }
+
               const success = await syncFromSupabase();
               if (success === "empty_but_has_local") {
                 setIsSyncing(false);
