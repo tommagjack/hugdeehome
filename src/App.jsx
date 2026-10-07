@@ -77,10 +77,12 @@ export default function App() {
     const savedUser = localStorage.getItem('hdh_logged_in_user');
     const patientsRaw = localStorage.getItem('hdh_patients');
     let hasLocalPatients = false;
-    try {
-      hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
-    } catch {
-      hasLocalPatients = false;
+    if (patientsRaw) {
+      try {
+        hasLocalPatients = JSON.parse(patientsRaw).length > 0;
+      } catch {
+        hasLocalPatients = false;
+      }
     }
     // หากมีข้อมูลเดิมในเครื่องอยู่แล้ว หรือยังไม่ได้ล็อกอิน ให้ render ทันที (Non-blocking)
     // จะบล็อกหน้าจอเฉพาะกรณีที่ล็อกอินอยู่แล้ว แต่เป็นเครื่องใหม่ที่ยังไม่มีข้อมูลในเครื่องเลย (First run on fresh browser)

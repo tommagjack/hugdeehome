@@ -110,6 +110,9 @@ export const initDatabase = (forceReset = false) => {
   if (!localStorage.getItem(KEYS.ATTENDANCE)) {
     localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify([]));
   }
+  if (!localStorage.getItem('hdh_role_permissions')) {
+    localStorage.setItem('hdh_role_permissions', JSON.stringify(mock.DEFAULT_ROLE_PERMISSIONS));
+  }
   return false;
 };
 
@@ -770,7 +773,7 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
   }
 
   // 3. รวม Dynamic Links
-  let mergedLinks = null;
+  let mergedLinks;
   if (Array.isArray(record?.dynamicLinks) && record.dynamicLinks.length > 0) {
     mergedLinks = record.dynamicLinks;
   } else if (Array.isArray(baseFolder.dynamicLinks) && baseFolder.dynamicLinks.length > 0) {
@@ -782,7 +785,7 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
   }
 
   // 4. รวม Role Permissions (ตารางแจกแจงสิทธิ์)
-  let mergedPerms = null;
+  let mergedPerms;
   if (Array.isArray(record?.rolePermissions) && record.rolePermissions.length > 0) {
     mergedPerms = record.rolePermissions;
   } else if (Array.isArray(baseFolder.rolePermissions) && baseFolder.rolePermissions.length > 0) {

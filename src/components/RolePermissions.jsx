@@ -13,18 +13,13 @@ import {
   CheckCircle2, 
   XCircle, 
   Filter, 
-  HelpCircle,
-  Users,
-  Eye,
-  Sliders,
-  Sparkles,
   Info
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { db } from '../utils/db';
 import { DEFAULT_ROLE_PERMISSIONS } from '../utils/mockData';
 
-export default function RolePermissions({ currentUser, clinicInfo, setClinicInfo }) {
+export default function RolePermissions({ currentUser, _clinicInfo, setClinicInfo }) {
   const isAdmin = ['Admin', 'admin'].includes(currentUser?.role);
 
   // สเตตข้อมูลตารางสิทธิ์
@@ -1508,9 +1503,9 @@ export default function RolePermissions({ currentUser, clinicInfo, setClinicInfo
 
 // Subcomponent: ป้ายแสดงสิทธิ์ในแต่ละช่อง
 function RoleCellBadge({ allowed, note, isAdmin, onToggleAllowed }) {
-  if (allowed) {
-    return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      {allowed ? (
         <span 
           style={{
             display: 'inline-flex',
@@ -1534,34 +1529,50 @@ function RoleCellBadge({ allowed, note, isAdmin, onToggleAllowed }) {
             <span style={{ fontSize: '0.78rem', color: '#059669' }}>อนุญาต</span>
           )}
         </span>
-      </div>
-    );
-  }
+      ) : (
+        <span 
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            backgroundColor: note ? '#F8FAFC' : 'transparent',
+            color: note ? '#64748B' : '#94A3B8',
+            border: note ? '1px solid #E2E8F0' : 'none',
+            padding: note ? '4px 8px' : '2px 6px',
+            borderRadius: '8px',
+            fontWeight: 700,
+            fontSize: '0.85rem'
+          }}
+        >
+          <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#EF4444' }}>✕</span>
+          {note && (
+            <span style={{ fontWeight: 500, fontSize: '0.8rem', color: '#64748B' }}>
+              {note.startsWith('(') ? note : `(${note})`}
+            </span>
+          )}
+        </span>
+      )}
 
-  // ไม่อนุญาต
-  return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
-      <span 
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          backgroundColor: note ? '#F8FAFC' : 'transparent',
-          color: note ? '#64748B' : '#94A3B8',
-          border: note ? '1px solid #E2E8F0' : 'none',
-          padding: note ? '4px 8px' : '2px 6px',
-          borderRadius: '8px',
-          fontWeight: 700,
-          fontSize: '0.85rem'
-        }}
-      >
-        <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#EF4444' }}>✕</span>
-        {note && (
-          <span style={{ fontWeight: 500, fontSize: '0.8rem', color: '#64748B' }}>
-            {note.startsWith('(') ? note : `(${note})`}
-          </span>
-        )}
-      </span>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={onToggleAllowed}
+          title={allowed ? "คลิกเพื่อสลับเป็นไม่อนุญาต (✕)" : "คลิกเพื่อสลับเป็นอนุญาต (✓)"}
+          style={{
+            background: 'none',
+            border: '1px solid #E2E8F0',
+            borderRadius: '6px',
+            padding: '2px 6px',
+            cursor: 'pointer',
+            fontSize: '0.72rem',
+            color: allowed ? '#EF4444' : '#10B981',
+            backgroundColor: '#FFFFFF',
+            lineHeight: 1.2
+          }}
+        >
+          {allowed ? '✕ ปิด' : '✓ เปิด'}
+        </button>
+      )}
     </div>
   );
 }
