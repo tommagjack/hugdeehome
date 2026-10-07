@@ -297,6 +297,21 @@ export default function LineOAManager({
             }
             return merged;
           });
+        } else {
+          // หาก Server ยังไม่มีรูปใน Cloud แต่ในเครื่องมี ให้ดันขึ้น Cloud อัตโนมัติทันที
+          setCustomImages(prev => {
+            if (prev && typeof prev === 'object' && Object.keys(prev).length > 0) {
+              fetch('/api/line-richmenu?action=save-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  config: customConfigs,
+                  images: prev
+                })
+              }).catch(() => {});
+            }
+            return prev;
+          });
         }
       }
     } catch (e) {

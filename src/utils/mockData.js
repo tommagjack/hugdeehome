@@ -53,6 +53,119 @@ export const DEFAULT_RICHMENU_CONFIG = {
   ]
 };
 
+export const DEFAULT_ROLE_PERMISSIONS = [
+  {
+    id: 'perm_1',
+    capability: 'ลงทะเบียนประวัติผู้รับบริการ',
+    category: 'ทะเบียน & ผู้รับบริการ',
+    roles: {
+      parent: { allowed: true, note: 'ผ่าน QR/ลิงก์' },
+      staff: { allowed: true, note: 'เต็มรูปแบบ' },
+      ot: { allowed: true, note: 'ดู/แก้ไขประวัติ' },
+      admin: { allowed: true, note: 'จัดการทั้งหมด' }
+    }
+  },
+  {
+    id: 'perm_2',
+    capability: 'เซ็นบอร์ดสิทธิหลังรับบริการนโยบาย',
+    category: 'สิทธิ & ความยินยอม',
+    roles: {
+      parent: { allowed: true, note: 'หน้าจอดิจิทัล/ปากกา' },
+      staff: { allowed: true, note: 'ตรวจสอบ' },
+      ot: { allowed: true, note: 'ตรวจสอบใบในเวชระเบียน' },
+      admin: { allowed: true, note: 'ดูแลความปลอดภัย' }
+    }
+  },
+  {
+    id: 'perm_3',
+    capability: 'ปฏิทินนัดหมาย & ส่ง LINE เตือนกลุ่ม',
+    category: 'นัดหมาย & สื่อสาร',
+    roles: {
+      parent: { allowed: false, note: 'รับแจ้งเตือน' },
+      staff: { allowed: true, note: 'จัดการคิว & ส่งกลุ่ม' },
+      ot: { allowed: true, note: 'ดูตารางงานตนเอง' },
+      admin: { allowed: true, note: 'จัดการได้ทุกตาราง' }
+    }
+  },
+  {
+    id: 'perm_4',
+    capability: 'ประเมินพัฒนาการ (DSPM / Sensory)',
+    category: 'พัฒนาการ & การประเมิน',
+    roles: {
+      parent: { allowed: false, note: 'รับรายงานสรุป' },
+      staff: { allowed: false, note: '' },
+      ot: { allowed: true, note: 'ประเมิน & แปลผล' },
+      admin: { allowed: true, note: 'จัดการเทมเพลต' }
+    }
+  },
+  {
+    id: 'perm_5',
+    capability: 'แผนบำบัดรายบุคคล (ITP Tracker)',
+    category: 'พัฒนาการ & การประเมิน',
+    roles: {
+      parent: { allowed: false, note: 'รับรายงานความก้าวหน้า' },
+      staff: { allowed: false, note: '' },
+      ot: { allowed: true, note: 'ตั้งเป้า & ปรับ %' },
+      admin: { allowed: true, note: 'ดูรายงานรวมคลินิก' }
+    }
+  },
+  {
+    id: 'perm_6',
+    capability: 'บันทึกเวชระเบียน (OPD SOAP Note)',
+    category: 'เวชระเบียน & บำบัด',
+    roles: {
+      parent: { allowed: false, note: '' },
+      staff: { allowed: false, note: '' },
+      ot: { allowed: true, note: 'บันทึกทุก Session' },
+      admin: { allowed: true, note: 'ตรวจสอบมาตรฐาน' }
+    }
+  },
+  {
+    id: 'perm_7',
+    capability: 'กิจกรรมฝึกที่บ้าน (Home Program)',
+    category: 'เวชระเบียน & บำบัด',
+    roles: {
+      parent: { allowed: true, note: 'รับการ์ด PDF & LINE' },
+      staff: { allowed: false, note: '' },
+      ot: { allowed: true, note: 'ออกแบบ & สั่งพิมพ์' },
+      admin: { allowed: true, note: 'ตรวจสอบและดูภาพรวม' }
+    }
+  },
+  {
+    id: 'perm_8',
+    capability: 'ออกใบเสร็จรับเงิน & ตัดคอร์ส',
+    category: 'การเงิน & สิทธิประโยชน์',
+    roles: {
+      parent: { allowed: false, note: 'รับใบเสร็จ' },
+      staff: { allowed: true, note: 'เปิดบิล & ตัดคอร์ส' },
+      ot: { allowed: false, note: 'ดูประวัติการเบิก' },
+      admin: { allowed: true, note: 'ดูแลนโยบายราคา' }
+    }
+  },
+  {
+    id: 'perm_9',
+    capability: 'ติดตามคนไข้ขาดการติดต่อ (Retention)',
+    category: 'การบริการ & ลูกค้าสัมพันธ์',
+    roles: {
+      parent: { allowed: false, note: '' },
+      staff: { allowed: true, note: 'โทรตาม & บันทึก Note' },
+      ot: { allowed: true, note: 'ดูประวัติตนเอง' },
+      admin: { allowed: true, note: 'วิเคราะห์อัตรา Retention' }
+    }
+  },
+  {
+    id: 'perm_10',
+    capability: 'คำนวณเงินเดือน ค่าเวร และค่าคอม',
+    category: 'การบริหารจัดการบุคคล & HR',
+    roles: {
+      parent: { allowed: false, note: '' },
+      staff: { allowed: false, note: '' },
+      ot: { allowed: false, note: 'ดูสลิปตนเอง' },
+      admin: { allowed: true, note: 'คำนวณ & จัดการทั้งระบบ' }
+    }
+  }
+];
+
 export const INITIAL_CLINIC_INFO = {
   name: "บ้านฮักดี (Hug Dee Home)",
   type: "คลินิกการประกอบโรคศิลปะ สาขากิจกรรมบำบัด",
@@ -72,7 +185,8 @@ export const INITIAL_CLINIC_INFO = {
   servicesFooterTitle: "นัดหมายหรือปรึกษาประเมินพัฒนาการเบื้องต้นได้ทุกวันทำการ",
   mapsUrl: "https://maps.google.com/?q=Hug+Dee+Home+Clinic",
   richmenuConfig: DEFAULT_RICHMENU_CONFIG,
-  richmenuImages: {}
+  richmenuImages: {},
+  rolePermissions: DEFAULT_ROLE_PERMISSIONS
 };
 
 export const INITIAL_USERS = [

@@ -165,8 +165,9 @@ export const db = {
           richmenuImages: parsed.richmenuImages || info.richmenuImages || null,
           richmenuUpdatedAt: parsed.richmenuUpdatedAt || info.richmenuUpdatedAt || '',
           dynamicLinks: parsed.dynamicLinks || info.dynamicLinks || null,
+          rolePermissions: parsed.rolePermissions || info.rolePermissions || null,
           folderUrl: parsed.original !== undefined ? parsed.original : (typeof info.folderUrl === 'string' && !info.folderUrl.startsWith('{') ? info.folderUrl : ''),
-          folder_url: parsed.original !== undefined ? parsed.original : (typeof info.folder_url === 'string' && !info.folder_url.startsWith('{') ? info.folder_url : '')
+          folder_url: JSON.stringify(parsed)
         };
       } else if (!info.operatingHours) {
         info = {
@@ -186,11 +187,16 @@ export const db = {
           info.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
         }
       }
-      if (!info.richmenuImages) {
+      if (!info.richmenuImages || (typeof info.richmenuImages === 'object' && Object.keys(info.richmenuImages).length === 0)) {
         try {
           const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
-          if (localImgs) info.richmenuImages = JSON.parse(localImgs);
-          else info.richmenuImages = {};
+          if (localImgs) {
+            const parsedImgs = JSON.parse(localImgs);
+            if (parsedImgs && Object.keys(parsedImgs).length > 0) info.richmenuImages = parsedImgs;
+            else info.richmenuImages = {};
+          } else {
+            info.richmenuImages = {};
+          }
         } catch {
           info.richmenuImages = {};
         }
@@ -201,10 +207,49 @@ export const db = {
           if (localLinks) info.dynamicLinks = JSON.parse(localLinks);
         } catch {}
       }
+      if (!info.rolePermissions || !Array.isArray(info.rolePermissions) || info.rolePermissions.length === 0) {
+        try {
+          const localPerms = localStorage.getItem('hdh_role_permissions');
+          if (localPerms) {
+            const parsedPerms = JSON.parse(localPerms);
+            if (Array.isArray(parsedPerms) && parsedPerms.length > 0) info.rolePermissions = parsedPerms;
+            else info.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+          } else {
+            info.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+          }
+        } catch {
+          info.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+        }
+      }
     }
     return info;
   },
   setClinicInfo: (data) => set(KEYS.CLINIC_INFO, data),
+
+  getRolePermissions: () => {
+    try {
+      const local = localStorage.getItem('hdh_role_permissions');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const clinic = db.getClinicInfo();
+      if (Array.isArray(clinic?.rolePermissions) && clinic.rolePermissions.length > 0) {
+        return clinic.rolePermissions;
+      }
+    } catch {}
+    return mock.DEFAULT_ROLE_PERMISSIONS;
+  },
+  setRolePermissions: (perms) => {
+    try {
+      localStorage.setItem('hdh_role_permissions', JSON.stringify(perms));
+      const clinic = db.getClinicInfo();
+      const updatedClinic = { ...clinic, rolePermissions: perms };
+      db.setClinicInfo(updatedClinic);
+    } catch (e) {
+      console.warn('setRolePermissions error:', e);
+    }
+  },
 
   getUsers: () => {
     const data = get(KEYS.USERS, mock.INITIAL_USERS);
@@ -651,6 +696,19 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
 
   if (parsedExisting && typeof parsedExisting === 'object') {
     baseFolder = { ...parsedExisting };
+  } else {
+    // หากไม่มีใน record ให้พยายามดึง baseFolder จาก LocalStorage ของคลินิก
+    try {
+      const storedClinic = localStorage.getItem(KEYS.CLINIC_INFO);
+      if (storedClinic) {
+        const arr = JSON.parse(storedClinic);
+        const item = Array.isArray(arr) ? arr[0] : arr;
+        const candidate = parseCandidate(item?.folder_url) || parseCandidate(item?.folderUrl);
+        if (candidate) {
+          baseFolder = { ...candidate };
+        }
+      }
+    } catch {}
   }
 
   // กำหนด folderUrl ดั้งเดิมที่เป็น Google Drive URL
@@ -667,6 +725,7 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
   let localRichmenuConfig = null;
   let localRichmenuImages = null;
   let localDynamicLinks = null;
+  let localRolePermissions = null;
   try {
     const rawCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
     if (rawCfg) localRichmenuConfig = JSON.parse(rawCfg);
@@ -679,6 +738,60 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
     const rawLinks = localStorage.getItem('hdh_dynamic_links');
     if (rawLinks) localDynamicLinks = JSON.parse(rawLinks);
   } catch {}
+  try {
+    const rawPerms = localStorage.getItem('hdh_role_permissions');
+    if (rawPerms) localRolePermissions = JSON.parse(rawPerms);
+  } catch {}
+
+  // 1. รวมรูปภาพ Rich Menu: ห้ามใช้วัตถุว่าง {} ทับข้อมูลรูปภาพเดิมเด็ดขาด
+  let mergedImages = {};
+  if (baseFolder.richmenuImages && typeof baseFolder.richmenuImages === 'object') {
+    mergedImages = { ...mergedImages, ...baseFolder.richmenuImages };
+  }
+  if (localRichmenuImages && typeof localRichmenuImages === 'object') {
+    mergedImages = { ...mergedImages, ...localRichmenuImages };
+  }
+  if (record?.richmenuImages && typeof record.richmenuImages === 'object') {
+    for (const [k, v] of Object.entries(record.richmenuImages)) {
+      if (v !== undefined && v !== null && v !== '') {
+        mergedImages[k] = v;
+      }
+    }
+  }
+
+  // 2. รวมปุ่ม Rich Menu Config
+  let mergedConfig = mock.DEFAULT_RICHMENU_CONFIG;
+  if (record?.richmenuConfig && typeof record.richmenuConfig === 'object' && Object.keys(record.richmenuConfig).length > 0) {
+    mergedConfig = record.richmenuConfig;
+  } else if (baseFolder.richmenuConfig && typeof baseFolder.richmenuConfig === 'object' && Object.keys(baseFolder.richmenuConfig).length > 0) {
+    mergedConfig = baseFolder.richmenuConfig;
+  } else if (localRichmenuConfig && typeof localRichmenuConfig === 'object' && Object.keys(localRichmenuConfig).length > 0) {
+    mergedConfig = localRichmenuConfig;
+  }
+
+  // 3. รวม Dynamic Links
+  let mergedLinks = null;
+  if (Array.isArray(record?.dynamicLinks) && record.dynamicLinks.length > 0) {
+    mergedLinks = record.dynamicLinks;
+  } else if (Array.isArray(baseFolder.dynamicLinks) && baseFolder.dynamicLinks.length > 0) {
+    mergedLinks = baseFolder.dynamicLinks;
+  } else if (Array.isArray(localDynamicLinks) && localDynamicLinks.length > 0) {
+    mergedLinks = localDynamicLinks;
+  } else {
+    mergedLinks = record?.dynamicLinks || baseFolder.dynamicLinks || null;
+  }
+
+  // 4. รวม Role Permissions (ตารางแจกแจงสิทธิ์)
+  let mergedPerms = null;
+  if (Array.isArray(record?.rolePermissions) && record.rolePermissions.length > 0) {
+    mergedPerms = record.rolePermissions;
+  } else if (Array.isArray(baseFolder.rolePermissions) && baseFolder.rolePermissions.length > 0) {
+    mergedPerms = baseFolder.rolePermissions;
+  } else if (Array.isArray(localRolePermissions) && localRolePermissions.length > 0) {
+    mergedPerms = localRolePermissions;
+  } else {
+    mergedPerms = record?.rolePermissions || baseFolder.rolePermissions || mock.DEFAULT_ROLE_PERMISSIONS;
+  }
 
   const packed = {
     ...baseFolder,
@@ -689,10 +802,11 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
     servicesFooterTitle: record?.servicesFooterTitle !== undefined ? record.servicesFooterTitle : (baseFolder.servicesFooterTitle || mock.INITIAL_CLINIC_INFO.servicesFooterTitle),
     servicePrograms: record?.servicePrograms !== undefined ? record.servicePrograms : (baseFolder.servicePrograms || null),
     mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl),
-    richmenuConfig: record?.richmenuConfig || baseFolder.richmenuConfig || localRichmenuConfig || mock.DEFAULT_RICHMENU_CONFIG,
-    richmenuImages: record?.richmenuImages || baseFolder.richmenuImages || localRichmenuImages || {},
+    richmenuConfig: mergedConfig,
+    richmenuImages: mergedImages,
     richmenuUpdatedAt: record?.richmenuUpdatedAt || baseFolder.richmenuUpdatedAt || new Date().toISOString(),
-    dynamicLinks: record?.dynamicLinks || baseFolder.dynamicLinks || localDynamicLinks || null
+    dynamicLinks: mergedLinks,
+    rolePermissions: mergedPerms
   };
 
   return JSON.stringify(packed);
@@ -916,10 +1030,21 @@ export const syncFromSupabase = async (targetKeys = null) => {
             }
 
             // กู้คืนรูปภาพเมนู Rich Menu (richmenuImages) สู่ LocalStorage และ infoObj
-            if (parsedFolder.richmenuImages && typeof parsedFolder.richmenuImages === 'object') {
+            if (parsedFolder.richmenuImages && typeof parsedFolder.richmenuImages === 'object' && Object.keys(parsedFolder.richmenuImages).length > 0) {
               infoObj.richmenuImages = parsedFolder.richmenuImages;
               try {
                 localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(parsedFolder.richmenuImages));
+              } catch {}
+            } else {
+              // หากใน Supabase เป็น {} แต่ในเครื่องมีรูปภาพอยู่ ให้คงรูปภาพไว้ ไม่ให้กลายเป็นค่าว่าง
+              try {
+                const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+                if (localImgs) {
+                  const parsedImgs = JSON.parse(localImgs);
+                  if (parsedImgs && Object.keys(parsedImgs).length > 0) {
+                    infoObj.richmenuImages = parsedImgs;
+                  }
+                }
               } catch {}
             }
 
@@ -934,9 +1059,34 @@ export const syncFromSupabase = async (targetKeys = null) => {
               } catch {}
             }
 
-            // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ
+            // กู้คืน Role Permissions (ตารางแจกแจงสิทธิ์) สู่ LocalStorage และ infoObj
+            if (Array.isArray(parsedFolder.rolePermissions) && parsedFolder.rolePermissions.length > 0) {
+              infoObj.rolePermissions = parsedFolder.rolePermissions;
+              try {
+                localStorage.setItem('hdh_role_permissions', JSON.stringify(parsedFolder.rolePermissions));
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('hdh_role_permissions_updated', { detail: parsedFolder.rolePermissions }));
+                }
+              } catch {}
+            } else {
+              try {
+                const localPerms = localStorage.getItem('hdh_role_permissions');
+                if (localPerms) {
+                  const parsedPerms = JSON.parse(localPerms);
+                  if (Array.isArray(parsedPerms) && parsedPerms.length > 0) {
+                    infoObj.rolePermissions = parsedPerms;
+                  }
+                }
+              } catch {}
+              if (!infoObj.rolePermissions) {
+                infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+              }
+            }
+
+            // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ สำหรับ Google Drive
             infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
-            infoObj.folder_url = parsedFolder.original !== undefined ? parsedFolder.original : '';
+            // ให้ infoObj.folder_url เก็บตัว packed JSON ครบถ้วน เพื่อให้การ sync ในอนาคตไม่สูญหาย
+            infoObj.folder_url = JSON.stringify(parsedFolder);
           } else if (infoObj.operating_hours) {
             infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
           }
@@ -951,13 +1101,32 @@ export const syncFromSupabase = async (targetKeys = null) => {
               infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
             }
           }
-          if (!infoObj.richmenuImages) {
+          if (!infoObj.richmenuImages || (typeof infoObj.richmenuImages === 'object' && Object.keys(infoObj.richmenuImages).length === 0)) {
             try {
               const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
-              if (localImgs) infoObj.richmenuImages = JSON.parse(localImgs);
-              else infoObj.richmenuImages = {};
+              if (localImgs) {
+                const parsedImgs = JSON.parse(localImgs);
+                if (parsedImgs && Object.keys(parsedImgs).length > 0) infoObj.richmenuImages = parsedImgs;
+                else infoObj.richmenuImages = {};
+              } else {
+                infoObj.richmenuImages = {};
+              }
             } catch {
               infoObj.richmenuImages = {};
+            }
+          }
+          if (!infoObj.rolePermissions || !Array.isArray(infoObj.rolePermissions) || infoObj.rolePermissions.length === 0) {
+            try {
+              const localPerms = localStorage.getItem('hdh_role_permissions');
+              if (localPerms) {
+                const parsedPerms = JSON.parse(localPerms);
+                if (Array.isArray(parsedPerms) && parsedPerms.length > 0) infoObj.rolePermissions = parsedPerms;
+                else infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+              } else {
+                infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+              }
+            } catch {
+              infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
             }
           }
 

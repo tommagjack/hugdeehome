@@ -29,6 +29,7 @@ import LineLinkPortal from './components/LineLinkPortal';
 import PublicServices from './components/PublicServices';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
+import RolePermissions from './components/RolePermissions';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
@@ -3023,6 +3024,14 @@ export default function App() {
           <SalarySettings 
             salaryRules={salaryRules}
             setSalaryRules={setSalaryRules}
+          />
+        )}
+
+        {activeTab === 'rolePermissions' && (
+          <RolePermissions 
+            currentUser={currentUser}
+            clinicInfo={clinicInfo}
+            setClinicInfo={setClinicInfo}
           />
         )}
 
