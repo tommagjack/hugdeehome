@@ -101,9 +101,9 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
       const localLogs = db.getAttendance() || [];
       const { data, error } = await supabase
         .from('attendance')
-        .select('*')
+        .select('id, employee_id, employee_name, date, time, type, latitude, longitude, accuracy, maps_url, work_hours, line_user_id, notes, created_at')
         .order('created_at', { ascending: false })
-        .limit(300);
+        .limit(100);
 
       if (!error && Array.isArray(data)) {
         // แปลงรูปแบบคีย์จาก snake_case เป็น camelCase

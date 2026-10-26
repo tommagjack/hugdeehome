@@ -641,7 +641,37 @@ const TABLE_COLUMNS = {
     'id', 'employee_id', 'employee_name', 'date', 'time', 'type',
     'latitude', 'longitude', 'accuracy', 'maps_url', 'work_hours',
     'line_user_id', 'notes', 'created_at'
+  ],
+  itp_goals: [
+    'id', 'hn', 'therapist', 'title', 'category', 'target_date',
+    'status', 'progress', 'notes', 'created_at', 'updated_at'
   ]
+};
+
+
+// --- คอลัมน์ที่เลือกดึงข้อมูลจาก Supabase (Selective Projection) เพื่อลด Egress ให้เหลือน้อยที่สุด ---
+// ไม่ดึงฟิลด์ภาพถ่าย/เอกสารขนาดใหญ่ (เช่น citizen_id_doc, house_reg_doc, avatar_file) มาซิงค์ในรอบปกติ
+export const TABLE_SELECT_COLUMNS = {
+  clinic_info: 'id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id, line_channel_access_token, hero_image_url',
+  users: 'username, password, fullname, role, status, employee_id, employee_type, title, nickname, citizen_id, gender, dob, position, start_date, phone, email, basic_salary, bank_name, bank_account_no, avatar_url, user_folder_url, resignation_date, line_user_id',
+  therapists: 'id, fullname, nickname, license_no, status, work_days, work_hours',
+  services: 'code, name, description, price, category, status, start_date, end_date, sessions_per_unit',
+  holidays: 'id, date, name, type',
+  appointments: 'id, hn, therapist_id, date, time_slot, type, status',
+  receipts: 'id, hn, date, therapist_id, total_amount, payment_method, status, items, discount, received_amount, change_amount, discount_type, discount_value, discount_reason, promotion_id, bank_account_id, slip_url, created_by, patient_name, patient_nickname, reward_id, reward_discount_amount',
+  assessment_templates: 'id, name, description, type, chart_type, status, categories, questions, scoring_rules, checklist_options, is_system',
+  assessments: 'id, hn, therapist_id, date, comment, template_id, template_ids, scores, details, gm, fm, language, social, sensory_scores, snap_iv, has_developmental, has_sensory, has_snap',
+  opd_records: 'id, hn, date, details, therapist, file_url, is_visible',
+  salary_rules: 'id, earnings, deductions',
+  payrolls: 'id, therapist_id, employee_username, employee_name, employee_id, month, year, basic_salary, earnings_list, deductions_list, special_earnings, special_deductions, total_earnings, total_deductions, net_pay, payment_date, status',
+  transactions: 'id, date, type, category, amount, description, reference_id, ref_id, slip_url',
+  rewards: 'code, name, description, full_price, points, max_uses, start_date, end_date, type, condition, value',
+  referrals: 'id, hn, date, hospital, reason, details, therapist_id, to, intro, interview, observation, opinion, conclusion, status',
+  promotions: 'code, name, description, start_date, end_date, max_uses, type, value',
+  bank_accounts: 'id, bank_name, account_no, account_name',
+  patients: 'hn, title, firstname, lastname, nickname, dob, gender, guardian, phone, status, allergies, conditions, conditions_details, channels, channels_other_details, worries, allergies_details, created_by, line_user_id, activated_by, activated_at, created_at',
+  attendance: 'id, employee_id, employee_name, date, time, type, latitude, longitude, accuracy, maps_url, work_hours, line_user_id, notes, created_at',
+  itp_goals: 'id, hn, therapist, title, category, target_date, status, progress, notes, created_at, updated_at'
 };
 
 // --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
@@ -830,367 +860,422 @@ const fetchTableWithTimeout = async (queryPromise, timeoutMs = 10000, tableName 
   }
 };
 
+// --- ตัวแปรสำหรับ Request Deduplication และ Cache Cooldown เพื่อประหยัด Supabase Egress ---
+let inFlightSyncPromise = null;
+let lastFullSyncTimestamp = 0;
+const lastTableSyncTimestamps = {};
+
+export const clearSyncCache = () => {
+  lastFullSyncTimestamp = 0;
+  Object.keys(lastTableSyncTimestamps).forEach(k => delete lastTableSyncTimestamps[k]);
+};
+
 // --- ฟังก์ชันซิงค์ข้อมูลลง LocalStorage จาก Supabase ---
-export const syncFromSupabase = async (targetKeys = null) => {
-  try {
-    const tableKeys = Array.isArray(targetKeys) && targetKeys.length > 0
-      ? targetKeys.filter(k => TABLE_MAP[k])
-      : Object.keys(TABLE_MAP);
-    
-    // โหลดข้อมูลตามตารางที่กำหนดพร้อมกัน โดยมี Timeout 10 วินาทีต่อตาราง ป้องกันระบบค้าง
-    const promises = tableKeys.map(async (key) => {
-      const tableName = TABLE_MAP[key];
-      if (!tableName) return { key, data: null };
-      let query = supabase.from(tableName).select('*');
-      if (key === KEYS.CLINIC_INFO) {
-        query = supabase.from(tableName).select('id, name, license_no, phone, email, line_id, address, logo_url, stamp_url, receipt_footer, folder_id, folder_url, type, payslip_footer, liff_id, line_channel_access_token, hero_image_url');
-      }
-      try {
-        const { data, error } = await fetchTableWithTimeout(query, 10000, tableName);
-        if (error) {
-          console.warn(`[Sync Warning] Failed to fetch ${tableName} (likely RLS / Auth):`, error.message);
-          return { key, data: null }; // คืนค่า null เพื่อระบุว่าซิงค์ตารางนี้ไม่ได้เนื่องจากไม่มีสิทธิ์ RLS/Auth
-        }
-        return { key, data: data || [] };
-      } catch (err) {
-        console.warn(`[Sync Warning] Failed to fetch ${tableName}:`, err.message || err);
-        return { key, data: null };
-      }
-    });
-    
-    const results = await Promise.all(promises);
-    
-    // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (เฉพาะเมื่อซิงค์แบบเต็มทุกตาราง)
-    const isFullSync = !targetKeys || targetKeys.length >= Object.keys(TABLE_MAP).length;
-    if (isFullSync) {
-      const isCloudEmpty = results.every(({ key, data }) => {
-        if (data === null) return true; // ข้ามตารางที่ดึงไม่สำเร็จเนื่องจากสิทธิ์ RLS
-        if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
-          return true; // ข้ามตารางข้อมูลตั้งต้น
-        }
-        return data.length === 0;
-      });
+export const syncFromSupabase = async (targetKeys = null, options = {}) => {
+  const isFullSync = !targetKeys || targetKeys.length >= Object.keys(TABLE_MAP).length;
+  const now = Date.now();
 
-      // หากคลาวด์ว่างเปล่า และในเครื่องของผู้ใช้งานมีข้อมูลอยู่แล้ว ให้ส่งกลับสถานะพิเศษเพื่อความปลอดภัย
-      if (isCloudEmpty) {
-        const patientsRaw = localStorage.getItem(KEYS.PATIENTS);
-        const hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
-        if (hasLocalPatients) {
-          console.log("Supabase database is empty but local storage has patient data. Skipping overwrite to prevent data loss.");
-          return "empty_but_has_local";
-        }
-      }
-    }
-    
-    const pendingSyncsRaw = localStorage.getItem('hdh_pending_syncs');
-    const pendingSyncs = pendingSyncsRaw ? JSON.parse(pendingSyncsRaw) : [];
+  // 1. Cooldown Guard: หากเพิ่งซิงค์แบบเต็มไปเมื่อไม่เกิน 45 วินาทีที่แล้ว และไม่ได้บังคับ (force) ให้ข้ามเพื่อประหยัด Egress
+  if (isFullSync && !options.force && (now - lastFullSyncTimestamp < 45000)) {
+    return true;
+  }
 
-    results.forEach(({ key, data }) => {
-      if (data === null) return; // ข้ามการเขียนทับหากดึงข้อมูลจาก Supabase ไม่สำเร็จ (ไม่มีสิทธิ์ RLS / Offline)
+  // 2. Request Deduplication: หากมีคำสั่งซิงค์แบบเต็มกำลังทำงานอยู่ ให้แชร์ Promise เดียวกัน
+  if (isFullSync && inFlightSyncPromise && !options.force) {
+    return inFlightSyncPromise;
+  }
+
+  const syncOperation = async () => {
+    try {
+      const tableKeys = Array.isArray(targetKeys) && targetKeys.length > 0
+        ? targetKeys.filter(k => TABLE_MAP[k])
+        : Object.keys(TABLE_MAP);
       
-      // แปลงข้อมูลจาก snake_case กลับมาเป็น camelCase
-      const mappedData = data.map(row => {
-        const mapped = {};
-        for (const k in row) {
-          mapped[toCamelCase(k)] = safeJsonParse(row[k]);
-        }
-        return mapped;
-      });
+      // โหลดข้อมูลตามตารางที่กำหนดพร้อมกัน โดยมี Timeout 10 วินาทีต่อตาราง ป้องกันระบบค้าง
+      const promises = tableKeys.map(async (key) => {
+        const tableName = TABLE_MAP[key];
+        if (!tableName) return { key, data: null };
 
-      // ดึงข้อมูลการซิงค์ที่ค้างสำหรับตารางนี้มาควบรวม (Merge) เพื่อป้องกันข้อมูลใหม่ในเครื่องสูญหาย
-      let finalData = mappedData;
-      const tableName = TABLE_MAP[key];
-      const pk = getPrimaryKey(tableName);
-
-      if (pk) {
-        // 1. ดึงข้อมูลจาก pendingSyncs
-        const tableSyncs = pendingSyncs.filter(item => item && item.key === key);
-        const upsertMap = new Map();
-        const deleteSet = new Set();
-
-        tableSyncs.forEach(s => {
-          if (s.delta) {
-            if (Array.isArray(s.delta.toUpsert)) {
-              s.delta.toUpsert.forEach(item => {
-                if (item && item[pk] !== undefined && item[pk] !== null) {
-                  upsertMap.set(String(item[pk]), item);
-                }
-              });
-            }
-            if (Array.isArray(s.delta.toDelete)) {
-              s.delta.toDelete.forEach(id => {
-                if (id !== undefined && id !== null) {
-                  deleteSet.add(String(id));
-                }
-              });
-            }
+        // 3. Cache clinic_info: ตาราง clinic_info (ซึ่งอาจมีรูป Rich Menu ขนาดใหญ่) ไม่ค่อยเปลี่ยนแปลง
+        // หากมีข้อมูลเดิมในเครื่องอยู่แล้ว และเพิ่งซิงค์ไปไม่เกิน 15 นาที ให้ข้ามในรอบซิงค์ปกติเพื่อประหยัด Egress
+        if (key === KEYS.CLINIC_INFO && isFullSync && !options.force) {
+          const storedClinic = localStorage.getItem(KEYS.CLINIC_INFO);
+          const lastClinicSync = lastTableSyncTimestamps[key] || 0;
+          if (storedClinic && (now - lastClinicSync < 15 * 60 * 1000)) {
+            try {
+              const parsed = JSON.parse(storedClinic);
+              const clinicArr = Array.isArray(parsed) ? parsed : [parsed];
+              return { key, data: clinicArr, fromCache: true };
+            } catch {}
           }
+        }
+
+        // เลือกคอลัมน์เฉพาะที่จำเป็น (Selective Projection) เพื่อลด Egress
+        const selectCols = TABLE_SELECT_COLUMNS[tableName] || '*';
+        let query = supabase.from(tableName).select(selectCols);
+
+        // กำหนดขอบเขตข้อมูลสำหรับตารางที่เติบโตต่อเนื่อง เช่น attendance
+        if (tableName === 'attendance') {
+          query = query.order('created_at', { ascending: false }).limit(500);
+        }
+
+        try {
+          const { data, error } = await fetchTableWithTimeout(query, 10000, tableName);
+          if (error) {
+            // กรณีคอลัมน์ใดไม่มีใน schema เดิม ให้ fallback กลับมาใช้ select('*') ป้องกันข้อผิดพลาด
+            if (error.code === '42703' || error.message?.includes('does not exist')) {
+              console.warn(`[Sync Fallback] Column mismatch on ${tableName}, retrying with select('*'):`, error.message);
+              const fallbackRes = await fetchTableWithTimeout(supabase.from(tableName).select('*'), 10000, tableName);
+              if (!fallbackRes.error && fallbackRes.data) {
+                lastTableSyncTimestamps[key] = Date.now();
+                return { key, data: fallbackRes.data };
+              }
+            }
+            console.warn(`[Sync Warning] Failed to fetch ${tableName} (likely RLS / Auth):`, error.message);
+            return { key, data: null }; // คืนค่า null เพื่อระบุว่าซิงค์ตารางนี้ไม่ได้เนื่องจากไม่มีสิทธิ์ RLS/Auth
+          }
+          lastTableSyncTimestamps[key] = Date.now();
+          return { key, data: data || [] };
+        } catch (err) {
+          console.warn(`[Sync Warning] Failed to fetch ${tableName}:`, err.message || err);
+          return { key, data: null };
+        }
+      });
+      
+      const results = await Promise.all(promises);
+      
+      // ตรวจสอบว่าคลาวด์ว่างเปล่าหรือไม่ (เฉพาะเมื่อซิงค์แบบเต็มทุกตาราง)
+      if (isFullSync) {
+        const isCloudEmpty = results.every(({ key, data }) => {
+          if (data === null) return true; // ข้ามตารางที่ดึงไม่สำเร็จเนื่องจากสิทธิ์ RLS
+          if (key === KEYS.CLINIC_INFO || key === KEYS.SALARY_RULES || key === KEYS.SERVICES || key === KEYS.ASSESSMENT_TEMPLATES || key === KEYS.HOLIDAYS) {
+            return true; // ข้ามตารางข้อมูลตั้งต้น
+          }
+          return data.length === 0;
         });
 
-        // ไม่ทำการกู้คืนข้อมูลแบบคาดเดาโดยไม่มีคิวซิงค์ เพื่อป้องกันไม่ให้ข้อมูลที่ลบไปจากเครื่องอื่นฟื้นคืนชีพกลับมา (Resurrection bug)
+        // หากคลาวด์ว่างเปล่า และในเครื่องของผู้ใช้งานมีข้อมูลอยู่แล้ว ให้ส่งกลับสถานะพิเศษเพื่อความปลอดภัย
+        if (isCloudEmpty) {
+          const patientsRaw = localStorage.getItem(KEYS.PATIENTS);
+          const hasLocalPatients = patientsRaw && JSON.parse(patientsRaw).length > 0;
+          if (hasLocalPatients) {
+            console.log("Supabase database is empty but local storage has patient data. Skipping overwrite to prevent data loss.");
+            return "empty_but_has_local";
+          }
+        }
+      }
+      
+      const pendingSyncsRaw = localStorage.getItem('hdh_pending_syncs');
+      const pendingSyncs = pendingSyncsRaw ? JSON.parse(pendingSyncsRaw) : [];
 
-        if (upsertMap.size > 0 || deleteSet.size > 0) {
-          const merged = [];
-          const dbItemIds = new Set();
+      results.forEach(({ key, data, fromCache }) => {
+        if (data === null || fromCache) return; // ข้ามการเขียนทับหากมาจากแคชหรือดึงไม่สำเร็จ (ไม่มีสิทธิ์ RLS / Offline)
+        
+        // แปลงข้อมูลจาก snake_case กลับมาเป็น camelCase
+        const mappedData = data.map(row => {
+          const mapped = {};
+          for (const k in row) {
+            mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+          }
+          return mapped;
+        });
 
-          mappedData.forEach(item => {
-            const idStr = String(item[pk]);
-            if (deleteSet.has(idStr)) {
-              return; // ข้าม (จำลองว่าถูกลบแล้วในเครื่องนี้)
-            }
-            if (upsertMap.has(idStr)) {
-              merged.push(upsertMap.get(idStr)); // ใช้ข้อมูลใหม่กว่าในเครื่อง
-              dbItemIds.add(idStr);
-            } else {
-              merged.push(item);
-              dbItemIds.add(idStr);
+        // ดึงข้อมูลการซิงค์ที่ค้างสำหรับตารางนี้มาควบรวม (Merge) เพื่อป้องกันข้อมูลใหม่ในเครื่องสูญหาย
+        let finalData = mappedData;
+        const tableName = TABLE_MAP[key];
+        const pk = getPrimaryKey(tableName);
+
+        if (pk) {
+          // 1. ดึงข้อมูลจาก pendingSyncs
+          const tableSyncs = pendingSyncs.filter(item => item && item.key === key);
+          const upsertMap = new Map();
+          const deleteSet = new Set();
+
+          tableSyncs.forEach(s => {
+            if (s.delta) {
+              if (Array.isArray(s.delta.toUpsert)) {
+                s.delta.toUpsert.forEach(item => {
+                  if (item && item[pk] !== undefined && item[pk] !== null) {
+                    upsertMap.set(String(item[pk]), item);
+                  }
+                });
+              }
+              if (Array.isArray(s.delta.toDelete)) {
+                s.delta.toDelete.forEach(id => {
+                  if (id !== undefined && id !== null) {
+                    deleteSet.add(String(id));
+                  }
+                });
+              }
             }
           });
 
-          // แทรกรายการใหม่ที่ยังไม่เคยขึ้น Supabase
-          for (const [idStr, localItem] of upsertMap.entries()) {
-            if (!dbItemIds.has(idStr)) {
-              merged.push(localItem);
-            }
-          }
-          finalData = merged;
-        }
+          if (upsertMap.size > 0 || deleteSet.size > 0) {
+            const merged = [];
+            const dbItemIds = new Set();
 
-        // สำหรับข้อมูลผู้ใช้ (USERS) ให้รักษารูปโปรไฟล์และรหัสผ่านที่บันทึกไว้ในเครื่องเสมอ และคัดกรองลิงก์ pic.in.th ที่เสียแล้วออก
-        if (key === KEYS.USERS && Array.isArray(finalData)) {
-          const localRaw = localStorage.getItem(key);
-          const localUsers = localRaw ? JSON.parse(localRaw) : [];
-          const localUserMap = new Map(localUsers.map(u => [u.username, u]));
+            mappedData.forEach(item => {
+              const idStr = String(item[pk]);
+              if (deleteSet.has(idStr)) {
+                return; // ข้าม (จำลองว่าถูกลบแล้วในเครื่องนี้)
+              }
+              if (upsertMap.has(idStr)) {
+                merged.push(upsertMap.get(idStr)); // ใช้ข้อมูลใหม่กว่าในเครื่อง
+                dbItemIds.add(idStr);
+              } else {
+                merged.push(item);
+                dbItemIds.add(idStr);
+              }
+            });
 
-          finalData = finalData.map(dbUser => {
-            const localUser = localUserMap.get(dbUser.username);
-            const empCode = String(dbUser.employeeId || dbUser.employee_id || dbUser.username || '').toUpperCase().trim();
-            const savedLine = localStorage.getItem(`hdh_line_user_${empCode}`) || '';
-            let lineId = localUser?.lineUserId || localUser?.line_user_id || dbUser.lineUserId || dbUser.line_user_id || savedLine || '';
-            if (!lineId && dbUser.avatarFile) {
-              const av = typeof dbUser.avatarFile === 'string' ? safeJsonParse(dbUser.avatarFile) : dbUser.avatarFile;
-              if (av && (av.line_user_id || av.lineUserId)) {
-                lineId = av.line_user_id || av.lineUserId;
+            // แทรกรายการใหม่ที่ยังไม่เคยขึ้น Supabase
+            for (const [idStr, localItem] of upsertMap.entries()) {
+              if (!dbItemIds.has(idStr)) {
+                merged.push(localItem);
               }
             }
-            if (localUser) {
-              let bestAvatar = localUser.avatarUrl || dbUser.avatarUrl || '';
-              if (bestAvatar.includes('pic.in.th')) {
-                bestAvatar = (localUser.avatarUrl && !localUser.avatarUrl.includes('pic.in.th')) ? localUser.avatarUrl : '';
+            finalData = merged;
+          }
+
+          // สำหรับข้อมูลผู้ใช้ (USERS) ให้รักษารูปโปรไฟล์และรหัสผ่านที่บันทึกไว้ในเครื่องเสมอ และคัดกรองลิงก์ pic.in.th ที่เสียแล้วออก
+          if (key === KEYS.USERS && Array.isArray(finalData)) {
+            const localRaw = localStorage.getItem(key);
+            const localUsers = localRaw ? JSON.parse(localRaw) : [];
+            const localUserMap = new Map(localUsers.map(u => [u.username, u]));
+
+            finalData = finalData.map(dbUser => {
+              const localUser = localUserMap.get(dbUser.username);
+              const empCode = String(dbUser.employeeId || dbUser.employee_id || dbUser.username || '').toUpperCase().trim();
+              const savedLine = localStorage.getItem(`hdh_line_user_${empCode}`) || '';
+              let lineId = localUser?.lineUserId || localUser?.line_user_id || dbUser.lineUserId || dbUser.line_user_id || savedLine || '';
+              if (!lineId && dbUser.avatarFile) {
+                const av = typeof dbUser.avatarFile === 'string' ? safeJsonParse(dbUser.avatarFile) : dbUser.avatarFile;
+                if (av && (av.line_user_id || av.lineUserId)) {
+                  lineId = av.line_user_id || av.lineUserId;
+                }
+              }
+              if (localUser) {
+                let bestAvatar = localUser.avatarUrl || dbUser.avatarUrl || '';
+                if (bestAvatar.includes('pic.in.th')) {
+                  bestAvatar = (localUser.avatarUrl && !localUser.avatarUrl.includes('pic.in.th')) ? localUser.avatarUrl : '';
+                }
+                return {
+                  ...dbUser,
+                  avatarUrl: bestAvatar,
+                  lineUserId: lineId,
+                  line_user_id: lineId,
+                  password: localUser.password || dbUser.password || (dbUser.username === 'admin' ? 'admin0100' : '123456')
+                };
               }
               return {
                 ...dbUser,
-                avatarUrl: bestAvatar,
                 lineUserId: lineId,
-                line_user_id: lineId,
-                password: localUser.password || dbUser.password || (dbUser.username === 'admin' ? 'admin0100' : '123456')
+                line_user_id: lineId
               };
-            }
-            return {
-              ...dbUser,
-              lineUserId: lineId,
-              line_user_id: lineId
-            };
-          });
+            });
 
-          const existingNames = new Set(finalData.map(u => u.username));
-          localUsers.forEach(lu => {
-            if (!existingNames.has(lu.username)) {
-              finalData.push(lu);
-            }
-          });
-        }
-      }
-      
-      // บันทึกลง LocalStorage (พร้อมระบบป้องกันการเขียนทับด้วยข้อมูลว่างเปล่า 0 รายการ)
-      if (key === KEYS.CLINIC_INFO) {
-        const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
-        if (infoObj && Object.keys(infoObj).length > 0) {
-          // ถอดรหัส operatingHours, ค่าหน้า services, rich menu configs, rich menu images, dynamic links จาก folderUrl หรือ folder_url
-          let parsedFolder = null;
-          if (infoObj.folderUrl && typeof infoObj.folderUrl === 'object' && (infoObj.folderUrl.operatingHours || infoObj.folderUrl.richmenuConfig)) {
-            parsedFolder = infoObj.folderUrl;
-          } else if (typeof infoObj.folderUrl === 'string' && infoObj.folderUrl.startsWith('{')) {
-            parsedFolder = safeJsonParse(infoObj.folderUrl, null);
-          } else if (typeof infoObj.folder_url === 'string' && infoObj.folder_url.startsWith('{')) {
-            parsedFolder = safeJsonParse(infoObj.folder_url, null);
+            const existingNames = new Set(finalData.map(u => u.username));
+            localUsers.forEach(lu => {
+              if (!existingNames.has(lu.username)) {
+                finalData.push(lu);
+              }
+            });
           }
-
-          if (parsedFolder && typeof parsedFolder === 'object') {
-            if (parsedFolder.operatingHours) infoObj.operatingHours = parsedFolder.operatingHours;
-            if (parsedFolder.operatingHoursSummary) infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
-            if (parsedFolder.servicesSubtitle !== undefined) infoObj.servicesSubtitle = parsedFolder.servicesSubtitle;
-            if (parsedFolder.servicesFooterTitle !== undefined) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
-            if (parsedFolder.servicePrograms !== undefined) infoObj.servicePrograms = parsedFolder.servicePrograms;
-            if (parsedFolder.mapsUrl !== undefined) infoObj.mapsUrl = parsedFolder.mapsUrl;
-
-            // กู้คืนการตั้งค่าปุ่ม Rich Menu (richmenuConfig) สู่ LocalStorage และ infoObj
-            if (parsedFolder.richmenuConfig && typeof parsedFolder.richmenuConfig === 'object') {
-              infoObj.richmenuConfig = parsedFolder.richmenuConfig;
-              try {
-                localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(parsedFolder.richmenuConfig));
-              } catch {}
+        }
+        
+        // บันทึกลง LocalStorage (พร้อมระบบป้องกันการเขียนทับด้วยข้อมูลว่างเปล่า 0 รายการ)
+        if (key === KEYS.CLINIC_INFO) {
+          const infoObj = finalData.find(r => r && Number(r.id) === 1) || finalData[0];
+          if (infoObj && Object.keys(infoObj).length > 0) {
+            let parsedFolder = null;
+            if (infoObj.folderUrl && typeof infoObj.folderUrl === 'object' && (infoObj.folderUrl.operatingHours || infoObj.folderUrl.richmenuConfig)) {
+              parsedFolder = infoObj.folderUrl;
+            } else if (typeof infoObj.folderUrl === 'string' && infoObj.folderUrl.startsWith('{')) {
+              parsedFolder = safeJsonParse(infoObj.folderUrl, null);
+            } else if (typeof infoObj.folder_url === 'string' && infoObj.folder_url.startsWith('{')) {
+              parsedFolder = safeJsonParse(infoObj.folder_url, null);
             }
 
-            // กู้คืนรูปภาพเมนู Rich Menu (richmenuImages) สู่ LocalStorage และ infoObj
-            if (parsedFolder.richmenuImages && typeof parsedFolder.richmenuImages === 'object' && Object.keys(parsedFolder.richmenuImages).length > 0) {
-              infoObj.richmenuImages = parsedFolder.richmenuImages;
+            if (parsedFolder && typeof parsedFolder === 'object') {
+              if (parsedFolder.operatingHours) infoObj.operatingHours = parsedFolder.operatingHours;
+              if (parsedFolder.operatingHoursSummary) infoObj.operatingHoursSummary = parsedFolder.operatingHoursSummary;
+              if (parsedFolder.servicesSubtitle !== undefined) infoObj.servicesSubtitle = parsedFolder.servicesSubtitle;
+              if (parsedFolder.servicesFooterTitle !== undefined) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
+              if (parsedFolder.servicePrograms !== undefined) infoObj.servicePrograms = parsedFolder.servicePrograms;
+              if (parsedFolder.mapsUrl !== undefined) infoObj.mapsUrl = parsedFolder.mapsUrl;
+
+              if (parsedFolder.richmenuConfig && typeof parsedFolder.richmenuConfig === 'object') {
+                infoObj.richmenuConfig = parsedFolder.richmenuConfig;
+                try {
+                  localStorage.setItem('hdh_line_richmenu_custom_configs', JSON.stringify(parsedFolder.richmenuConfig));
+                } catch {}
+              }
+
+              if (parsedFolder.richmenuImages && typeof parsedFolder.richmenuImages === 'object' && Object.keys(parsedFolder.richmenuImages).length > 0) {
+                infoObj.richmenuImages = parsedFolder.richmenuImages;
+                try {
+                  localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(parsedFolder.richmenuImages));
+                } catch {}
+              } else {
+                try {
+                  const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
+                  if (localImgs) {
+                    const parsedImgs = JSON.parse(localImgs);
+                    if (parsedImgs && Object.keys(parsedImgs).length > 0) {
+                      infoObj.richmenuImages = parsedImgs;
+                    }
+                  }
+                } catch {}
+              }
+
+              if (Array.isArray(parsedFolder.dynamicLinks) && parsedFolder.dynamicLinks.length > 0) {
+                infoObj.dynamicLinks = parsedFolder.dynamicLinks;
+                try {
+                  localStorage.setItem('hdh_dynamic_links', JSON.stringify(parsedFolder.dynamicLinks));
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: parsedFolder.dynamicLinks }));
+                  }
+                } catch {}
+              }
+
+              if (Array.isArray(parsedFolder.rolePermissions) && parsedFolder.rolePermissions.length > 0) {
+                infoObj.rolePermissions = parsedFolder.rolePermissions;
+                try {
+                  localStorage.setItem('hdh_role_permissions', JSON.stringify(parsedFolder.rolePermissions));
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('hdh_role_permissions_updated', { detail: parsedFolder.rolePermissions }));
+                  }
+                } catch {}
+              } else {
+                try {
+                  const localPerms = localStorage.getItem('hdh_role_permissions');
+                  if (localPerms) {
+                    const parsedPerms = JSON.parse(localPerms);
+                    if (Array.isArray(parsedPerms) && parsedPerms.length > 0) {
+                      infoObj.rolePermissions = parsedPerms;
+                    }
+                  }
+                } catch {}
+                if (!infoObj.rolePermissions) {
+                  infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+                }
+              }
+
+              infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
+              infoObj.folder_url = JSON.stringify(parsedFolder);
+            } else if (infoObj.operating_hours) {
+              infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
+            }
+
+            if (!infoObj.richmenuConfig) {
               try {
-                localStorage.setItem('hdh_line_richmenu_custom_images', JSON.stringify(parsedFolder.richmenuImages));
-              } catch {}
-            } else {
-              // หากใน Supabase เป็น {} แต่ในเครื่องมีรูปภาพอยู่ ให้คงรูปภาพไว้ ไม่ให้กลายเป็นค่าว่าง
+                const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
+                if (localCfg) infoObj.richmenuConfig = JSON.parse(localCfg);
+                else infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+              } catch {
+                infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
+              }
+            }
+            if (!infoObj.richmenuImages || (typeof infoObj.richmenuImages === 'object' && Object.keys(infoObj.richmenuImages).length === 0)) {
               try {
                 const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
                 if (localImgs) {
                   const parsedImgs = JSON.parse(localImgs);
-                  if (parsedImgs && Object.keys(parsedImgs).length > 0) {
-                    infoObj.richmenuImages = parsedImgs;
-                  }
+                  if (parsedImgs && Object.keys(parsedImgs).length > 0) infoObj.richmenuImages = parsedImgs;
+                  else infoObj.richmenuImages = {};
+                } else {
+                  infoObj.richmenuImages = {};
                 }
-              } catch {}
+              } catch {
+                infoObj.richmenuImages = {};
+              }
             }
-
-            // กู้คืน Dynamic Links สู่ LocalStorage
-            if (Array.isArray(parsedFolder.dynamicLinks) && parsedFolder.dynamicLinks.length > 0) {
-              infoObj.dynamicLinks = parsedFolder.dynamicLinks;
-              try {
-                localStorage.setItem('hdh_dynamic_links', JSON.stringify(parsedFolder.dynamicLinks));
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('hdh_dynamic_links_updated', { detail: parsedFolder.dynamicLinks }));
-                }
-              } catch {}
-            }
-
-            // กู้คืน Role Permissions (ตารางแจกแจงสิทธิ์) สู่ LocalStorage และ infoObj
-            if (Array.isArray(parsedFolder.rolePermissions) && parsedFolder.rolePermissions.length > 0) {
-              infoObj.rolePermissions = parsedFolder.rolePermissions;
-              try {
-                localStorage.setItem('hdh_role_permissions', JSON.stringify(parsedFolder.rolePermissions));
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('hdh_role_permissions_updated', { detail: parsedFolder.rolePermissions }));
-                }
-              } catch {}
-            } else {
+            if (!infoObj.rolePermissions || !Array.isArray(infoObj.rolePermissions) || infoObj.rolePermissions.length === 0) {
               try {
                 const localPerms = localStorage.getItem('hdh_role_permissions');
                 if (localPerms) {
                   const parsedPerms = JSON.parse(localPerms);
-                  if (Array.isArray(parsedPerms) && parsedPerms.length > 0) {
-                    infoObj.rolePermissions = parsedPerms;
-                  }
+                  if (Array.isArray(parsedPerms) && parsedPerms.length > 0) infoObj.rolePermissions = parsedPerms;
+                  else infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
+                } else {
+                  infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
                 }
-              } catch {}
-              if (!infoObj.rolePermissions) {
+              } catch {
                 infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
               }
             }
 
-            // คืนค่า folderUrl ดั้งเดิมให้เป็น string URL ปกติ สำหรับ Google Drive
-            infoObj.folderUrl = parsedFolder.original !== undefined ? parsedFolder.original : '';
-            // ให้ infoObj.folder_url เก็บตัว packed JSON ครบถ้วน เพื่อให้การ sync ในอนาคตไม่สูญหาย
-            infoObj.folder_url = JSON.stringify(parsedFolder);
-          } else if (infoObj.operating_hours) {
-            infoObj.operatingHours = typeof infoObj.operating_hours === 'string' ? safeJsonParse(infoObj.operating_hours, null) : infoObj.operating_hours;
-          }
-
-          // Fallbacks สำหรับ Rich Menu หาก Supabase ยังไม่มี
-          if (!infoObj.richmenuConfig) {
-            try {
-              const localCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
-              if (localCfg) infoObj.richmenuConfig = JSON.parse(localCfg);
-              else infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
-            } catch {
-              infoObj.richmenuConfig = mock.DEFAULT_RICHMENU_CONFIG;
-            }
-          }
-          if (!infoObj.richmenuImages || (typeof infoObj.richmenuImages === 'object' && Object.keys(infoObj.richmenuImages).length === 0)) {
-            try {
-              const localImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
-              if (localImgs) {
-                const parsedImgs = JSON.parse(localImgs);
-                if (parsedImgs && Object.keys(parsedImgs).length > 0) infoObj.richmenuImages = parsedImgs;
-                else infoObj.richmenuImages = {};
+            if (!infoObj.operatingHours) {
+              const currentLocal = localStorage.getItem(key);
+              const parsedLocal = currentLocal ? safeJsonParse(currentLocal, null) : null;
+              if (parsedLocal?.operatingHours) {
+                infoObj.operatingHours = parsedLocal.operatingHours;
+                infoObj.operatingHoursSummary = parsedLocal.operatingHoursSummary;
               } else {
-                infoObj.richmenuImages = {};
+                infoObj.operatingHours = mock.DEFAULT_OPERATING_HOURS;
+                infoObj.operatingHoursSummary = mock.INITIAL_CLINIC_INFO.operatingHoursSummary;
               }
-            } catch {
-              infoObj.richmenuImages = {};
             }
-          }
-          if (!infoObj.rolePermissions || !Array.isArray(infoObj.rolePermissions) || infoObj.rolePermissions.length === 0) {
-            try {
-              const localPerms = localStorage.getItem('hdh_role_permissions');
-              if (localPerms) {
-                const parsedPerms = JSON.parse(localPerms);
-                if (Array.isArray(parsedPerms) && parsedPerms.length > 0) infoObj.rolePermissions = parsedPerms;
-                else infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
-              } else {
-                infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
-              }
-            } catch {
-              infoObj.rolePermissions = mock.DEFAULT_ROLE_PERMISSIONS;
-            }
-          }
-
-          // หากยังไม่มี ให้ดึงจากข้อมูล Local เดิม หรือค่าเริ่มต้น
-          if (!infoObj.operatingHours) {
+            localStorage.setItem(key, JSON.stringify(infoObj));
+          } else {
             const currentLocal = localStorage.getItem(key);
-            const parsedLocal = currentLocal ? safeJsonParse(currentLocal, null) : null;
-            if (parsedLocal?.operatingHours) {
-              infoObj.operatingHours = parsedLocal.operatingHours;
-              infoObj.operatingHoursSummary = parsedLocal.operatingHoursSummary;
-            } else {
-              infoObj.operatingHours = mock.DEFAULT_OPERATING_HOURS;
-              infoObj.operatingHoursSummary = mock.INITIAL_CLINIC_INFO.operatingHoursSummary;
+            if (!currentLocal) {
+              localStorage.setItem(key, JSON.stringify(mock.INITIAL_CLINIC_INFO));
             }
           }
-          localStorage.setItem(key, JSON.stringify(infoObj));
+        } else if (key === KEYS.USERS) {
+          if (finalData && finalData.length > 0) {
+            const cleaned = cleanUsersData(finalData);
+            localStorage.setItem(key, JSON.stringify(cleaned));
+          } else {
+            const currentUsersRaw = localStorage.getItem(key);
+            const currentUsers = currentUsersRaw ? JSON.parse(currentUsersRaw) : [];
+            if (currentUsers.length === 0) {
+              localStorage.setItem(key, JSON.stringify(mock.INITIAL_USERS));
+            }
+          }
+        } else if (key === KEYS.SALARY_RULES) {
+          const rulesObj = finalData.find(r => r && Number(r.id) === 1) || finalData[finalData.length - 1];
+          if (rulesObj) {
+            localStorage.setItem(key, JSON.stringify(rulesObj));
+          } else {
+            const currentRules = localStorage.getItem(key);
+            if (!currentRules) {
+              localStorage.setItem(key, JSON.stringify(mock.INITIAL_SALARY_RULES));
+            }
+          }
         } else {
-          const currentLocal = localStorage.getItem(key);
-          if (!currentLocal) {
-            localStorage.setItem(key, JSON.stringify(mock.INITIAL_CLINIC_INFO));
+          if (finalData && finalData.length > 0) {
+            localStorage.setItem(key, JSON.stringify(finalData));
+          } else {
+            const currentItemRaw = localStorage.getItem(key);
+            const currentItems = currentItemRaw ? JSON.parse(currentItemRaw) : [];
+            if (currentItems.length === 0 && mappedData.length > 0) {
+              localStorage.setItem(key, JSON.stringify(mappedData));
+            }
           }
         }
-      } else if (key === KEYS.USERS) {
-        if (finalData && finalData.length > 0) {
-          const cleaned = cleanUsersData(finalData);
-          localStorage.setItem(key, JSON.stringify(cleaned));
-        } else {
-          const currentUsersRaw = localStorage.getItem(key);
-          const currentUsers = currentUsersRaw ? JSON.parse(currentUsersRaw) : [];
-          if (currentUsers.length === 0) {
-            localStorage.setItem(key, JSON.stringify(mock.INITIAL_USERS));
-          }
-        }
-      } else if (key === KEYS.SALARY_RULES) {
-        const rulesObj = finalData.find(r => r && Number(r.id) === 1) || finalData[finalData.length - 1];
-        if (rulesObj) {
-          localStorage.setItem(key, JSON.stringify(rulesObj));
-        } else {
-          const currentRules = localStorage.getItem(key);
-          if (!currentRules) {
-            localStorage.setItem(key, JSON.stringify(mock.INITIAL_SALARY_RULES));
-          }
-        }
-      } else {
-        if (finalData && finalData.length > 0) {
-          localStorage.setItem(key, JSON.stringify(finalData));
-        } else {
-          const currentItemRaw = localStorage.getItem(key);
-          const currentItems = currentItemRaw ? JSON.parse(currentItemRaw) : [];
-          if (currentItems.length === 0 && mappedData.length > 0) {
-            localStorage.setItem(key, JSON.stringify(mappedData));
-          }
-        }
+      });
+      
+      if (isFullSync) {
+        lastFullSyncTimestamp = Date.now();
       }
-    });
-    
-    return true;
-  } catch (e) {
-    console.error('Exception during Supabase sync load:', e);
-    return false;
+      return true;
+    } catch (e) {
+      console.error('Exception during Supabase sync load:', e);
+      return false;
+    } finally {
+      if (isFullSync) {
+        inFlightSyncPromise = null;
+      }
+    }
+  };
+
+  if (isFullSync) {
+    inFlightSyncPromise = syncOperation();
+    return inFlightSyncPromise;
   }
+  return syncOperation();
 };
 
 const getPrimaryKey = (tableName) => {

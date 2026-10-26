@@ -117,9 +117,9 @@ export default function ServiceSummary({
     try {
       const { data, error } = await supabase
         .from('attendance')
-        .select('*')
+        .select('id, employee_id, employee_name, date, time, type, latitude, longitude, accuracy, maps_url, work_hours, line_user_id, notes, created_at')
         .order('created_at', { ascending: false })
-        .limit(500);
+        .limit(300);
 
       if (error) {
         if (error.code === 'PGRST205' || error.message?.includes('schema cache') || error.message?.includes('does not exist')) {

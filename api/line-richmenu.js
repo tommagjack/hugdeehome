@@ -38,6 +38,13 @@ function loadEnv() {
 
 // Helper to fetch clinic credentials
 async function getClinicCredentials(env, req = null) {
+  if (!global._hdh_richmenu_creds_cache) {
+    global._hdh_richmenu_creds_cache = { data: null, timestamp: 0 };
+  }
+  const now = Date.now();
+  if (global._hdh_richmenu_creds_cache.data && (now - global._hdh_richmenu_creds_cache.timestamp < 300000)) {
+    return global._hdh_richmenu_creds_cache.data;
+  }
   const dbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_ANON_KEY;
   let token = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
   let liffId = '2008270606-7bkwSGyt';
@@ -71,7 +78,9 @@ async function getClinicCredentials(env, req = null) {
     console.error('Error fetching clinic credentials:', err);
   }
 
-  return { token, liffId, phone, appUrl };
+  const result = { token, liffId, phone, appUrl };
+  global._hdh_richmenu_creds_cache = { data: result, timestamp: now };
+  return result;
 }
 
 // 6 standard grid areas for 2500 x 1686 px (3 columns x 2 rows)

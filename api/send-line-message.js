@@ -73,45 +73,44 @@ export default async function handler(req, res) {
 
     let closingTimeStr = '17:30 น.';
 
+    // Module-level in-memory cache for clinic credentials (5-minute TTL to prevent Supabase egress per push)
+    if (!global._hdh_clinic_cache) {
+      global._hdh_clinic_cache = { data: null, timestamp: 0 };
+    }
+
     try {
-      let clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url,folder_url&limit=1`, {
-        headers: {
-          'apikey': dbKey,
-          'Authorization': 'Bearer ' + dbKey
-        }
-      });
-      
-      // Fallback ถ้าคอลัมน์ hero_image_url ยังไม่ได้ถูกสร้างขึ้น
-      if (!clinicRes.ok) {
-        clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,folder_url&limit=1`, {
+      const now = Date.now();
+      const cached = global._hdh_clinic_cache;
+      if (cached && cached.data && (now - cached.timestamp < 300000)) {
+        channelAccessToken = cached.data.channelAccessToken || channelAccessToken;
+        clinicPhone = cached.data.clinicPhone || clinicPhone;
+        clinicLineOaId = cached.data.clinicLineOaId || clinicLineOaId;
+        liffId = cached.data.liffId || liffId;
+        heroImageUrl = cached.data.heroImageUrl || heroImageUrl;
+        closingTimeStr = cached.data.closingTimeStr || closingTimeStr;
+      } else {
+        // Exclude folder_url (which carries 1.5MB of Rich Menu base64 images) to minimize egress
+        let clinicRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/clinic_info?select=line_channel_access_token,phone,line_id,liff_id,hero_image_url&limit=1`, {
           headers: {
             'apikey': dbKey,
             'Authorization': 'Bearer ' + dbKey
           }
         });
-      }
 
-      if (clinicRes.ok) {
-        const clinicData = await clinicRes.json();
-        if (clinicData && clinicData[0]) {
-          channelAccessToken = clinicData[0].line_channel_access_token || channelAccessToken;
-          clinicPhone = clinicData[0].phone || clinicPhone;
-          clinicLineOaId = clinicData[0].line_id || clinicLineOaId;
-          liffId = clinicData[0].liff_id || '';
-          heroImageUrl = clinicData[0].hero_image_url || heroImageUrl;
+        if (clinicRes.ok) {
+          const clinicData = await clinicRes.json();
+          if (clinicData && clinicData[0]) {
+            channelAccessToken = clinicData[0].line_channel_access_token || channelAccessToken;
+            clinicPhone = clinicData[0].phone || clinicPhone;
+            clinicLineOaId = clinicData[0].line_id || clinicLineOaId;
+            liffId = clinicData[0].liff_id || '';
+            heroImageUrl = clinicData[0].hero_image_url || heroImageUrl;
 
-          // ดึงเวลาปิดคลินิกของวันนี้
-          try {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const todayName = dayNames[new Date().getDay()];
-            let opHours = clinicData[0].operating_hours;
-            if (!opHours && clinicData[0].folder_url && clinicData[0].folder_url.startsWith('{')) {
-              opHours = JSON.parse(clinicData[0].folder_url)?.operatingHours;
-            }
-            if (opHours && opHours[todayName]?.closeTime) {
-              closingTimeStr = `${opHours[todayName].closeTime} น.`;
-            }
-          } catch(e) {}
+            global._hdh_clinic_cache = {
+              data: { channelAccessToken, clinicPhone, clinicLineOaId, liffId, heroImageUrl, closingTimeStr },
+              timestamp: now
+            };
+          }
         }
       }
     } catch (e) {
@@ -159,7 +158,7 @@ export default async function handler(req, res) {
       // ค้นหา line_user_id ของพนักงานจากตาราง users หรือ attendance
       const empClean = String(employeeId).trim().toUpperCase();
       try {
-        let userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?or=(employee_id.eq.${encodeURIComponent(empClean)},username.eq.${encodeURIComponent(empClean)})&select=line_user_id,avatar_file&limit=1`, {
+        let userRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/users?or=(employee_id.eq.${encodeURIComponent(empClean)},username.eq.${encodeURIComponent(empClean)})&select=line_user_id&limit=1`, {
           headers: {
             'apikey': dbKey,
             'Authorization': 'Bearer ' + dbKey

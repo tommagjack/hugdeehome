@@ -181,16 +181,14 @@ export default function LineLinkPortal({
       let foundStaff = null;
       try {
         const { data: uData, error: uErr } = await supabase
-          .from('users')
-          .select('*')
-          .eq('line_user_id', targetUid)
+          .from('users').select('id, username, employee_id, fullname, role, status, line_user_id').eq('line_user_id', targetUid)
           .limit(1);
 
         if (!uErr && uData && uData.length > 0) {
           foundStaff = uData[0];
         } else {
           // Check avatar_file JSON if stored there
-          const { data: allUsers } = await supabase.from('users').select('*');
+          const { data: allUsers } = await supabase.from('users').select('id, username, employee_id, fullname, role, status, line_user_id');
           if (allUsers) {
             foundStaff = allUsers.find(u => {
               if (u.line_user_id === targetUid) return true;
@@ -229,9 +227,7 @@ export default function LineLinkPortal({
       let foundPatients = [];
       try {
         const { data: pData, error: pErr } = await supabase
-          .from('patients')
-          .select('*')
-          .eq('line_user_id', targetUid);
+          .from('patients').select('hn, title, firstname, lastname, nickname, phone, line_user_id, status, guardian').eq('line_user_id', targetUid);
 
         if (!pErr && pData && pData.length > 0) {
           foundPatients = pData;
@@ -429,9 +425,7 @@ export default function LineLinkPortal({
       let matched = [];
       try {
         const { data: remoteMatched, error: findErr } = await supabase
-          .from('patients')
-          .select('*')
-          .or(`phone.eq.${cleanId},hn.eq.${cleanId},parent_name.ilike.%${cleanId}%`);
+          .from('patients').select('hn, title, firstname, lastname, nickname, phone, line_user_id, status, guardian').or(`phone.eq.${cleanId},hn.eq.${cleanId},parent_name.ilike.%${cleanId}%`);
 
         if (!findErr && remoteMatched && remoteMatched.length > 0) {
           matched = remoteMatched;
@@ -566,7 +560,7 @@ export default function LineLinkPortal({
 
     setIsSubmittingStaff(true);
     try {
-      let query = supabase.from('users').select('*');
+      let query = supabase.from('users').select('id, username, employee_id, fullname, role, status, line_user_id');
       if (cleanEmpId) query = query.eq('employee_id', cleanEmpId);
       else if (cleanUser) query = query.eq('username', cleanUser);
 

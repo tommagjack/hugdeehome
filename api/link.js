@@ -40,6 +40,13 @@ function getLinksFilePath() {
 }
 
 async function readDynamicLinks(env) {
+  if (!global._hdh_links_cache) {
+    global._hdh_links_cache = { data: null, timestamp: 0 };
+  }
+  const now = Date.now();
+  if (global._hdh_links_cache.data && (now - global._hdh_links_cache.timestamp < 300000)) {
+    return global._hdh_links_cache.data;
+  }
   // 1. Try reading from Supabase clinic_info folder_url (Persists across all devices & Vercel lambdas)
   if (env?.VITE_SUPABASE_URL) {
     try {
@@ -52,6 +59,7 @@ async function readDynamicLinks(env) {
         if (data && data[0]?.folder_url) {
           const parsed = JSON.parse(data[0].folder_url);
           if (Array.isArray(parsed.dynamicLinks) && parsed.dynamicLinks.length > 0) {
+            global._hdh_links_cache = { data: parsed.dynamicLinks, timestamp: now };
             return parsed.dynamicLinks;
           }
         }

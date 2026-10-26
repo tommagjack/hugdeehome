@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { initDatabase, db, syncFromSupabase, syncDeltaToSupabase, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse, KEYS } from './utils/db';
+import { initDatabase, db, syncFromSupabase, syncDeltaToSupabase, cleanUsersData, TABLE_MAP, toCamelCase, safeJsonParse, KEYS, clearSyncCache } from './utils/db';
 import { supabase } from './utils/supabaseClient';
 import { getRealtimeChannel, broadcastChange, removeRealtimeChannel } from './utils/realtime';
 import Sidebar from './components/Sidebar';
@@ -100,6 +100,8 @@ export default function App() {
       }
     })()
   ));
+  const lastWakeUpSyncRef = useRef(0);
+  const lastSessionCheckRef = useRef(0);
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [pendingSyncs, setPendingSyncs] = useState(() => {
@@ -306,6 +308,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    clearSyncCache();
     logActivity('ออกจากระบบ');
     try {
       await supabase.auth.signOut();
@@ -766,12 +769,15 @@ export default function App() {
       console.log(`[Realtime Status]: ${status}`);
     });
 
-    // 3. ระบบตรวจจับการปลุกหน้าจอ/สลับแท็บกลับมา (Visibility Change & Focus & Polling Fallback)
+    // 3. ระบบตรวจจับการปลุกหน้าจอ/สลับแท็บกลับมา (Visibility Change & Focus Throttled Guard)
     const handleWakeUp = async () => {
-      console.log('[Realtime] Device/Tab became active. Verifying sync...');
-      if (!isSyncing && hasLoadedRef.current && currentUser) {
-        try {
-          // ตรวจสอบและฟื้นฟูเซสชันหากหลุด
+      const now = Date.now();
+      if (!hasLoadedRef.current || !currentUser) return;
+
+      try {
+        // ตรวจสอบและฟื้นฟูเซสชันเฉพาะเมื่อเวลาผ่านไปเกิน 10 นาที (ป้องกันยิง Refresh Session รัว)
+        if (now - lastSessionCheckRef.current > 600000) {
+          lastSessionCheckRef.current = now;
           try {
             const { data } = await supabase.auth.getSession();
             if (!data?.session) {
@@ -780,18 +786,26 @@ export default function App() {
           } catch (sErr) {
             console.warn('[Realtime] Session check on wake-up warning:', sErr);
           }
-
-          // ตรวจสอบช่องสัญญาณ Realtime หากหลุดให้เชื่อมต่อใหม่
-          const currentChannel = getRealtimeChannel();
-          if (currentChannel.state !== 'joined' && currentChannel.state !== 'joining') {
-            currentChannel.subscribe();
-          }
-
-          await syncFromSupabase();
-          refreshAllLocalStates();
-        } catch (e) {
-          console.warn('[Realtime] Sync on wake-up error:', e);
         }
+
+        // ตรวจสอบช่องสัญญาณ Realtime หากหลุดให้เชื่อมต่อใหม่
+        const currentChannel = getRealtimeChannel();
+        const isConnected = currentChannel && currentChannel.state === 'joined';
+        if (!isConnected && currentChannel.state !== 'joining') {
+          console.log('[Realtime] Reconnecting channel on wake-up...');
+          currentChannel.subscribe();
+        }
+
+        // ป้องกัน Egress พุ่งสูง: หาก Realtime เชื่อมต่อปกติ ข้อมูลจะได้รับแบบ Live Event อยู่แล้ว
+        // จะซิงค์ผ่าน REST เฉพาะเมื่อหลุดการเชื่อมต่อ หรือไม่ได้ซิงค์มานานกว่า 3 นาที
+        if (!isConnected || (now - lastWakeUpSyncRef.current > 180000)) {
+          lastWakeUpSyncRef.current = now;
+          // ซิงค์เฉพาะตารางที่มีการเคลื่อนไหวสูง (Appointments, Patients, Receipts, Attendance) ไม่โหลดทั้ง 19 ตาราง
+          await syncFromSupabase([KEYS.APPOINTMENTS, KEYS.PATIENTS, KEYS.RECEIPTS, KEYS.ATTENDANCE]);
+          refreshAllLocalStates();
+        }
+      } catch (e) {
+        console.warn('[Realtime] Sync on wake-up error:', e);
       }
     };
 
@@ -804,19 +818,26 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleWakeUp);
 
-    const pollingInterval = setInterval(() => {
-      if (document.visibilityState === 'visible' && !isSyncing && hasLoadedRef.current && currentUser) {
-        syncFromSupabase().then(() => {
-          refreshAllLocalStates();
-        }).catch(() => {});
+    // Watchdog Timer ระยะยาว (ทุก 5 นาที) ทำงานเฉพาะเมื่อเปิดแท็บทิ้งไว้ เพื่อเป็น Safety-net สำรอง
+    // แทนที่ polling 20 วินาทีเดิมที่ทำให้ Egress พุ่งไป 6.3 GB
+    const watchdogInterval = setInterval(() => {
+      if (document.visibilityState === 'visible' && hasLoadedRef.current && currentUser) {
+        const currentChannel = getRealtimeChannel();
+        const isConnected = currentChannel && currentChannel.state === 'joined';
+        if (!isConnected) {
+          console.log('[Watchdog] Realtime disconnected, syncing operational tables...');
+          syncFromSupabase([KEYS.APPOINTMENTS, KEYS.RECEIPTS, KEYS.PATIENTS]).then(() => {
+            refreshAllLocalStates();
+          }).catch(() => {});
+        }
       }
-    }, 20000);
+    }, 300000); // 5 นาที (300,000 ms)
 
     return () => {
       console.log("Cleaning up Supabase Realtime channels and listeners...");
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWakeUp);
-      clearInterval(pollingInterval);
+      clearInterval(watchdogInterval);
       removeRealtimeChannel();
     };
   }, [currentUser]);
