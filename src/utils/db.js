@@ -110,9 +110,12 @@ export const initDatabase = (forceReset = false) => {
   if (!localStorage.getItem(KEYS.ATTENDANCE)) {
     localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify([]));
   }
-  if (!localStorage.getItem('hdh_role_permissions')) {
-    localStorage.setItem('hdh_role_permissions', JSON.stringify(mock.DEFAULT_ROLE_PERMISSIONS));
-  }
+  // ล้างข้อมูลเก่าของเมนูที่ยกเลิกการใช้งานออกจาก LocalStorage เพื่อคืนพื้นที่หน่วยความจำ
+  try {
+    localStorage.removeItem('hdh_line_richmenu_custom_images');
+    localStorage.removeItem('hdh_line_richmenu_custom_configs');
+    localStorage.removeItem('hdh_role_permissions');
+  } catch {}
   return false;
 };
 
@@ -730,7 +733,6 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
   if (parsedExisting && typeof parsedExisting === 'object') {
     baseFolder = { ...parsedExisting };
   } else {
-    // หากไม่มีใน record ให้พยายามดึง baseFolder จาก LocalStorage ของคลินิก
     try {
       const storedClinic = localStorage.getItem(KEYS.CLINIC_INFO);
       if (storedClinic) {
@@ -754,77 +756,11 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
     origUrl = existingRaw;
   }
 
-  // ดึงข้อมูลสำรองจาก LocalStorage หากไม่มีใน record หรือ baseFolder
-  let localRichmenuConfig = null;
-  let localRichmenuImages = null;
-  let localDynamicLinks = null;
-  let localRolePermissions = null;
-  try {
-    const rawCfg = localStorage.getItem('hdh_line_richmenu_custom_configs');
-    if (rawCfg) localRichmenuConfig = JSON.parse(rawCfg);
-  } catch {}
-  try {
-    const rawImgs = localStorage.getItem('hdh_line_richmenu_custom_images');
-    if (rawImgs) localRichmenuImages = JSON.parse(rawImgs);
-  } catch {}
-  try {
-    const rawLinks = localStorage.getItem('hdh_dynamic_links');
-    if (rawLinks) localDynamicLinks = JSON.parse(rawLinks);
-  } catch {}
-  try {
-    const rawPerms = localStorage.getItem('hdh_role_permissions');
-    if (rawPerms) localRolePermissions = JSON.parse(rawPerms);
-  } catch {}
-
-  // 1. รวมรูปภาพ Rich Menu: ห้ามใช้วัตถุว่าง {} ทับข้อมูลรูปภาพเดิมเด็ดขาด
-  let mergedImages = {};
-  if (baseFolder.richmenuImages && typeof baseFolder.richmenuImages === 'object') {
-    mergedImages = { ...mergedImages, ...baseFolder.richmenuImages };
-  }
-  if (localRichmenuImages && typeof localRichmenuImages === 'object') {
-    mergedImages = { ...mergedImages, ...localRichmenuImages };
-  }
-  if (record?.richmenuImages && typeof record.richmenuImages === 'object') {
-    for (const [k, v] of Object.entries(record.richmenuImages)) {
-      if (v !== undefined && v !== null && v !== '') {
-        mergedImages[k] = v;
-      }
-    }
-  }
-
-  // 2. รวมปุ่ม Rich Menu Config
-  let mergedConfig = mock.DEFAULT_RICHMENU_CONFIG;
-  if (record?.richmenuConfig && typeof record.richmenuConfig === 'object' && Object.keys(record.richmenuConfig).length > 0) {
-    mergedConfig = record.richmenuConfig;
-  } else if (baseFolder.richmenuConfig && typeof baseFolder.richmenuConfig === 'object' && Object.keys(baseFolder.richmenuConfig).length > 0) {
-    mergedConfig = baseFolder.richmenuConfig;
-  } else if (localRichmenuConfig && typeof localRichmenuConfig === 'object' && Object.keys(localRichmenuConfig).length > 0) {
-    mergedConfig = localRichmenuConfig;
-  }
-
-  // 3. รวม Dynamic Links
-  let mergedLinks;
-  if (Array.isArray(record?.dynamicLinks) && record.dynamicLinks.length > 0) {
-    mergedLinks = record.dynamicLinks;
-  } else if (Array.isArray(baseFolder.dynamicLinks) && baseFolder.dynamicLinks.length > 0) {
-    mergedLinks = baseFolder.dynamicLinks;
-  } else if (Array.isArray(localDynamicLinks) && localDynamicLinks.length > 0) {
-    mergedLinks = localDynamicLinks;
-  } else {
-    mergedLinks = record?.dynamicLinks || baseFolder.dynamicLinks || null;
-  }
-
-  // 4. รวม Role Permissions (ตารางแจกแจงสิทธิ์)
-  let mergedPerms;
-  if (Array.isArray(record?.rolePermissions) && record.rolePermissions.length > 0) {
-    mergedPerms = record.rolePermissions;
-  } else if (Array.isArray(baseFolder.rolePermissions) && baseFolder.rolePermissions.length > 0) {
-    mergedPerms = baseFolder.rolePermissions;
-  } else if (Array.isArray(localRolePermissions) && localRolePermissions.length > 0) {
-    mergedPerms = localRolePermissions;
-  } else {
-    mergedPerms = record?.rolePermissions || baseFolder.rolePermissions || mock.DEFAULT_ROLE_PERMISSIONS;
-  }
+  // ลบฟิลด์ขนาดใหญ่ที่ไม่ได้ใช้งานออกเพื่อลดขนาด folder_url เหลือ < 1 KB
+  delete baseFolder.richmenuImages;
+  delete baseFolder.richmenuConfig;
+  delete baseFolder.richmenuUpdatedAt;
+  delete baseFolder.rolePermissions;
 
   const packed = {
     ...baseFolder,
@@ -834,12 +770,7 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
     servicesSubtitle: record?.servicesSubtitle !== undefined ? record.servicesSubtitle : (baseFolder.servicesSubtitle || mock.INITIAL_CLINIC_INFO.servicesSubtitle),
     servicesFooterTitle: record?.servicesFooterTitle !== undefined ? record.servicesFooterTitle : (baseFolder.servicesFooterTitle || mock.INITIAL_CLINIC_INFO.servicesFooterTitle),
     servicePrograms: record?.servicePrograms !== undefined ? record.servicePrograms : (baseFolder.servicePrograms || null),
-    mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl),
-    richmenuConfig: mergedConfig,
-    richmenuImages: mergedImages,
-    richmenuUpdatedAt: record?.richmenuUpdatedAt || baseFolder.richmenuUpdatedAt || new Date().toISOString(),
-    dynamicLinks: mergedLinks,
-    rolePermissions: mergedPerms
+    mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl)
   };
 
   return JSON.stringify(packed);

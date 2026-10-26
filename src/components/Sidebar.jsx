@@ -20,9 +20,7 @@ import {
   CircleDollarSign,
   FileSymlink,
   Clock,
-  Target,
-  MessageSquare,
-  ShieldCheck
+  Target
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
@@ -52,8 +50,6 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'users', label: 'บัญชีผู้ใช้งานระบบ', icon: UsersIcon, roles: ['Admin'] },
     { id: 'salary', label: 'เงินเดือน', icon: CoinsIcon, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'profile', label: 'ข้อมูลส่วนตัว', icon: UserRound, roles: ['Admin', 'OT', 'Staff'] },
-    { id: 'rolePermissions', label: 'ตารางแจกแจงสิทธิ์', icon: ShieldCheck, roles: ['Admin', 'OT', 'Staff'] },
-    { id: 'lineManager', label: 'จัดการ LINE OA', icon: MessageSquare, roles: ['Admin'] },
     { id: 'settings', label: 'ตั้งค่าระบบ', icon: SettingsIcon, roles: ['Admin'] },
     { id: 'assessmentSettings', label: 'ตั้งค่าแบบประเมิน', icon: ClipboardCheck, roles: ['Admin'] },
     { id: 'salarySettings', label: 'ตั้งค่าเงินเดือน', icon: SlidersIcon, roles: ['Admin'] }
@@ -83,7 +79,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'admin',
       title: 'การบริหารจัดการคลินิก',
-      items: ['rolePermissions', 'lineManager', 'settings', 'assessmentSettings', 'salarySettings']
+      items: ['settings', 'assessmentSettings', 'salarySettings']
     }
   ];
 

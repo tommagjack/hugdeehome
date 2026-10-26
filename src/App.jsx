@@ -24,12 +24,10 @@ import GuestRegister from './components/GuestRegister';
 import CheckIn from './components/CheckIn';
 import UserProfile from './components/UserProfile';
 import ParentPatientRegister from './components/ParentPatientRegister';
-import LineOAManager from './components/LineOAManager';
 import LineLinkPortal from './components/LineLinkPortal';
 import PublicServices from './components/PublicServices';
 import ErrorBoundary from './components/ErrorBoundary';
 import AssessmentSettings from './components/AssessmentSettings';
-import RolePermissions from './components/RolePermissions';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
@@ -3047,27 +3045,6 @@ export default function App() {
           <SalarySettings 
             salaryRules={salaryRules}
             setSalaryRules={setSalaryRules}
-          />
-        )}
-
-        {activeTab === 'rolePermissions' && (
-          <RolePermissions 
-            currentUser={currentUser}
-            clinicInfo={clinicInfo}
-            setClinicInfo={setClinicInfo}
-          />
-        )}
-
-        {activeTab === 'lineManager' && ['Admin', 'admin'].includes(currentUser?.role) && (
-          <LineOAManager 
-            clinicInfo={clinicInfo}
-            setClinicInfo={setClinicInfo}
-            services={services}
-            setServices={setServices}
-            users={users}
-            patients={patients}
-            onRefreshData={refreshAllLocalStates}
-            logActivity={logActivity}
           />
         )}
 
