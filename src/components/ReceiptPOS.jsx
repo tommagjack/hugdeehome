@@ -142,7 +142,7 @@ export default function ReceiptPOS({
     patientReceipts.forEach(r => {
       r.items.forEach(item => {
         if (item.type === 'บริการ') {
-          if (item.code === 'TRANSFER_OUT' || item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
+          if (item.code === 'TRANSFER_OUT' || item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD' || item.code === 'MANUAL_DEDUCT') {
             // ข้ามคอร์ส
           } else if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
             // ข้ามประเมินพัฒนาการครั้งแรก

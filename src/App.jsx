@@ -1933,8 +1933,8 @@ export default function App() {
     handleEditReceiptInPos(receipt);
   };
 
-  // ปุ่มลัดเพิ่มคอร์สแบบแมนนวล (Manual)
-  const handleManualAddCourse = (hn, sessions, remark) => {
+  // ปุ่มลัดเพิ่ม/ลดคอร์สแบบแมนนวล (Manual Add / Deduct Course)
+  const handleManualAddCourse = (hn, sessions, remark, action = 'add') => {
     const today = new Date();
     const beYear = today.getFullYear() + 543;
     const yearSuffix = beYear.toString().slice(-2);
@@ -1942,13 +1942,20 @@ export default function App() {
     // สร้างรหัสบิลแบบกำหนดปรับปรุง
     const billId = `M${yearSuffix}` + Math.floor(1000 + Math.random() * 9000);
     const localDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const isAdd = action !== 'deduct';
 
     const manualReceipt = {
       id: billId,
       hn: hn,
       date: localDateStr,
       items: [
-        { code: 'MANUAL_ADD', name: `ปรับปรุงเพิ่มคอร์สแมนนวล (${remark})`, price: 0, quantity: sessions, type: 'บริการ' }
+        {
+          code: isAdd ? 'MANUAL_ADD' : 'MANUAL_DEDUCT',
+          name: `ปรับปรุง${isAdd ? 'เพิ่ม' : 'ลด'}คอร์สแมนนวล (${remark})`,
+          price: 0,
+          quantity: sessions,
+          type: 'บริการ'
+        }
       ],
       discountType: 'flat',
       discountValue: 0,
@@ -2077,15 +2084,15 @@ export default function App() {
     setReceipts(receipts.map(r => {
       if (r.id === id) {
         const firstItem = r.items && r.items[0];
-        const isCourse = firstItem && (firstItem.code === 'MANUAL_ADD' || firstItem.type === 'บริการ');
+        const isCourse = firstItem && (firstItem.code === 'MANUAL_ADD' || firstItem.code === 'MANUAL_DEDUCT' || firstItem.type === 'บริการ');
         
         if (isCourse) {
           return {
             ...r,
             items: [
               { 
-                code: 'MANUAL_ADD', 
-                name: `ปรับปรุงเพิ่มคอร์สแมนนวล (${remark})`, 
+                code: isAdd ? 'MANUAL_ADD' : 'MANUAL_DEDUCT', 
+                name: `ปรับปรุง${isAdd ? 'เพิ่ม' : 'ลด'}คอร์สแมนนวล (${remark})`, 
                 price: 0, 
                 quantity: points, 
                 type: 'บริการ' 

@@ -54,9 +54,10 @@ export default function CourseBalance({
   const [showManualModal, setShowManualModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   
-  // ตัวแปรฟอร์ม Manual Add
+  // ตัวแปรฟอร์ม Manual Add / Deduct Course
   const [manualSessions, setManualSessions] = useState(1);
-  const [manualRemark, setManualRemark] = useState('เพิ่มคอร์สอำนวยความสะดวกภายนอก');
+  const [manualCourseAction, setManualCourseAction] = useState('add'); // 'add' หรือ 'deduct'
+  const [manualRemark, setManualRemark] = useState('ปรับปรุงจำนวนคอร์ส');
   
   // ตัวแปรฟอร์ม Transfer
   const [transferSessions, setTransferSessions] = useState(1);
@@ -107,11 +108,11 @@ export default function CourseBalance({
       patientReceipts.forEach(r => {
         r.items.forEach(item => {
           if (item.type === 'บริการ') {
-            if (item.code === 'TRANSFER_OUT') {
-              purchased -= item.quantity; // โอนออก ลดยอด
+            if (item.code === 'TRANSFER_OUT' || item.code === 'MANUAL_DEDUCT') {
+              purchased -= item.quantity; // โอนออก/ลดคอร์สแมนนวล ลดยอด
             } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
-              purchased += item.quantity; // โอนเข้า/แมนนวล เพิ่มยอด
-            } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+              purchased += item.quantity; // โอนเข้า/เพิ่มคอร์สแมนนวล เพิ่มยอด
+            } else if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
               // ไม่เอา ประเมินพัฒนาการครั้งแรกมานับ
             } else {
               const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
@@ -275,7 +276,7 @@ export default function CourseBalance({
     patientReceipts.forEach(r => {
       r.items.forEach(item => {
         if (item.type === 'บริการ') {
-          if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+          if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
             return;
           }
 
@@ -294,6 +295,10 @@ export default function CourseBalance({
           } else if (item.code === 'MANUAL_ADD') {
             typeLabel = 'ปรับปรุงคอร์สแมนนวล';
             direction = 'in';
+            sessions = item.quantity;
+          } else if (item.code === 'MANUAL_DEDUCT') {
+            typeLabel = 'ปรับปรุงคอร์สแมนนวล';
+            direction = 'out';
             sessions = item.quantity;
           } else {
             const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
@@ -314,7 +319,7 @@ export default function CourseBalance({
           });
 
           // ได้รับคะแนนสะสมจากการซื้อคอร์ส (1 เซสชัน = 1 คะแนน)
-          if (item.code !== 'TRANSFER_OUT' && item.code !== 'TRANSFER_IN' && item.code !== 'MANUAL_ADD') {
+          if (item.code !== 'TRANSFER_OUT' && item.code !== 'TRANSFER_IN' && item.code !== 'MANUAL_ADD' && item.code !== 'MANUAL_DEDUCT') {
             list.push({
               date: r.date,
               type: 'ได้รับคะแนนสะสม',
@@ -394,23 +399,37 @@ export default function CourseBalance({
     return courseTransactionHistory.slice(startIndex, startIndex + itemsPerPage);
   }, [courseTransactionHistory, currentPage]);
 
-  // ยื่นคำขอเพิ่มแมนนวล
+  // ยื่นคำขอเพิ่ม / ลดคอร์สแมนนวล
   const handleManualAddSubmit = (e) => {
     e.preventDefault();
     if (!selectedHn || manualSessions <= 0) return;
+
+    const isAdd = manualCourseAction === 'add';
+    if (!isAdd && Number(manualSessions) > currentBalanceInfo.balance) {
+      Swal.fire({
+        icon: 'error',
+        title: 'สิทธิ์คอร์สคงเหลือไม่เพียงพอ',
+        text: `น้อง${currentPatient.nickname} มีคอร์สคงเหลือเพียง ${currentBalanceInfo.balance} ครั้ง ไม่สามารถหักลด ${manualSessions} ครั้งได้`,
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
     
-    onManualAddCourse(selectedHn, Number(manualSessions), manualRemark);
+    onManualAddCourse(selectedHn, Number(manualSessions), manualRemark, manualCourseAction);
     
     Swal.fire({
       icon: 'success',
-      title: 'ปรับปรุงเพิ่มคอร์สแบบแมนนวลสำเร็จ!',
-      text: `บวกเพิ่ม ${manualSessions} ครั้ง ให้ น้อง${currentPatient.nickname}`,
+      title: isAdd ? 'ปรับปรุงเพิ่มคอร์สแบบแมนนวลสำเร็จ!' : 'ปรับปรุงลดคอร์สแบบแมนนวลสำเร็จ!',
+      text: isAdd
+        ? `บวกเพิ่ม ${manualSessions} ครั้ง ให้ น้อง${currentPatient.nickname}`
+        : `หักลด ${manualSessions} ครั้ง ให้ น้อง${currentPatient.nickname}`,
       confirmButtonColor: 'var(--secondary)'
     });
     
     setShowManualModal(false);
     setManualSessions(1);
-    setManualRemark('เพิ่มคอร์สอำนวยความสะดวกภายนอก');
+    setManualCourseAction('add');
+    setManualRemark('ปรับปรุงจำนวนคอร์ส');
   };
 
   // ยื่นคำขอโอนคอร์ส
@@ -582,7 +601,7 @@ export default function CourseBalance({
   const handleStartEditPoints = (historyItem) => {
     setEditingPointsDocId(historyItem.docId);
     setEditPointsVal(historyItem.sessions);
-    setEditPointsAction(historyItem.code === 'POINT_ADD_MANUAL' ? 'add' : 'deduct');
+    setEditPointsAction((historyItem.code === 'POINT_ADD_MANUAL' || historyItem.code === 'MANUAL_ADD') ? 'add' : 'deduct');
     setEditPointsRemark(historyItem.remark === '-' ? '' : historyItem.remark);
     setShowPointsEditModal(true);
   };
@@ -594,7 +613,7 @@ export default function CourseBalance({
 
     const isAdd = editPointsAction === 'add';
     const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-    const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+    const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD' || origItem.code === 'MANUAL_DEDUCT');
 
     if (!isCourseEdit) {
       const currentBalance = currentBalanceInfo.pointsBalance;
@@ -638,7 +657,7 @@ export default function CourseBalance({
 
   // ยื่นคำขอลบรายการปรับปรุงคะแนนแมนนวล (Delete Click)
   const handleDeletePointsClick = (historyItem) => {
-    const isCourseDelete = historyItem && (historyItem.unit === 'ครั้ง' || historyItem.code === 'MANUAL_ADD');
+    const isCourseDelete = historyItem && (historyItem.unit === 'ครั้ง' || historyItem.code === 'MANUAL_ADD' || historyItem.code === 'MANUAL_DEDUCT');
     const val = historyItem.sessions;
     
     if (!isCourseDelete) {
@@ -822,7 +841,7 @@ export default function CourseBalance({
                     onClick={() => setShowManualModal(true)}
                   >
                     <Plus size={16} />
-                    เพิ่มคอร์ส (Manual)
+                    เพิ่ม / ลดคอร์ส (Manual)
                   </button>
                   <button 
                     type="button" 
@@ -935,7 +954,7 @@ export default function CourseBalance({
                   </thead>
                   <tbody>
                     {paginatedHistory.map((h, index) => {
-                      const isEditable = h.code === 'POINT_ADD_MANUAL' || h.code === 'POINT_DEDUCT_MANUAL' || h.code === 'MANUAL_ADD';
+                      const isEditable = h.code === 'POINT_ADD_MANUAL' || h.code === 'POINT_DEDUCT_MANUAL' || h.code === 'MANUAL_ADD' || h.code === 'MANUAL_DEDUCT';
                       return (
                         <tr key={index}>
                           <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
@@ -1038,26 +1057,55 @@ export default function CourseBalance({
 
       </div>
 
-      {/* Modal 1: เพิ่มคอร์สแบบกำหนดเอง (Manual Add) */}
+      {/* Modal 1: เพิ่ม / ลดคอร์สแบบกำหนดเอง (Manual Add / Deduct Course) */}
       {showManualModal && currentPatient && (
         <div className="modal-overlay">
           <div className="modal-content-wrapper" style={{ maxWidth: '450px' }}>
             <div className="modal-header">
-              <h3 style={{ fontWeight: 700 }}>เพิ่มคอร์สแบบกำหนดเอง (Manual)</h3>
+              <h3 style={{ fontWeight: 700 }}>เพิ่ม / ลดคอร์สแบบกำหนดเอง (Manual)</h3>
               <button className="close-modal-btn" onClick={() => setShowManualModal(false)}>×</button>
             </div>
             <form onSubmit={handleManualAddSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ padding: '0.75rem', backgroundColor: 'var(--light)', borderRadius: 'var(--radius-md)', marginBottom: '0.5rem' }}>
-                  <strong>ผู้ได้รับสิทธิ์:</strong> {formatPatientNickname(currentPatient.nickname)} ({currentPatient.title}{currentPatient.firstname})
+                  <strong>ผู้รับบริการ:</strong> {formatPatientNickname(currentPatient.nickname)} (มีคอร์สคงเหลือ {currentBalanceInfo?.balance} ครั้ง)
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">การดำเนินการ <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                      <input 
+                        type="radio" 
+                        name="manualCourseAction" 
+                        value="add" 
+                        checked={manualCourseAction === 'add'} 
+                        onChange={() => setManualCourseAction('add')} 
+                      />
+                      <span style={{ color: 'var(--success)' }}>บวกเพิ่มคอร์ส (+)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                      <input 
+                        type="radio" 
+                        name="manualCourseAction" 
+                        value="deduct" 
+                        checked={manualCourseAction === 'deduct'} 
+                        onChange={() => setManualCourseAction('deduct')} 
+                      />
+                      <span style={{ color: 'var(--danger)' }}>หักลดคอร์ส (-)</span>
+                    </label>
+                  </div>
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">จำนวนสิทธิ์ที่ต้องการเพิ่ม (ครั้ง) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <label className="form-label">
+                    {manualCourseAction === 'add' ? 'จำนวนสิทธิ์ที่ต้องการเพิ่ม (ครั้ง)' : 'จำนวนสิทธิ์ที่ต้องการลด (ครั้ง)'} <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
                   <input 
                     type="number" 
                     className="form-control" 
-                    min="1" max="100" 
+                    min="1" 
+                    max={manualCourseAction === 'add' ? 100 : Math.max(1, currentBalanceInfo?.balance || 1)} 
                     value={manualSessions} 
                     onChange={(e) => setManualSessions(e.target.value)} 
                     required 
@@ -1077,7 +1125,9 @@ export default function CourseBalance({
               </div>
               
               <div className="modal-footer">
-                <button type="submit" className="btn btn-secondary">ยืนยันปรับปรุงยอด</button>
+                <button type="submit" className="btn btn-secondary" style={{ backgroundColor: manualCourseAction === 'add' ? 'var(--success)' : 'var(--danger)', borderColor: manualCourseAction === 'add' ? 'var(--success)' : 'var(--danger)', color: 'white' }}>
+                  {manualCourseAction === 'add' ? 'ยืนยันการเพิ่มคอร์ส' : 'ยืนยันการลดคอร์ส'}
+                </button>
                 <button type="button" className="btn btn-light" onClick={() => setShowManualModal(false)}>ยกเลิก</button>
               </div>
             </form>
@@ -1484,7 +1534,7 @@ export default function CourseBalance({
               <h3 style={{ fontWeight: 700 }}>
                 {(() => {
                   const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD' || origItem.code === 'MANUAL_DEDUCT');
                   return isCourseEdit ? 'แก้ไขรายการปรับปรุงคอร์ส' : 'แก้ไขรายการปรับปรุงคะแนน';
                 })()}
               </h3>
@@ -1498,9 +1548,7 @@ export default function CourseBalance({
 
                 {(() => {
                   const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
-                  if (isCourseEdit) return null; // ซ่อนวิทยุสำหรับการปรับปรุงคอร์สแมนนวล เนื่องจากปกติเป็นบวกเสมอ
-                  
+                  const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD' || origItem.code === 'MANUAL_DEDUCT');
                   return (
                     <div className="form-group">
                       <label className="form-label">การดำเนินการ <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -1513,7 +1561,7 @@ export default function CourseBalance({
                             checked={editPointsAction === 'add'} 
                             onChange={() => setEditPointsAction('add')} 
                           />
-                          <span style={{ color: 'var(--success)' }}>บวกเพิ่มคะแนน (+)</span>
+                          <span style={{ color: 'var(--success)' }}>{isCourseEdit ? 'บวกเพิ่มคอร์ส (+)' : 'บวกเพิ่มคะแนน (+)'}</span>
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
                           <input 
@@ -1523,7 +1571,7 @@ export default function CourseBalance({
                             checked={editPointsAction === 'deduct'} 
                             onChange={() => setEditPointsAction('deduct')} 
                           />
-                          <span style={{ color: 'var(--danger)' }}>หักลดคะแนน (-)</span>
+                          <span style={{ color: 'var(--danger)' }}>{isCourseEdit ? 'หักลดคอร์ส (-)' : 'หักลดคะแนน (-)'}</span>
                         </label>
                       </div>
                     </div>
@@ -1534,7 +1582,7 @@ export default function CourseBalance({
                   <label className="form-label">
                     {(() => {
                       const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD' || origItem.code === 'MANUAL_DEDUCT');
                       if (isCourseEdit) return 'จำนวนครั้งที่ต้องการปรับปรุง (ครั้ง)';
                       return editPointsAction === 'add' ? 'จำนวนคะแนนที่ต้องการเพิ่ม (คะแนน)' : 'จำนวนคะแนนที่ต้องการลด (คะแนน)';
                     })()} <span style={{ color: 'var(--danger)' }}>*</span>
@@ -1553,7 +1601,7 @@ export default function CourseBalance({
                   <label className="form-label">
                     {(() => {
                       const origItem = courseTransactionHistory.find(h => h.docId === editingPointsDocId);
-                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD');
+                      const isCourseEdit = origItem && (origItem.unit === 'ครั้ง' || origItem.code === 'MANUAL_ADD' || origItem.code === 'MANUAL_DEDUCT');
                       return isCourseEdit ? 'เหตุผลประกอบการปรับปรุงคอร์ส' : 'เหตุผลประกอบการปรับปรุงคะแนน';
                     })()} <span style={{ color: 'var(--danger)' }}>*</span>
                   </label>

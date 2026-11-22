@@ -200,11 +200,11 @@ export default function Appointments({
     patientReceipts.forEach(r => {
       r.items.forEach(item => {
         if (item.type === 'บริการ') {
-          if (item.code === 'TRANSFER_OUT') {
+          if (item.code === 'TRANSFER_OUT' || item.code === 'MANUAL_DEDUCT') {
             totalPurchased -= item.quantity;
           } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
             totalPurchased += item.quantity;
-          } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+          } else if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
             // ไม่เอา ประเมินพัฒนาการครั้งแรกมานับ
           } else {
             const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);

@@ -764,11 +764,11 @@ export default function LineLinkPortal({
       points += Number(r.pointsEarned || Math.floor((Number(r.total) || 0) / 100)) || 0;
       (r.items || []).forEach(item => {
         if (item && item.type === 'บริการ') {
-          if (item.code === 'TRANSFER_OUT') {
+          if (item.code === 'TRANSFER_OUT' || item.code === 'MANUAL_DEDUCT') {
             purchased -= Number(item.quantity) || 0;
           } else if (item.code === 'TRANSFER_IN' || item.code === 'MANUAL_ADD') {
             purchased += Number(item.quantity) || 0;
-          } else if (item.code === 'SV02' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
+          } else if (item.code === 'SV02' || item.code === '001-IA' || (item.name && item.name.includes('ประเมินพัฒนาการ'))) {
             // First time evaluation
           } else {
             const sessionsPerUnit = item.sessionsPerUnit || (item.code === 'SV03' ? 10 : 1);
