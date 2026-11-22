@@ -119,13 +119,16 @@ export default function ReceiptHistory({
     let displayReason = receipt.discountReason || '';
     if (displayReason) {
       try {
-        const parsed = JSON.parse(displayReason);
+        const parsed = Array.isArray(displayReason) ? displayReason : JSON.parse(displayReason);
         if (Array.isArray(parsed)) {
           displayReason = parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
         }
       } catch {
         /* ignore parse error */
       }
+    }
+    if (typeof displayReason === 'object') {
+      displayReason = JSON.stringify(displayReason);
     }
     setEditDiscountReason(displayReason);
     // กรองเอา Audit Item ออกเมื่อนำเข้าตะกร้าแก้ไข

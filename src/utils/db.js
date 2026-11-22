@@ -329,7 +329,24 @@ export const db = {
   },
   setPatients: (data) => set(KEYS.PATIENTS, data),
 
-  getReceipts: () => get(KEYS.RECEIPTS, mock.INITIAL_RECEIPTS),
+  getReceipts: () => {
+    const data = get(KEYS.RECEIPTS, mock.INITIAL_RECEIPTS);
+    if (Array.isArray(data)) {
+      return data.map(r => {
+        if (!r) return r;
+        let normReason = r.discountReason;
+        if (typeof normReason === 'object' && normReason !== null) {
+          normReason = JSON.stringify(normReason);
+        }
+        return {
+          ...r,
+          items: Array.isArray(r.items) ? r.items : (safeJsonParse(r.items) || []),
+          discountReason: normReason ?? ''
+        };
+      });
+    }
+    return data;
+  },
   setReceipts: (data) => set(KEYS.RECEIPTS, data),
 
   getAppointments: () => get(KEYS.APPOINTMENTS, mock.INITIAL_APPOINTMENTS),
@@ -906,7 +923,11 @@ export const syncFromSupabase = async (targetKeys = null, options = {}) => {
         const mappedData = data.map(row => {
           const mapped = {};
           for (const k in row) {
-            mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+            if (k === 'discount_reason') {
+              mapped[toCamelCase(k)] = (typeof row[k] === 'object' && row[k] !== null) ? JSON.stringify(row[k]) : (row[k] ?? '');
+            } else {
+              mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+            }
           }
           return mapped;
         });

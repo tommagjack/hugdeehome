@@ -625,7 +625,11 @@ export default function App() {
       if (!row) return null;
       const mapped = {};
       for (const k in row) {
-        mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+        if (k === 'discount_reason') {
+          mapped[toCamelCase(k)] = (typeof row[k] === 'object' && row[k] !== null) ? JSON.stringify(row[k]) : (row[k] ?? '');
+        } else {
+          mapped[toCamelCase(k)] = safeJsonParse(row[k]);
+        }
       }
       return mapped;
     };
@@ -1865,12 +1869,13 @@ export default function App() {
   const handleEditReceiptInPos = (receipt) => {
     // 1. ดึงรายละเอียดเข้าตะกร้า POS ใน State กลาง (กรองเอาข้อมูล Audit ออก)
     setPosSelectedHn(receipt.hn);
-    setPosCart((receipt.items || []).filter(item => item && item.code !== 'REWARD_REDEEM' && !item.isAudit).map(item => {
+    setPosCart((receipt.items || []).filter(item => item && item.code !== 'REWARD_REDEEM' && !item.isAudit && (item.name || item.code)).map(item => {
       const orig = services.find(s => s.code === item.code);
-      const isReward = item.name.includes('[แลก');
+      const itemName = String(item.name || '');
+      const isReward = itemName.includes('[แลก');
       const reward = isReward ? (rewards || []).find(r => r.code === receipt.rewardId) : null;
       
-      const match = item.name.match(/\(([\d.]+)%\)$/);
+      const match = itemName.match(/\(([\d.]+)%\)$/);
       const isPercent = match || (orig && (orig.description || '').includes('[price_type:percent]'));
       const restoredPrice = isPercent 
         ? (match ? Number(match[1]) : (orig ? orig.price : item.price)) 
@@ -1881,7 +1886,8 @@ export default function App() {
 
       return {
         code: item.code,
-        name: item.name.replace(/\([\d.]+%\)$/, '').trim(),
+        name: itemName.replace(/\([\d.]+%\)$/, '').trim(),
+        sessionsPerUnit: item.sessionsPerUnit || (orig ? orig.sessionsPerUnit : 1),
         price: restoredPrice,
         quantity: item.quantity,
         category: item.type || (orig ? orig.category : 'บริการ'),
@@ -1895,7 +1901,7 @@ export default function App() {
     }));
     setPosDiscountType(receipt.discountType);
     setPosDiscountValue(receipt.discountValue);
-    setPosDiscountReason(receipt.discountReason);
+    setPosDiscountReason(typeof receipt.discountReason === 'object' && receipt.discountReason !== null ? JSON.stringify(receipt.discountReason) : (receipt.discountReason || ''));
     setPosPromoCode(receipt.promotionId);
     setPosPaymentMethod(receipt.paymentMethod);
     setPosBankId(receipt.bankAccountId);

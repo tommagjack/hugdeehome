@@ -939,7 +939,7 @@ export default function PDFViewer({
     // กรองเอา Audit Item ออกเพื่อความถูกต้องในการพิมพ์ใบเสร็จ PDF
     const bill = docData ? {
       ...docData,
-      items: (docData.items || []).filter(item => item && !item.isAudit)
+      items: (Array.isArray(docData.items) ? docData.items : []).filter(item => item && !item.isAudit && (item.name || item.code))
     } : null;
     
     if (!bill) return null;
@@ -949,20 +949,25 @@ export default function PDFViewer({
     const isVoided = bill.status === 'ยกเลิก';
 
     // คำนวณยอดดิบในตารางสินค้า
-    const itemsSubtotal = (bill.items || []).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemsSubtotal = (bill.items || []).reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
 
     // ยอดลดสุทธิ - รองรับกรณีมีส่วนลดหลายรายการ
     let discountsList = [];
     let isMultiple = false;
     if (bill.discountReason) {
-      try {
-        const parsed = JSON.parse(bill.discountReason);
-        if (Array.isArray(parsed)) {
-          discountsList = parsed;
-          isMultiple = true;
+      if (Array.isArray(bill.discountReason)) {
+        discountsList = bill.discountReason;
+        isMultiple = true;
+      } else if (typeof bill.discountReason === 'string') {
+        try {
+          const parsed = JSON.parse(bill.discountReason);
+          if (Array.isArray(parsed)) {
+            discountsList = parsed;
+            isMultiple = true;
+          }
+        } catch {
+          /* ignore parse error */
         }
-      } catch {
-        /* ignore parse error */
       }
     }
 
@@ -1072,9 +1077,9 @@ export default function PDFViewer({
                     <div style={{ fontWeight: 600 }}>{item.name}</div>
                     <div style={{ fontSize: '10px', color: '#666' }}>รหัสบริการ: {item.code} ({item.type})</div>
                   </td>
-                  <td style={{ textAlign: 'center' }}>{item.price.toLocaleString()}</td>
-                  <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                  <td style={{ textAlign: 'right', paddingRight: '15px' }}>{(item.price * item.quantity).toLocaleString()}</td>
+                  <td style={{ textAlign: 'center' }}>{(Number(item.price) || 0).toLocaleString()}</td>
+                  <td style={{ textAlign: 'center' }}>{Number(item.quantity) || 0}</td>
+                  <td style={{ textAlign: 'right', paddingRight: '15px' }}>{((Number(item.price) || 0) * (Number(item.quantity) || 0)).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -1096,7 +1101,7 @@ export default function PDFViewer({
               {bill.slipUrl && <span><strong>ไฟล์สลิปอ้างอิง:</strong> {bill.slipUrl}<br/></span>}
               {discountAmount > 0 && (
                 <div style={{ borderTop: '1px solid #ddd', marginTop: '10px', paddingTop: '5px' }}>
-                  <strong>หมายเหตุ:</strong> {isMultiple ? discountsList.map(d => d.reason).join(', ') : (bill.discountReason || 'ส่วนลดพิเศษ')}
+                  <strong>หมายเหตุ:</strong> {isMultiple ? discountsList.map(d => (d && typeof d === 'object' ? d.reason : String(d || ''))).filter(Boolean).join(', ') : (typeof bill.discountReason === 'string' && bill.discountReason ? bill.discountReason : 'ส่วนลดพิเศษ')}
                 </div>
               )}
             </div>

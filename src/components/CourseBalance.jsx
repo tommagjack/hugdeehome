@@ -258,14 +258,14 @@ export default function CourseBalance({
     const formatDiscountReason = (reason) => {
       if (!reason) return '-';
       try {
-        const parsed = JSON.parse(reason);
+        const parsed = Array.isArray(reason) ? reason : JSON.parse(reason);
         if (Array.isArray(parsed)) {
           return parsed.map(d => `${d.reason} (${d.value}${d.type === 'flat' || d.type === 'บาท' ? '฿' : '%'})`).join(', ');
         }
       } catch {
         /* ignore parse error */
       }
-      return reason;
+      return typeof reason === 'object' ? JSON.stringify(reason) : String(reason);
     };
 
     const list = [];

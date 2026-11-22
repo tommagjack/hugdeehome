@@ -498,11 +498,15 @@ export default function ReceiptPOS({
 
     let discountsList = [];
     if (b.discountReason) {
-      try {
-        const parsed = JSON.parse(b.discountReason);
-        if (Array.isArray(parsed)) discountsList = parsed;
-      } catch {
-        /* ignore parse error */
+      if (Array.isArray(b.discountReason)) {
+        discountsList = b.discountReason;
+      } else if (typeof b.discountReason === 'string') {
+        try {
+          const parsed = JSON.parse(b.discountReason);
+          if (Array.isArray(parsed)) discountsList = parsed;
+        } catch {
+          /* ignore parse error */
+        }
       }
     }
     let discAmt = 0;
@@ -800,17 +804,21 @@ export default function ReceiptPOS({
 
         let bDiscounts = [];
         if (b.discountReason) {
-          try {
-            const parsed = JSON.parse(b.discountReason);
-            if (Array.isArray(parsed)) bDiscounts = parsed;
-          } catch {
-            /* ignore parse error */
+          if (Array.isArray(b.discountReason)) {
+            bDiscounts = b.discountReason;
+          } else if (typeof b.discountReason === 'string') {
+            try {
+              const parsed = JSON.parse(b.discountReason);
+              if (Array.isArray(parsed)) bDiscounts = parsed;
+            } catch {
+              /* ignore parse error */
+            }
           }
         }
         if (bDiscounts.length === 0 && Number(b.discountValue) > 0) {
           bDiscounts = [{
             id: `legacy_${b.idSuffix || idx}`,
-            reason: b.discountReason || 'ส่วนลดพิเศษ',
+            reason: (typeof b.discountReason === 'string' ? b.discountReason : '') || 'ส่วนลดพิเศษ',
             type: b.discountType || 'flat',
             value: Number(b.discountValue)
           }];
@@ -909,11 +917,15 @@ export default function ReceiptPOS({
 
         let bDiscounts = [];
         if (b.discountReason) {
-          try {
-            const parsed = JSON.parse(b.discountReason);
-            if (Array.isArray(parsed)) bDiscounts = parsed;
-          } catch {
-            /* ignore parse error */
+          if (Array.isArray(b.discountReason)) {
+            bDiscounts = b.discountReason;
+          } else if (typeof b.discountReason === 'string') {
+            try {
+              const parsed = JSON.parse(b.discountReason);
+              if (Array.isArray(parsed)) bDiscounts = parsed;
+            } catch {
+              /* ignore parse error */
+            }
           }
         }
 
@@ -1055,14 +1067,18 @@ export default function ReceiptPOS({
   // พาร์สข้อมูลส่วนลดเพิ่มเติมทั้งหมดที่มีอยู่ในปัจจุบัน
   const additionalDiscounts = useMemo(() => {
     if (!discountReason) return [];
-    try {
-      const parsed = JSON.parse(discountReason);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      /* ignore parse error */
+    if (Array.isArray(discountReason)) return discountReason;
+    if (typeof discountReason === 'string') {
+      try {
+        const parsed = JSON.parse(discountReason);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        /* ignore parse error */
+      }
     }
     if (Number(discountValue) > 0) {
-      return [{ id: 'legacy', reason: discountReason || 'ส่วนลดพิเศษ', type: discountType, value: Number(discountValue) }];
+      const reasonText = typeof discountReason === 'string' ? discountReason : '';
+      return [{ id: 'legacy', reason: reasonText || 'ส่วนลดพิเศษ', type: discountType, value: Number(discountValue) }];
     }
     return [];
   }, [discountReason, discountValue, discountType]);
@@ -1252,7 +1268,7 @@ export default function ReceiptPOS({
       Swal.fire({ icon: 'warning', title: 'ไม่มีสินค้าในตะกร้า', confirmButtonColor: 'var(--secondary)' });
       return;
     }
-    if (discountAmount > 0 && !discountReason.trim()) {
+    if (discountAmount > 0 && !(typeof discountReason === 'string' ? discountReason : JSON.stringify(discountReason || '')).trim()) {
       Swal.fire({ 
         icon: 'warning', 
         title: 'ระบุเหตุผลส่วนลด', 
