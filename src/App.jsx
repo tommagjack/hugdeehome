@@ -8,6 +8,7 @@ import PatientRegister from './components/PatientRegister';
 import Appointments from './components/Appointments';
 import DevelopmentalAssessment from './components/DevelopmentalAssessment';
 import CourseBalance from './components/CourseBalance';
+import RetentionFollowUp from './components/RetentionFollowUp';
 import ReceiptPOS from './components/ReceiptPOS';
 import ReceiptHistory from './components/ReceiptHistory';
 import ServiceSummary from './components/ServiceSummary';
@@ -193,6 +194,8 @@ export default function App() {
   const [assessmentTemplates, setAssessmentTemplates] = useState(() => db.getAssessmentTemplates());
   const [attendance, setAttendance] = useState(() => db.getAttendance());
   const [itpGoals, setItpGoals] = useState(() => db.getItpGoals());
+  const [retentionNotes, setRetentionNotes] = useState(() => db.getRetentionFollowUps());
+  const [autoEditRetentionNoteId, setAutoEditRetentionNoteId] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [patientStatusFilter, setPatientStatusFilter] = useState('All');
 
@@ -217,6 +220,7 @@ export default function App() {
   const lastAssessmentTemplatesRef = useRef(assessmentTemplates);
   const lastAttendanceRef = useRef(attendance);
   const lastItpGoalsRef = useRef(itpGoals);
+  const lastRetentionNotesRef = useRef(retentionNotes);
 
   const refreshAllLocalStates = () => {
     const freshClinicInfo = db.getClinicInfo();
@@ -239,6 +243,7 @@ export default function App() {
     const freshAssessmentTemplates = db.getAssessmentTemplates();
     const freshAttendance = db.getAttendance();
     const freshItpGoals = db.getItpGoals();
+    const freshRetentionNotes = db.getRetentionFollowUps();
 
     setClinicInfo(freshClinicInfo);
     setUsers(freshUsers);
@@ -260,6 +265,7 @@ export default function App() {
     setAssessmentTemplates(freshAssessmentTemplates);
     setAttendance(freshAttendance);
     setItpGoals(freshItpGoals);
+    setRetentionNotes(freshRetentionNotes);
 
     lastClinicInfoRef.current = freshClinicInfo;
     lastUsersRef.current = freshUsers;
@@ -281,6 +287,7 @@ export default function App() {
     lastAssessmentTemplatesRef.current = freshAssessmentTemplates;
     lastAttendanceRef.current = freshAttendance;
     lastItpGoalsRef.current = freshItpGoals;
+    lastRetentionNotesRef.current = freshRetentionNotes;
   };
 
   // ฟังก์ชันส่วนกลางสำหรับการบันทึกประวัติการทำงานของพนักงาน (Activity Logs)
@@ -618,7 +625,8 @@ export default function App() {
       assessment_templates: { pk: 'id', setState: setAssessmentTemplates, ref: lastAssessmentTemplatesRef, dbSet: db.setAssessmentTemplates },
       attendance: { pk: 'id', setState: setAttendance, ref: lastAttendanceRef, dbSet: db.setAttendance },
       payrolls: { pk: 'id', setState: setPayrolls, ref: lastPayrollsRef, dbSet: db.setPayrolls },
-      itp_goals: { pk: 'id', setState: setItpGoals, ref: lastItpGoalsRef, dbSet: db.setItpGoals }
+      itp_goals: { pk: 'id', setState: setItpGoals, ref: lastItpGoalsRef, dbSet: db.setItpGoals },
+      retention_followups: { pk: 'id', setState: setRetentionNotes, ref: lastRetentionNotesRef, dbSet: db.setRetentionFollowUps }
     };
 
     const mapDatabaseRowToState = (row) => {
@@ -1065,6 +1073,10 @@ export default function App() {
     handleSyncDelta('hdh_itp_goals', 'id', itpGoals, lastItpGoalsRef, db.setItpGoals);
   }, [itpGoals]);
 
+  useEffect(() => {
+    handleSyncDelta('hdh_retention_followups', 'id', retentionNotes, lastRetentionNotesRef, db.setRetentionFollowUps);
+  }, [retentionNotes]);
+
   // 3. จัดการเรื่องหน้าเข้าใช้งาน / ล็อกอิน
 
   // Password reset states
@@ -1506,7 +1518,17 @@ export default function App() {
   }, [patients]);
   const pendingPatientsCount = pendingPatients.length;
 
-  const totalNotificationsCount = overdueCount + pendingPatientsCount;
+  // คำนวณรายการ Retention Follow-up ที่ถึงวันแจ้งเตือนแล้วและยังอยู่ในสถานะ "กำลังติดตาม"
+  const dueRetentionNotes = useMemo(() => {
+    if (!Array.isArray(retentionNotes)) return [];
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    return retentionNotes
+      .filter(n => n && n.status === 'กำลังติดตาม' && n.reminderDate && String(n.reminderDate).trim() <= todayStr)
+      .sort((a, b) => String(a.reminderDate || '').localeCompare(String(b.reminderDate || '')));
+  }, [retentionNotes]);
+  const dueRetentionCount = dueRetentionNotes.length;
+
+  const totalNotificationsCount = overdueCount + pendingPatientsCount + dueRetentionCount;
 
   const handleShowNotifications = () => {
     try {
@@ -1514,7 +1536,7 @@ export default function App() {
         Swal.fire({
           icon: 'success',
           title: 'ไม่มีรายการแจ้งเตือนค้าง',
-          text: 'ไม่มีนัดหมายค้างสถานะ และไม่มีผู้รับบริการที่รอการอนุมัติ',
+          text: 'ไม่มีรายการติดตามผู้รับบริการถึงกำหนด ไม่มีนัดหมายค้าง และไม่มีผู้รับบริการรออนุมัติ',
           confirmButtonColor: 'var(--secondary)'
         });
         return;
@@ -1522,7 +1544,45 @@ export default function App() {
 
       let htmlContent = '';
 
-      // ส่วนที่ 1: ผู้รับบริการที่ลงทะเบียนรออนุมัติ / ออกเลข HN
+      // ส่วนที่ 1: รายการติดตามผู้รับบริการถึงกำหนด (Retention Follow-up)
+      if (dueRetentionCount > 0) {
+        const retentionListHtml = dueRetentionNotes.map(note => {
+          const p = (patients || []).find(item => item && String(item.hn) === String(note.hn));
+          const nickDisplay = p?.nickname ? (typeof formatPatientNickname === 'function' ? formatPatientNickname(p.nickname) : `น้อง${p.nickname}`) : `HN: ${note.hn}`;
+          const fullName = p ? `${p.title || ''}${p.firstname || ''} ${p.lastname || ''}`.trim() : '';
+          return `
+            <div class="rfu-notif-item" data-note-id="${note.id}" style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid #fde68a; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+              <div style="flex: 1; min-width: 0;">
+                <strong style="color: #1e293b;">${nickDisplay}</strong>
+                <span style="color: #64748b; font-size: 0.8rem;">(${fullName ? `${fullName} | ` : ''}HN: ${note.hn})</span><br/>
+                <small style="color: #92400e; font-weight: 600;">📅 แจ้งเตือน: ${note.reminderDate} | ผู้รับผิดชอบ: ${note.assignee || '-'}</small><br/>
+                <small style="color: #475569; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📝 ${note.details || '-'}</small>
+              </div>
+              <button type="button" class="rfu-jump-btn" data-note-id="${note.id}" style="background: #d97706; color: white; padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; border: none; cursor: pointer; flex-shrink: 0;">
+                อัปเดตสถานะ
+              </button>
+            </div>
+          `;
+        }).join('');
+
+        htmlContent += `
+          <div style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <strong style="color: #d97706; font-size: 0.95rem;">
+                🔔 ถึงกำหนดติดตามผู้รับบริการ Retention Follow-up (${dueRetentionCount} รายการ)
+              </strong>
+              <button type="button" id="go-retention-all-btn" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; text-decoration: underline;">
+                ดูทั้งหมด →
+              </button>
+            </div>
+            <div style="max-height: 190px; overflow-y: auto; border: 1px solid #fde68a; border-radius: 8px; padding: 0 0.5rem; background-color: #fffbeb;">
+              ${retentionListHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      // ส่วนที่ 2: ผู้รับบริการที่ลงทะเบียนรออนุมัติ / ออกเลข HN
       if (pendingPatientsCount > 0) {
         const pendingListHtml = pendingPatients.map(p => {
           const nickDisplay = p.nickname ? (typeof formatPatientNickname === 'function' ? formatPatientNickname(p.nickname) : `น้อง${p.nickname}`) : 'ไม่มีชื่อเล่น';
@@ -1554,7 +1614,7 @@ export default function App() {
         `;
       }
 
-      // ส่วนที่ 2: นัดหมายค้างสถานะ
+      // ส่วนที่ 3: นัดหมายค้างสถานะ
       if (overdueCount > 0) {
         const overdueListHtml = overdueAppointments.map(app => {
           const patientName = app.patientName || `HN: ${app.hn}`;
@@ -1593,26 +1653,50 @@ export default function App() {
           </div>
         `,
         showDenyButton: pendingPatientsCount > 0,
-        showConfirmButton: overdueCount > 0,
+        showConfirmButton: overdueCount > 0 || dueRetentionCount > 0,
         showCancelButton: true,
         denyButtonText: 'ไปหน้าทะเบียนผู้รับบริการ (อนุมัติ)',
-        confirmButtonText: 'ไปหน้าตารางนัดหมาย',
+        confirmButtonText: dueRetentionCount > 0 && overdueCount === 0 ? 'ไปหน้า Retention Follow-up' : 'ไปหน้าตารางนัดหมาย',
         cancelButtonText: 'ปิด',
         denyButtonColor: 'var(--secondary)',
         confirmButtonColor: 'var(--primary)',
-        cancelButtonColor: '#94a3b8'
+        cancelButtonColor: '#94a3b8',
+        didOpen: (popup) => {
+          const jumpItems = popup.querySelectorAll('.rfu-jump-btn, .rfu-notif-item');
+          jumpItems.forEach(el => {
+            el.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              const noteId = el.getAttribute('data-note-id');
+              Swal.close();
+              setActiveTab('retention');
+              if (noteId) {
+                setAutoEditRetentionNoteId(noteId);
+              }
+            });
+          });
+          const goAllBtn = popup.querySelector('#go-retention-all-btn');
+          if (goAllBtn) {
+            goAllBtn.addEventListener('click', () => {
+              Swal.close();
+              setActiveTab('retention');
+            });
+          }
+        }
       }).then((result) => {
         if (result.isDenied) {
           setPatientStatusFilter('Pending');
           setActiveTab('patients');
         } else if (result.isConfirmed) {
-          setActiveTab('appointments');
+          if (dueRetentionCount > 0 && overdueCount === 0) {
+            setActiveTab('retention');
+          } else {
+            setActiveTab('appointments');
+          }
         }
       });
     } catch (err) {
       console.error('Error in handleShowNotifications:', err);
-      setPatientStatusFilter('Pending');
-      setActiveTab('patients');
+      setActiveTab('retention');
     }
   };
 
@@ -2568,6 +2652,7 @@ export default function App() {
         overdueCount={overdueCount}
         pendingUsersCount={pendingUsersCount}
         pendingPatientsCount={pendingPatientsCount}
+        dueRetentionCount={dueRetentionCount}
       />
 
       {/* ม่านฉากหลังเมื่อสไลด์เมนูมือถือเปิด */}
@@ -2944,6 +3029,20 @@ export default function App() {
             onRedeemReward={handleRedeemReward}
             onDeleteManualPoints={handleDeleteManualPoints}
             onEditManualPoints={handleEditManualPoints}
+          />
+        )}
+
+        {activeTab === 'retention' && (
+          <RetentionFollowUp
+            patients={patients}
+            users={users}
+            therapists={therapists}
+            currentUser={currentUser}
+            retentionNotes={retentionNotes}
+            setRetentionNotes={setRetentionNotes}
+            autoEditNoteId={autoEditRetentionNoteId}
+            onClearAutoEdit={() => setAutoEditRetentionNoteId(null)}
+            logActivity={logActivity}
           />
         )}
 

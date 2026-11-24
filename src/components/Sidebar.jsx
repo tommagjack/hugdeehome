@@ -20,11 +20,12 @@ import {
   CircleDollarSign,
   FileSymlink,
   Clock,
-  Target
+  Target,
+  BellRing
 } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from '../utils/defaultAssets';
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount, pendingUsersCount, pendingPatientsCount = 0 }) {
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, collapsed, setCollapsed, clinicInfo, mobileOpen, onCloseMobile, overdueCount, pendingUsersCount, pendingPatientsCount = 0, dueRetentionCount = 0 }) {
   
   const toggleCollapse = () => {
     const newVal = !collapsed;
@@ -41,6 +42,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     { id: 'opd', label: 'บันทึกผลการฝึก', icon: ClipboardList, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'referrals', label: 'หนังสือส่งตัว', icon: FileSymlink, roles: ['Admin', 'OT'] },
     { id: 'courses', label: 'คอร์สลูกค้า', icon: FileText, roles: ['Admin', 'OT', 'Staff'] },
+    { id: 'retention', label: 'Retention Follow-up', icon: BellRing, roles: ['Admin', 'OT', 'Staff'] },
     { id: 'pos', label: 'ออกใบเสร็จ', icon: ShoppingCart, roles: ['Admin', 'Staff'] },
     { id: 'history', label: 'ประวัติใบเสร็จ', icon: History, roles: ['Admin', 'Staff'] },
     { id: 'summaries', label: 'สรุปชั่วโมงงานครู', icon: BarChart3, roles: ['Admin', 'OT', 'Staff'] },
@@ -59,7 +61,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
     {
       id: 'customers',
       title: 'การจัดการผู้รับบริการ',
-      items: ['patients', 'appointments', 'courses']
+      items: ['patients', 'appointments', 'courses', 'retention']
     },
     {
       id: 'development',
@@ -218,6 +220,26 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                             boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
                           }}>{pendingPatientsCount}</span>
                         )}
+                        {item.id === 'retention' && dueRetentionCount > 0 && (
+                          <span className="menu-badge" style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            backgroundColor: 'var(--danger, #dc3545)',
+                            color: 'white',
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            borderRadius: '10px',
+                            minWidth: '16px',
+                            height: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                            zIndex: 10,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }}>{dueRetentionCount}</span>
+                        )}
                         {item.id === 'appointments' && overdueCount > 0 && (
                           <span className="menu-badge" style={{
                             position: 'absolute',
@@ -329,6 +351,21 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, colla
                               justifyContent: 'center',
                               lineHeight: 1
                             }}>{overdueCount}</span>
+                          )}
+                          {item.id === 'retention' && dueRetentionCount > 0 && (
+                            <span className="menu-badge" style={{
+                              marginLeft: 'auto',
+                              backgroundColor: 'var(--danger, #dc3545)',
+                              color: 'white',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              borderRadius: '10px',
+                              padding: '2px 6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1
+                            }}>{dueRetentionCount}</span>
                           )}
                           {item.id === 'users' && pendingUsersCount > 0 && (
                             <span className="menu-badge" style={{

@@ -22,6 +22,7 @@ export const KEYS = {
   ASSESSMENT_TEMPLATES: 'hdh_assessment_templates',
   ATTENDANCE: 'hdh_attendance',
   ITP_GOALS: 'hdh_itp_goals',
+  RETENTION_FOLLOWUPS: 'hdh_retention_followups',
 };
 
 // ฟังก์ชันคัดกรองข้อมูลไฟล์เอกสารขนาดใหญ่ (เช่น เอกสารบัตรประชาชน, ทะเบียนบ้าน, ใบประกอบวิชาชีพ) ออกจาก LocalStorage เพื่อแก้ปัญหา QuotaExceededError
@@ -415,6 +416,9 @@ export const db = {
   getItpGoals: () => get(KEYS.ITP_GOALS, []),
   setItpGoals: (data) => set(KEYS.ITP_GOALS, data),
 
+  getRetentionFollowUps: () => get(KEYS.RETENTION_FOLLOWUPS, []),
+  setRetentionFollowUps: (data) => set(KEYS.RETENTION_FOLLOWUPS, data),
+
   getAssessmentTemplates: () => {
     const data = get(KEYS.ASSESSMENT_TEMPLATES, mock.INITIAL_ASSESSMENT_TEMPLATES);
     if (Array.isArray(data)) {
@@ -576,6 +580,7 @@ export const TABLE_MAP = {
   'hdh_assessment_templates': 'assessment_templates',
   'hdh_attendance': 'attendance',
   'hdh_itp_goals': 'itp_goals',
+  'hdh_retention_followups': 'retention_followups',
 };
 
 // --- คอลัมน์ที่รองรับในแต่ละตารางฐานข้อมูล Supabase เพื่อป้องกันปัญหาส่งฟิลด์ส่วนเกิน ---
@@ -665,6 +670,10 @@ const TABLE_COLUMNS = {
   itp_goals: [
     'id', 'hn', 'therapist', 'title', 'category', 'target_date',
     'status', 'progress', 'notes', 'created_at', 'updated_at'
+  ],
+  retention_followups: [
+    'id', 'hn', 'reminder_date', 'details', 'status', 'assignee',
+    'created_by', 'created_at', 'updated_at'
   ]
 };
 
@@ -691,7 +700,8 @@ export const TABLE_SELECT_COLUMNS = {
   bank_accounts: 'id, bank_name, account_no, account_name',
   patients: 'hn, title, firstname, lastname, nickname, dob, gender, guardian, phone, status, allergies, conditions, conditions_details, channels, channels_other_details, worries, allergies_details, created_by, line_user_id, activated_by, activated_at, created_at',
   attendance: 'id, employee_id, employee_name, date, time, type, latitude, longitude, accuracy, maps_url, work_hours, line_user_id, notes, created_at',
-  itp_goals: 'id, hn, therapist, title, category, target_date, status, progress, notes, created_at, updated_at'
+  itp_goals: 'id, hn, therapist, title, category, target_date, status, progress, notes, created_at, updated_at',
+  retention_followups: 'id, hn, reminder_date, details, status, assignee, created_by, created_at, updated_at'
 };
 
 // --- ฟังก์ชันช่วยเหลือในการเปลี่ยนรูปแบบคีย์ ---
@@ -787,7 +797,17 @@ export const packClinicFolderUrl = (record, existingRaw = null) => {
     servicesSubtitle: record?.servicesSubtitle !== undefined ? record.servicesSubtitle : (baseFolder.servicesSubtitle || mock.INITIAL_CLINIC_INFO.servicesSubtitle),
     servicesFooterTitle: record?.servicesFooterTitle !== undefined ? record.servicesFooterTitle : (baseFolder.servicesFooterTitle || mock.INITIAL_CLINIC_INFO.servicesFooterTitle),
     servicePrograms: record?.servicePrograms !== undefined ? record.servicePrograms : (baseFolder.servicePrograms || null),
-    mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl)
+    mapsUrl: record?.mapsUrl !== undefined ? record.mapsUrl : (baseFolder.mapsUrl || mock.INITIAL_CLINIC_INFO.mapsUrl),
+    retentionFollowups: (() => {
+      try {
+        const localRfu = localStorage.getItem('hdh_retention_followups');
+        if (localRfu) {
+          const parsedRfu = JSON.parse(localRfu);
+          if (Array.isArray(parsedRfu)) return parsedRfu;
+        }
+      } catch {}
+      return baseFolder.retentionFollowups || [];
+    })()
   };
 
   return JSON.stringify(packed);
@@ -1055,6 +1075,15 @@ export const syncFromSupabase = async (targetKeys = null, options = {}) => {
               if (parsedFolder.servicesFooterTitle !== undefined) infoObj.servicesFooterTitle = parsedFolder.servicesFooterTitle;
               if (parsedFolder.servicePrograms !== undefined) infoObj.servicePrograms = parsedFolder.servicePrograms;
               if (parsedFolder.mapsUrl !== undefined) infoObj.mapsUrl = parsedFolder.mapsUrl;
+              if (Array.isArray(parsedFolder.retentionFollowups) && parsedFolder.retentionFollowups.length > 0) {
+                try {
+                  const curRfu = localStorage.getItem('hdh_retention_followups');
+                  const curArr = curRfu ? JSON.parse(curRfu) : [];
+                  if (!Array.isArray(curArr) || curArr.length === 0) {
+                    localStorage.setItem('hdh_retention_followups', JSON.stringify(parsedFolder.retentionFollowups));
+                  }
+                } catch {}
+              }
 
               if (parsedFolder.richmenuConfig && typeof parsedFolder.richmenuConfig === 'object') {
                 infoObj.richmenuConfig = parsedFolder.richmenuConfig;
@@ -1391,6 +1420,11 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
           .delete()
           .in(pk, idsToDelete);
         if (deleteError) {
+          if (tableName === 'retention_followups' && (deleteError.code === 'PGRST205' || deleteError.code === '42P01' || deleteError.message?.includes('does not exist') || deleteError.message?.includes('schema cache'))) {
+            console.warn('[Retention Sync Fallback] Table retention_followups not created yet, syncing via clinic_info backup.');
+            try { await syncDeltaToSupabase(KEYS.CLINIC_INFO, { toUpsert: [db.getClinicInfo()] }, false); } catch {}
+            return true;
+          }
           console.error(`Error deleting rows from ${tableName}:`, deleteError.message);
           if (throwOnError) throw new Error(deleteError.message);
           return false;
@@ -1457,6 +1491,11 @@ export const syncDeltaToSupabase = async (key, { toUpsert = [], toDelete = [] },
 
       const { error: upsertError } = await supabase.from(tableName).upsert(uniqueSnakeRecords);
       if (upsertError) {
+        if (tableName === 'retention_followups' && (upsertError.code === 'PGRST205' || upsertError.code === '42P01' || upsertError.message?.includes('does not exist') || upsertError.message?.includes('schema cache'))) {
+          console.warn('[Retention Sync Fallback] Table retention_followups not created yet, syncing via clinic_info backup.');
+          try { await syncDeltaToSupabase(KEYS.CLINIC_INFO, { toUpsert: [db.getClinicInfo()] }, false); } catch {}
+          return true;
+        }
         console.error(`Error upserting delta to ${tableName}:`, upsertError.message);
         if (throwOnError) throw new Error(upsertError.message);
         return false;
