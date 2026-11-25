@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { formatPatientNickname, parseDateToAD } from '../utils/format';
+import { formatPatientNickname, parseDateToAD, formatDateBE } from '../utils/format';
 import { 
   Search, 
   Plus, 
@@ -483,7 +483,7 @@ export default function ReferralLetter({
                 return (
                   <tr key={r.id} style={{ borderBottom: '1px solid #f5f5f5', backgroundColor: isCancelled ? '#fff0f0' : 'transparent' }}>
                     <td style={{ padding: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }}>{r.id}</td>
-                    <td style={{ padding: '0.75rem' }}>{formatDateTh(r.date)}</td>
+                    <td style={{ padding: '0.75rem' }}>{formatDateBE(r.date)}</td>
                     <td style={{ padding: '0.75rem' }}>
                       <span style={{ fontWeight: 600 }}>HN: {r.hn}</span> | {p.fullname} (น้อง{p.nickname})
                     </td>

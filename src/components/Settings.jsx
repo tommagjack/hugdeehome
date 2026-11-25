@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { formatTherapistName } from '../utils/format';
+import { formatTherapistName, formatDateBE } from '../utils/format';
 import { getGasUrl, db } from '../utils/db';
 import { DEFAULT_CLINIC_LOGO, DEFAULT_CLINIC_STAMP } from '../utils/defaultAssets';
 import { 
@@ -1975,7 +1975,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                           {(s.description || '').includes('[price_type:percent]') ? `${s.price}%` : `฿${s.price.toLocaleString()}`}
                         </td>
                         <td>{s.category === 'บริการ' ? `${s.sessionsPerUnit || 1} ครั้ง` : '-'}</td>
-                        <td style={{ fontSize: '0.8rem' }}>{s.startDate} ถึง {s.endDate}</td>
+                        <td style={{ fontSize: '0.8rem' }}>{formatDateBE(s.startDate)} ถึง {formatDateBE(s.endDate)}</td>
                         <td>
                           <span className={`badge ${checkServiceStatus(s) === 'Active' ? 'badge-success' : 'badge-secondary'}`}>
                             {checkServiceStatus(s)}
@@ -2041,7 +2041,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                             {p.type === 'flat' ? `฿${p.value}` : `${p.value}%`}
                           </td>
                           <td>คงเหลือ {remaining} / {p.maxUses} สิทธิ์ (ใช้ไป {usedCount})</td>
-                          <td style={{ fontSize: '0.8rem' }}>{p.startDate} ถึง {p.endDate}</td>
+                          <td style={{ fontSize: '0.8rem' }}>{formatDateBE(p.startDate)} ถึง {formatDateBE(p.endDate)}</td>
                           <td>
                             <span className={`badge ${isActive ? 'badge-success' : 'badge-secondary'}`}>
                               {isActive ? 'Active' : 'Inactive'}
@@ -2109,7 +2109,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                           <td>฿{(r.fullPrice || 0).toLocaleString()}</td>
                           <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{r.points.toLocaleString()} แต้ม</td>
                           <td>คงเหลือ {remaining} / {r.maxUses} สิทธิ์ (ใช้ไป {usedCount})</td>
-                          <td style={{ fontSize: '0.8rem' }}>{r.startDate} ถึง {r.endDate}</td>
+                          <td style={{ fontSize: '0.8rem' }}>{formatDateBE(r.startDate)} ถึง {formatDateBE(r.endDate)}</td>
                           <td>
                             {r.condition === 'แลกสินค้าฟรี' ? (
                               <span style={{ color: 'green', fontWeight: 600 }}>แลกสินค้าฟรี</span>
@@ -2332,7 +2332,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                       paginatedHolidays.map(h => (
                         <tr key={h.date}>
                           <td style={{ fontWeight: 600 }}>
-                            {new Date(h.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            {formatDateBE(h.date)}
                           </td>
                           <td>{h.name}</td>
                           <td>
@@ -2457,11 +2457,7 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
                     ) : (
                       paginatedLogs.map((log) => {
                         const dateObj = new Date(log.endDate || log.created_at);
-                        const thaiDateStr = dateObj.toLocaleDateString('th-TH', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        });
+                        const thaiDateStr = formatDateBE(dateObj);
                         const thaiTimeStr = dateObj.toLocaleTimeString('th-TH', {
                           hour: '2-digit',
                           minute: '2-digit',

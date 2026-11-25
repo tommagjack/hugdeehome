@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, getLocalDateString } from '../utils/format';
+import { formatPatientNickname, getLocalDateString, formatDateBE } from '../utils/format';
 import {
   BellRing,
   Plus,
@@ -368,7 +368,7 @@ export default function RetentionFollowUp({
 
       setRetentionNotes([newNote, ...(retentionNotes || [])]);
       if (typeof logActivity === 'function') {
-        logActivity(`เพิ่มโน้ต Retention Follow-up ของ ${nickLabel} (แจ้งเตือนวันที่ ${formReminderDate})`);
+        logActivity(`เพิ่มโน้ต Retention Follow-up ของ ${nickLabel} (แจ้งเตือนวันที่ ${formatDateBE(formReminderDate)})`);
       }
 
       // ปรับเดือนที่แสดงให้ตรงกับเดือนของโน้ตที่เพิ่งเพิ่ม เพื่อให้ผู้ใช้เห็นรายการทันที
@@ -478,12 +478,7 @@ export default function RetentionFollowUp({
 
   const formatThaiDateShort = (dateStr) => {
     if (!dateStr) return '-';
-    const parts = String(dateStr).split('-');
-    if (parts.length !== 3) return dateStr;
-    const yearBE = Number(parts[0]) + 543;
-    const monthIdx = Number(parts[1]) - 1;
-    const day = Number(parts[2]);
-    return `${day} ${THAI_MONTHS[monthIdx] || parts[1]} ${yearBE}`;
+    return formatDateBE(dateStr) || dateStr;
   };
 
   const yearOptions = useMemo(() => {

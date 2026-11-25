@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName, parseDateToAD } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, parseDateToAD, formatDateBE } from '../utils/format';
 import { 
   ClipboardCheck, 
   Brain, 
@@ -742,7 +742,7 @@ export default function DevelopmentalAssessment({
                 return (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600, color: 'var(--secondary)' }}>{item.id}</td>
-                    <td>{new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                    <td>{formatDateBE(item.date)}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{item.patientName}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--dark-light)' }}>HN: {item.hn} ({formatPatientNickname(item.patientNickname)})</div>
@@ -1451,7 +1451,7 @@ export default function DevelopmentalAssessment({
                   <div><strong>ชื่อ-สกุล:</strong> {viewingAssessment.patientName}</div>
                   <div><strong>ชื่อเล่น:</strong> {formatPatientNickname(viewingAssessment.patientNickname) || '-'}</div>
                   <div><strong>รหัส HN:</strong> {viewingAssessment.hn}</div>
-                  <div><strong>วันที่ประเมิน:</strong> {new Date(viewingAssessment.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                  <div><strong>วันที่ประเมิน:</strong> {formatDateBE(viewingAssessment.date)}</div>
                 </div>
               </div>
 

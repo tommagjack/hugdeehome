@@ -32,7 +32,7 @@ import AssessmentSettings from './components/AssessmentSettings';
 import { RefreshCw, Menu, Bell, Clock } from 'lucide-react';
 import { DEFAULT_CLINIC_LOGO, SmartAvatar } from './utils/defaultAssets';
 import Swal from 'sweetalert2';
-import { formatPatientNickname } from './utils/format';
+import { formatPatientNickname, formatDateBE } from './utils/format';
 const isObjectEqual = (a, b) => {
   if (a === b) return true;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
@@ -1575,7 +1575,7 @@ export default function App() {
               <div style="flex: 1; min-width: 0;">
                 <strong style="color: #1e293b;">${nickDisplay}</strong>
                 <span style="color: #64748b; font-size: 0.8rem;">(${fullName ? `${fullName} | ` : ''}HN: ${note.hn})</span><br/>
-                <small style="color: #92400e; font-weight: 600;">📅 แจ้งเตือน: ${note.reminderDate} | ผู้รับผิดชอบ: ${note.assignee || '-'}</small><br/>
+                <small style="color: #92400e; font-weight: 600;">📅 แจ้งเตือน: ${formatDateBE(note.reminderDate)} | ผู้รับผิดชอบ: ${note.assignee || '-'}</small><br/>
                 <small style="color: #475569; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📝 ${note.details || '-'}</small>
               </div>
               <button type="button" class="rfu-jump-btn" data-note-id="${note.id}" style="background: #d97706; color: white; padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; border: none; cursor: pointer; flex-shrink: 0;">
@@ -1642,7 +1642,7 @@ export default function App() {
             <div style="text-align: left; padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;">
               <div>
                 <strong style="color: #1e293b;">${patientName}</strong><br/>
-                <small style="color: #64748b;">วันที่นัด: ${app.date} | เวลา: ${app.timeSlot || '-'}</small>
+                <small style="color: #64748b;">วันที่นัด: ${formatDateBE(app.date)} | เวลา: ${app.timeSlot || '-'}</small>
               </div>
               <span style="background: #fee2e2; color: #b91c1c; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid #fca5a5;">
                 ${app.status}
@@ -1743,7 +1743,7 @@ export default function App() {
   const handleAddAppointment = (data) => {
     setAppointments([...appointments, data]);
     const p = patients.find(pat => pat.hn === data.hn);
-    logActivity(`เพิ่มรายการนัดหมาย เลขที่: ${data.id} (HN: ${data.hn}${p ? ' - น้อง' + p.nickname : ''}) วันที่: ${data.date} เวลา: ${data.timeSlot}`);
+    logActivity(`เพิ่มรายการนัดหมาย เลขที่: ${data.id} (HN: ${data.hn}${p ? ' - น้อง' + p.nickname : ''}) วันที่: ${formatDateBE(data.date)} เวลา: ${data.timeSlot}`);
   };
 
   const handleUpdateAppointmentStatus = (appId, newStatus) => {
@@ -1760,7 +1760,7 @@ export default function App() {
 
   const handleUpdateAppointment = (updatedApp) => {
     setAppointments(appointments.map(app => app.id === updatedApp.id ? updatedApp : app));
-    logActivity(`แก้ไขรายละเอียดนัดหมาย เลขที่: ${updatedApp.id} (HN: ${updatedApp.hn}) เป็นวันที่: ${updatedApp.date} เวลา: ${updatedApp.timeSlot}`);
+    logActivity(`แก้ไขรายละเอียดนัดหมาย เลขที่: ${updatedApp.id} (HN: ${updatedApp.hn}) เป็นวันที่: ${formatDateBE(updatedApp.date)} เวลา: ${updatedApp.timeSlot}`);
   };
 
   const handleAddAssessment = (data) => {

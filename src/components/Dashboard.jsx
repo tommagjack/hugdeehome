@@ -584,7 +584,7 @@ export default function Dashboard({
 
             {filteredAppointments.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--dark-light)' }}>
-                ไม่มีคิวนัดหมายในวันที่ {selectedDate === todayLocalDateString ? 'วันนี้' : selectedDate}
+                ไม่มีคิวนัดหมายในวันที่ {selectedDate === todayLocalDateString ? `วันนี้ (${formatDateBE(selectedDate)})` : formatDateBE(selectedDate)}
               </div>
             ) : (
               <div className="table-container">

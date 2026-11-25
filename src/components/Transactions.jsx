@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { exportToCSV, parseCSV } from '../utils/csvHelper';
-import { getLocalDateString } from '../utils/format';
+import { getLocalDateString, formatDateBE as formatDateDDMMYYYY } from '../utils/format';
 
 const monthThaiNames = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -45,16 +45,10 @@ const trHeadersMap = {
   amount: ['amount', 'จำนวนเงิน', 'ยอดเงิน', 'จำนวน', 'ยอดเงินสุทธิ']
 };
 
-// แปลงวันที่ YYYY-MM-DD เป็นพ.ศ. แบบยาว
+// แปลงวันที่ YYYY-MM-DD เป็น DD-MM-YYYY (พ.ศ.)
 const formatDateBE = (dateStr) => {
   if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+  return formatDateDDMMYYYY(dateStr) || dateStr;
 };
 
 // แปลงปี พ.ศ. ค.ศ.

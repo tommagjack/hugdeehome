@@ -303,7 +303,7 @@ export default function Appointments({
           <div style="font-family: var(--font-family); text-align: left; font-size: 0.9rem; line-height: 1.5">
             <strong>ผู้ป่วย:</strong> ${patientObj.title}${patientObj.firstname} ${patientObj.lastname} (น้อง${patientObj.nickname})<br/>
             <strong>นักกิจกรรมบำบัด:</strong> ${therapistObj.nickname} (${therapistObj.fullname})<br/>
-            <strong>วันที่:</strong> ${new Date(bookingDate).toLocaleDateString('th-TH')}<br/>
+            <strong>วันที่:</strong> ${formatDateBE(bookingDate)}<br/>
             <strong>เวลา:</strong> ${selectedTimeSlot}
           </div>
         `,
@@ -332,7 +332,7 @@ export default function Appointments({
           <div style="font-family: var(--font-family); text-align: left; font-size: 0.9rem; line-height: 1.5">
             <strong>ผู้ป่วย:</strong> ${patientObj.title}${patientObj.firstname} ${patientObj.lastname} (น้อง${patientObj.nickname})<br/>
             <strong>นักกิจกรรมบำบัด:</strong> ${therapistObj.nickname} (${therapistObj.fullname})<br/>
-            <strong>วันที่:</strong> ${new Date(bookingDate).toLocaleDateString('th-TH')}<br/>
+            <strong>วันที่:</strong> ${formatDateBE(bookingDate)}<br/>
             <strong>เวลา:</strong> ${selectedTimeSlot}
           </div>
         `,
@@ -372,10 +372,10 @@ export default function Appointments({
           <div style="margin-bottom: 0.5rem;"><strong>ผู้ปกครอง:</strong> ${patient.guardian || '-'} (โทร. ${patient.phone || '-'})</div>
           <div style="margin-bottom: 0.5rem;"><strong>ผู้สอน:</strong> ${formatTherapistName(therapist.nickname || 'ไม่ระบุ')} (${therapist.fullname || '-'})</div>
           <div style="margin-bottom: 0.5rem;"><strong>เลขใบประกอบโรคศิลปะ:</strong> ${therapist.licenseNo || '-'}</div>
-          <div style="margin-bottom: 0.5rem;"><strong>วันที่นัดหมาย:</strong> ${new Date(app.date).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          <div style="margin-bottom: 0.5rem;"><strong>วันที่นัดหมาย:</strong> ${formatDateBE(app.date)}</div>
           <div style="margin-bottom: 0.5rem;"><strong>เวลา:</strong> ${app.timeSlot} น.</div>
           <div style="margin-bottom: 0.5rem;"><strong>สถานะ:</strong> <span class="badge ${app.status === 'จองแล้ว' ? 'badge-warning' : app.status === 'ยืนยันแล้ว' ? 'badge-info' : app.status === 'รับบริการแล้ว' ? 'badge-success' : 'badge-danger'}">${app.status}</span></div>
-          <div><strong>วันที่ทำรายการ:</strong> ${app.created_at ? new Date(app.created_at).toLocaleString('th-TH') : '-'}</div>
+          <div><strong>วันที่ทำรายการ:</strong> ${app.created_at ? `${formatDateBE(app.created_at)} ${new Date(app.created_at).toLocaleTimeString('th-TH')}` : '-'}</div>
         </div>
       `,
       confirmButtonColor: 'var(--secondary)',
@@ -1555,7 +1555,7 @@ export default function Appointments({
                     <tr key={app.id}>
                       <td>
                         <div style={{ fontWeight: 600 }}>
-                          {new Date(app.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {formatDateBE(app.date)}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--dark-light)' }}>
                           {app.timeSlot}

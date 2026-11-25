@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName, parseDateToAD } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, parseDateToAD, formatDateBE } from '../utils/format';
 import { 
   ClipboardList, 
   Search, 
@@ -691,7 +691,7 @@ export default function OPD({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
                   <div><strong>เลขทะเบียนผู้ป่วย (HN):</strong> {activePatient.hn}</div>
                   <div><strong>ชื่อ-สกุล:</strong> {activePatient.title}{activePatient.firstname} {activePatient.lastname} ({activePatient.nickname})</div>
-                  <div><strong>วันเกิด:</strong> {activePatient.dob ? new Date(activePatient.dob).toLocaleDateString('th-TH') : '-'}</div>
+                  <div><strong>วันเกิด:</strong> {activePatient.dob ? formatDateBE(activePatient.dob) : '-'}</div>
                   <div><strong>อายุ:</strong> {calculateAge(activePatient.dob)}</div>
                   <div><strong>เพศ:</strong> {activePatient.gender}</div>
                   <div><strong>ผู้ปกครอง:</strong> {activePatient.guardian} | โทร: {activePatient.phone}</div>
@@ -948,7 +948,7 @@ export default function OPD({
                           ) : (
                             // โหมดเรนเดอร์ปกติ
                             <>
-                              <td style={{ fontWeight: 500 }}>{row.date ? new Date(row.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</td>
+                              <td style={{ fontWeight: 500 }}>{row.date ? formatDateBE(row.date) : ''}</td>
                               <td style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45', textAlign: 'left' }}>{row.details}</td>
                               <td><strong>{formatTherapistName(row.therapist)}</strong></td>
                               <td>

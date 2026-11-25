@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, formatDateBE } from '../utils/format';
 import { db, syncDeltaToSupabase, toCamelCase, safeJsonParse } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
 import Swal from 'sweetalert2';
@@ -709,13 +709,7 @@ GRANT SELECT ON public.clinic_info TO anon, authenticated;
 
   const formatThaiDate = (dateStr) => {
     if (!dateStr) return '-';
-    const parts = String(dateStr).split('-');
-    if (parts.length !== 3) return dateStr;
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    const d = new Date(year, month, day);
-    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+    return formatDateBE(dateStr) || dateStr;
   };
 
   // ==========================================

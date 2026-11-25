@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { formatDateBE } from '../utils/format';
 import { 
   Users2, 
   Plus, 
@@ -703,7 +704,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                 employeeId: empId,
                 type: 'checkin',
                 timeStr: new Date().toLocaleTimeString('th-TH'),
-                dateStr: new Date().toLocaleDateString('th-TH')
+                dateStr: formatDateBE(new Date())
               });
               if (res.success) {
                 Swal.showValidationMessage('✓ ส่งข้อความทดสอบสำเร็จ! ตรวจสอบที่ LINE');
@@ -1256,7 +1257,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                         </span>
                         {u.status === 'Inactive' && u.resignationDate && (
                           <small style={{ fontSize: '0.7rem', color: '#dc3545', whiteSpace: 'nowrap', marginTop: '2px' }}>
-                            พ้นสภาพ: {new Date(u.resignationDate).toLocaleDateString('th-TH')}
+                            พ้นสภาพ: {formatDateBE(u.resignationDate)}
                           </small>
                         )}
                       </div>
@@ -1503,7 +1504,7 @@ export default function Users({ users, setUsers, setPrintView }) {
                             employeeId: uEmployeeId || '-',
                             type: 'checkin',
                             timeStr: new Date().toLocaleTimeString('th-TH'),
-                            dateStr: new Date().toLocaleDateString('th-TH')
+                            dateStr: formatDateBE(new Date())
                           });
                           if (res.success) {
                             Swal.fire({ icon: 'success', title: 'ส่งข้อความทดสอบสำเร็จ!', text: 'โปรดตรวจสอบที่หน้าแชท LINE OA', timer: 2000 });

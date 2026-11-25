@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, formatDateBE } from '../utils/format';
 import { 
   History, 
   Search, 
@@ -729,7 +729,7 @@ export default function ReceiptHistory({
                           </div>
                         )}
                       </td>
-                      <td>{new Date(r.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                      <td>{formatDateBE(r.date)}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{r.patientName}</div>
                         {/* แสดงชื่อเล่นในวงเล็บต่อท้าย HN ลูกค้าเสมอตามสเปก */}

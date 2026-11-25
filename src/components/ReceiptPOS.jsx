@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname } from '../utils/format';
+import { formatPatientNickname, formatDateBE } from '../utils/format';
 import { 
   ShoppingCart, 
   Trash2, 
@@ -1900,7 +1900,7 @@ export default function ReceiptPOS({
         }}>
           <div>
             <strong>⚠️ โหมดแก้ไขเอกสารการเงิน เลขที่: {editingReceiptId}</strong>
-            {editingReceiptDate && <span style={{ marginLeft: '0.75rem', fontSize: '0.9rem' }}>(วันที่เดิม: {new Date(editingReceiptDate).toLocaleDateString('th-TH')})</span>}
+            {editingReceiptDate && <span style={{ marginLeft: '0.75rem', fontSize: '0.9rem' }}>(วันที่เดิม: {formatDateBE(editingReceiptDate)})</span>}
           </div>
           <button 
             type="button" 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPatientNickname, parseDateToAD } from '../utils/format';
+import { formatPatientNickname, parseDateToAD, formatDateBE } from '../utils/format';
 import ThaiDatePicker, { parseRawDateToParts } from './ThaiDatePicker';
 import { 
   UserPlus, 
@@ -664,15 +664,9 @@ export default function PatientRegister({
       if (!p.dob) return 'ไม่ได้ระบุ';
       const parts = parseRawDateToParts(p.dob);
       if (parts.day && parts.month && parts.yearBE) {
-        const fullNames = ['', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        const m = parseInt(parts.month, 10);
-        return `${parts.day} ${fullNames[m] || parts.month} ${parts.yearBE}`;
+        return `${String(parts.day).padStart(2, '0')}-${String(parts.month).padStart(2, '0')}-${parts.yearBE}`;
       }
-      const d = parseDateToAD(p.dob);
-      if (d && !isNaN(d.getTime())) {
-        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-      return p.dob || 'ไม่ได้ระบุ';
+      return formatDateBE(p.dob) || p.dob || 'ไม่ได้ระบุ';
     })();
 
     Swal.fire({
@@ -700,7 +694,7 @@ export default function PatientRegister({
           </div>
           <div style="border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: #475569;">
             <strong>ผู้บันทึก/อนุมัติข้อมูล:</strong> ${p.activatedBy || p.createdBy || 'ผู้ดูแลระบบ'}<br/>
-            ${p.activatedAt ? `<strong>วันที่อนุมัติ (Active):</strong> ${new Date(p.activatedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.<br/>` : ''}
+            ${p.activatedAt ? `<strong>วันที่อนุมัติ (Active):</strong> ${formatDateBE(p.activatedAt)} ${new Date(p.activatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.<br/>` : ''}
           </div>
         </div>
       `,

@@ -109,11 +109,38 @@ export const getLocalDateString = (dateInput) => {
  */
 export const formatDateBE = (dateInput) => {
   if (!dateInput) return '';
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return dateInput;
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return '';
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    let year = dateInput.getFullYear();
+    if (year < 2400) year += 543;
+    return `${day}-${month}-${year}`;
+  }
+  const str = String(dateInput).trim();
+  if (!str) return '';
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (ymdMatch) {
+    let year = parseInt(ymdMatch[1], 10);
+    if (year < 2400) year += 543;
+    const month = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+    const day = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+    return `${day}-${month}-${year}`;
+  }
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const day = String(parseInt(dmyMatch[1], 10)).padStart(2, '0');
+    const month = String(parseInt(dmyMatch[2], 10)).padStart(2, '0');
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 2400) year += 543;
+    return `${day}-${month}-${year}`;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return str;
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
-  const yearBE = d.getFullYear() + 543;
-  return `${day}-${month}-${yearBE}`;
+  let year = d.getFullYear();
+  if (year < 2400) year += 543;
+  return `${day}-${month}-${year}`;
 };
 

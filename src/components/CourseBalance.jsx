@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatPatientNickname, formatTherapistName } from '../utils/format';
+import { formatPatientNickname, formatTherapistName, formatDateBE } from '../utils/format';
 import { 
   FileText, 
   Plus, 
@@ -957,7 +957,7 @@ export default function CourseBalance({
                       const isEditable = h.code === 'POINT_ADD_MANUAL' || h.code === 'POINT_DEDUCT_MANUAL' || h.code === 'MANUAL_ADD' || h.code === 'MANUAL_DEDUCT';
                       return (
                         <tr key={index}>
-                          <td>{new Date(h.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                          <td>{formatDateBE(h.date)}</td>
                           <td>
                             <span className={`badge ${
                               h.type === 'โอนคอร์สออก' || h.type === 'โอนคะแนนออก' ? 'badge-danger' : 

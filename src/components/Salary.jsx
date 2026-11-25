@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatDateBE } from '../utils/format';
 import { 
   CreditCard, 
   Plus, 
@@ -1037,7 +1038,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                 <div>
                   <div><strong>ธนาคาร:</strong> {safeUsers.find(u => u && u.username === selectedSlip.employeeUsername)?.bankName || '-'}</div>
                   <div><strong>เลขที่บัญชี:</strong> {safeUsers.find(u => u && u.username === selectedSlip.employeeUsername)?.bankAccountNo || '-'}</div>
-                  <div><strong>วันที่ทำรายการจ่าย:</strong> {selectedSlip.paymentDate ? new Date(selectedSlip.paymentDate).toLocaleDateString('th-TH') : new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
+                  <div><strong>วันที่ทำรายการจ่าย:</strong> {selectedSlip.paymentDate ? formatDateBE(selectedSlip.paymentDate) : formatDateBE(selectedSlip.created_at)}</div>
                 </div>
               </div>
 
@@ -1116,7 +1117,7 @@ export default function Salary({ currentUser, users, salaryRules, payrolls, setP
                   <div style={{ width: '150px', borderBottom: '1px solid #333', height: '35px', marginBottom: '5px' }}></div>
                   <div style={{ fontWeight: 600, fontSize: '11px', marginBottom: '2px' }}>(นางสาวสุทธิพร สมเนตร)</div>
                   <div>ผู้อนุมัติจ่าย / Employer Signature</div>
-                  <div style={{ color: '#333', fontSize: '10px' }}>วันที่: {selectedSlip.paymentDate ? new Date(selectedSlip.paymentDate).toLocaleDateString('th-TH') : new Date(selectedSlip.created_at).toLocaleDateString('th-TH')}</div>
+                  <div style={{ color: '#333', fontSize: '10px' }}>วันที่: {selectedSlip.paymentDate ? formatDateBE(selectedSlip.paymentDate) : formatDateBE(selectedSlip.created_at)}</div>
                 </div>
               </div>
             </div>

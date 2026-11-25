@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { formatDateBE } from '../utils/format';
 import { 
   Clock, Calendar, MapPin, User, LogIn, LogOut, CheckCircle2, 
   AlertCircle, Smartphone, ExternalLink, History, RefreshCw, 
@@ -1396,7 +1397,7 @@ export default function CheckIn({ clinicInfo, users = [], setUsers }) {
                           {item.time} น.
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#8E7F70' }}>
-                          {item.date}
+                          {formatDateBE(item.date)}
                         </div>
                       </div>
                     </div>
