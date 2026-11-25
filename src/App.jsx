@@ -677,9 +677,29 @@ export default function App() {
 
         // 2. จัดการเพิ่มหรืออัปเดตข้อมูล (Upsert)
         if (upsertItems && upsertItems.length > 0) {
-          upsertItems.forEach(newItem => {
-            if (!newItem || newItem[targetPk] === undefined || newItem[targetPk] === null) return;
-            const idx = updatedList.findIndex(item => item && String(item[targetPk]) === String(newItem[targetPk]));
+          upsertItems.forEach(rawItem => {
+            if (!rawItem) return;
+            let newItem = rawItem;
+            if (tableName === 'holidays' && newItem.date) {
+              const normalizedList = db.setHolidays ? [newItem] : [newItem];
+              const cleanDate = (() => {
+                const str = String(newItem.date).trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+                const d = new Date(str);
+                if (!isNaN(d.getTime())) {
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                }
+                return str.split('T')[0];
+              })();
+              const fallbackId = parseInt(cleanDate.replace(/\D/g, ''), 10) || (Date.now() % 1000000000);
+              newItem = { ...newItem, id: newItem.id ?? fallbackId, date: cleanDate };
+              void normalizedList;
+            }
+            if (newItem[targetPk] === undefined || newItem[targetPk] === null) return;
+            const idx = updatedList.findIndex(item => item && (
+              String(item[targetPk]) === String(newItem[targetPk]) ||
+              (tableName === 'holidays' && item.date && newItem.date && String(item.date) === String(newItem.date))
+            ));
             if (idx >= 0) {
               if (!isObjectEqual(updatedList[idx], newItem)) {
                 updatedList[idx] = newItem;
@@ -810,8 +830,8 @@ export default function App() {
         // จะซิงค์ผ่าน REST เฉพาะเมื่อหลุดการเชื่อมต่อ หรือไม่ได้ซิงค์มานานกว่า 3 นาที
         if (!isConnected || (now - lastWakeUpSyncRef.current > 180000)) {
           lastWakeUpSyncRef.current = now;
-          // ซิงค์เฉพาะตารางที่มีการเคลื่อนไหวสูง (Appointments, Patients, Receipts, Attendance) ไม่โหลดทั้ง 19 ตาราง
-          await syncFromSupabase([KEYS.APPOINTMENTS, KEYS.PATIENTS, KEYS.RECEIPTS, KEYS.ATTENDANCE]);
+          // ซิงค์เฉพาะตารางที่มีการเคลื่อนไหวสูง (Appointments, Patients, Receipts, Attendance, Holidays) ไม่โหลดทั้ง 19 ตาราง
+          await syncFromSupabase([KEYS.APPOINTMENTS, KEYS.PATIENTS, KEYS.RECEIPTS, KEYS.ATTENDANCE, KEYS.HOLIDAYS]);
           refreshAllLocalStates();
         }
       } catch (e) {

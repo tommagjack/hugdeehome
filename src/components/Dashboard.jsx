@@ -54,10 +54,11 @@ export default function Dashboard({
     return null;
   }, [currentUser, therapists]);
 
-  // ตรวจสอบวันหยุดคลินิกสำหรับวันที่เลือก
+  // ตรวจสอบวันหยุดคลินิกสำหรับวันที่เลือก (รองรับทั้ง YYYY-MM-DD และ ISO Timestamp)
   const clinicHoliday = useMemo(() => {
     if (!availDate || !holidays) return null;
-    return holidays.find(h => h.date === availDate);
+    const targetDate = getLocalDateString(availDate);
+    return holidays.find(h => h && h.date && getLocalDateString(h.date) === targetDate) || null;
   }, [availDate, holidays]);
 
   // คำนวณชื่อวันสำหรับวันที่เลือกเพื่อความปลอดภัยเรื่อง Timezone
@@ -74,7 +75,7 @@ export default function Dashboard({
 
   // คำนวณคิวว่างของครู
   const teacherAvailableSlots = useMemo(() => {
-    if (!availDate) return [];
+    if (!availDate || clinicHoliday) return [];
 
     const selectedDayName = availDayName;
 
@@ -129,7 +130,7 @@ export default function Dashboard({
       if (timeCompare !== 0) return timeCompare;
       return String(a.therapistNickname).localeCompare(String(b.therapistNickname));
     });
-  }, [availDate, availTherapistId, appointments, therapists, currentUser, myTherapistId]);
+  }, [availDate, availTherapistId, appointments, therapists, currentUser, myTherapistId, clinicHoliday]);
 
   const itemsPerPage = 10;
   const maxAvailPages = Math.ceil(teacherAvailableSlots.length / itemsPerPage) || 1;

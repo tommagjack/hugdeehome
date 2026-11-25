@@ -121,6 +121,52 @@ export const initDatabase = (forceReset = false) => {
 };
 
 // ฟังก์ชันดึง/บันทึกทั่วไป
+export const normalizeHolidayDateStr = (rawDate) => {
+  if (!rawDate) return '';
+  const str = String(rawDate).trim();
+  const ymdMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymdMatch) {
+    let year = parseInt(ymdMatch[1], 10);
+    if (year > 2400) year -= 543;
+    const month = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+    const day = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    let year = d.getFullYear();
+    if (year > 2400) year -= 543;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return str.split('T')[0];
+};
+
+export const normalizeHolidaysList = (list) => {
+  if (!Array.isArray(list)) return [];
+  const byDate = new Map();
+  list.forEach((h, idx) => {
+    if (!h || !h.date) return;
+    const cleanDate = normalizeHolidayDateStr(h.date);
+    if (!cleanDate) return;
+    const dateIntId = parseInt(cleanDate.replace(/\D/g, ''), 10) || (20260000 + idx);
+    const numId = (h.id !== undefined && h.id !== null && !isNaN(Number(h.id))) ? Number(h.id) : dateIntId;
+    const normalized = {
+      ...h,
+      id: numId,
+      date: cleanDate,
+      name: h.name || '',
+      type: h.type || 'วันหยุดคลินิก'
+    };
+    const existing = byDate.get(cleanDate);
+    if (!existing || (h.id !== undefined && h.id !== null && existing.id === dateIntId)) {
+      byDate.set(cleanDate, normalized);
+    }
+  });
+  return Array.from(byDate.values()).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+};
+
 const get = (key, defaultVal) => {
   try {
     const data = localStorage.getItem(key);
@@ -315,8 +361,8 @@ export const db = {
   getBankAccounts: () => get(KEYS.BANK_ACCOUNTS, mock.INITIAL_BANK_ACCOUNTS),
   setBankAccounts: (data) => set(KEYS.BANK_ACCOUNTS, data),
 
-  getHolidays: () => get(KEYS.HOLIDAYS, mock.INITIAL_HOLIDAYS),
-  setHolidays: (data) => set(KEYS.HOLIDAYS, data),
+  getHolidays: () => normalizeHolidaysList(get(KEYS.HOLIDAYS, mock.INITIAL_HOLIDAYS)),
+  setHolidays: (data) => set(KEYS.HOLIDAYS, normalizeHolidaysList(data)),
 
   getPatients: () => {
     const data = get(KEYS.PATIENTS, mock.INITIAL_PATIENTS);
@@ -953,7 +999,7 @@ export const syncFromSupabase = async (targetKeys = null, options = {}) => {
         });
 
         // ดึงข้อมูลการซิงค์ที่ค้างสำหรับตารางนี้มาควบรวม (Merge) เพื่อป้องกันข้อมูลใหม่ในเครื่องสูญหาย
-        let finalData = mappedData;
+        let finalData = key === KEYS.HOLIDAYS ? normalizeHolidaysList(mappedData) : mappedData;
         const tableName = TABLE_MAP[key];
         const pk = getPrimaryKey(tableName);
 
@@ -1224,6 +1270,11 @@ export const syncFromSupabase = async (targetKeys = null, options = {}) => {
             if (!currentRules) {
               localStorage.setItem(key, JSON.stringify(mock.INITIAL_SALARY_RULES));
             }
+          }
+        } else if (key === KEYS.HOLIDAYS) {
+          const normalizedHolidays = normalizeHolidaysList(finalData);
+          if (normalizedHolidays.length > 0) {
+            localStorage.setItem(key, JSON.stringify(normalizedHolidays));
           }
         } else {
           if (finalData && finalData.length > 0) {

@@ -84,11 +84,19 @@ export const parseDateToAD = (dateStr) => {
  */
 export const getLocalDateString = (dateInput) => {
   if (!dateInput) return '';
+  const str = String(dateInput).trim();
+  const ymdMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    let year = parseInt(ymdMatch[1], 10);
+    if (year > 2400) year -= 543;
+    return `${year}-${ymdMatch[2]}-${ymdMatch[3]}`;
+  }
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) {
-    return String(dateInput).split('T')[0];
+    return str.split('T')[0];
   }
-  const year = d.getFullYear();
+  let year = d.getFullYear();
+  if (year > 2400) year -= 543;
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;

@@ -115,10 +115,11 @@ export default function Appointments({
     }
   }, [activeTherapists]);
 
-  // 1. ตรวจสอบวันหยุดคลินิก
+  // 1. ตรวจสอบวันหยุดคลินิก (รองรับทั้งรูปแบบ YYYY-MM-DD และ ISO Timestamp จากฐานข้อมูล)
   const clinicHoliday = useMemo(() => {
-    if (!bookingDate) return null;
-    return holidays.find(h => h.date === bookingDate);
+    if (!bookingDate || !holidays) return null;
+    const targetDate = getLocalDateString(bookingDate);
+    return holidays.find(h => h && h.date && getLocalDateString(h.date) === targetDate) || null;
   }, [bookingDate, holidays]);
 
   // 2. ตรวจสอบวันทำงานของครูที่เลือก
@@ -222,11 +223,36 @@ export default function Appointments({
     return totalPurchased - totalUsed;
   };
 
+  // ล้างช่วงเวลาที่เลือกทันทีหากวันที่เลือกตรงกับวันหยุดคลินิก หรือวันที่คุณครูไม่เข้างาน
+  useEffect(() => {
+    if (clinicHoliday || !therapistWorkDayStatus.works) {
+      setSelectedTimeSlot('');
+    }
+  }, [clinicHoliday, therapistWorkDayStatus.works]);
+
   // 5. บันทึกคิวจอง
   const handleBooking = (e) => {
     e.preventDefault();
     if (!selectedHn) {
       Swal.fire({ icon: 'warning', title: 'กรุณาเลือกผู้รับบริการ', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    if (clinicHoliday) {
+      Swal.fire({
+        icon: 'error',
+        title: 'ไม่สามารถลงนัดหมายในวันหยุดได้',
+        text: `วันที่เลือกตรงกับ${clinicHoliday.type || 'วันหยุดคลินิก'} (${clinicHoliday.name}) กรุณาเลือกวันอื่น`,
+        confirmButtonColor: 'var(--secondary)'
+      });
+      return;
+    }
+    if (!therapistWorkDayStatus.works) {
+      Swal.fire({
+        icon: 'error',
+        title: 'คุณครูไม่เข้าปฏิบัติงานในวันที่เลือก',
+        text: `คุณครูไม่เข้างานใน${therapistWorkDayStatus.dayTh} กรุณาเลือกวันหรือคุณครูท่านอื่น`,
+        confirmButtonColor: 'var(--secondary)'
+      });
       return;
     }
     if (appointmentType === 'ฝึกกระตุ้นพัฒนาการ' && getPatientCourseBalance(selectedHn) <= 0) {
@@ -240,6 +266,15 @@ export default function Appointments({
     }
     if (!selectedTimeSlot) {
       Swal.fire({ icon: 'warning', title: 'กรุณาเลือกเวลาเรียน', confirmButtonColor: 'var(--secondary)' });
+      return;
+    }
+    if (therapistBookedSlots.includes(selectedTimeSlot)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'ช่วงเวลานี้มีคิวนัดหมายแล้ว',
+        text: 'คิวเวลานี้ถูกจองแล้ว กรุณาเลือกช่วงเวลาอื่นที่ยังว่าง',
+        confirmButtonColor: 'var(--secondary)'
+      });
       return;
     }
 
@@ -350,11 +385,13 @@ export default function Appointments({
 
   // โหลดคิวนัดหมายเข้าฟอร์ม
   const handleEditClick = (app) => {
+    const cleanDate = app.date ? getLocalDateString(app.date) : '';
+    const isHolidayOnEdit = cleanDate && (holidays || []).some(h => h && h.date && getLocalDateString(h.date) === cleanDate);
     setEditingAppointmentId(app.id);
     setSelectedHn(app.hn);
-    setBookingDate(app.date);
+    setBookingDate(cleanDate);
     setSelectedTherapistId(app.therapistId);
-    setSelectedTimeSlot(app.timeSlot);
+    setSelectedTimeSlot(isHolidayOnEdit ? '' : app.timeSlot);
     setAppointmentType(app.type || 'ฝึกกระตุ้นพัฒนาการ');
     
     setShowBookingModal(true);
@@ -799,7 +836,12 @@ export default function Appointments({
       let updatedCount = 0;
       let invalidHnCount = 0;
       let invalidTherapistCount = 0;
+      let holidaySkipCount = 0;
       let errorCount = 0;
+
+      const holidayDateSet = new Set(
+        (holidays || []).map(h => h && h.date ? getLocalDateString(h.date) : '').filter(Boolean)
+      );
 
       let currentAppointmentsList = [...appointments];
 
@@ -813,11 +855,17 @@ export default function Appointments({
 
         const hn = val('hn');
         const therapistId = val('therapistId');
-        const date = val('date');
+        const rawDate = val('date');
+        const date = rawDate ? getLocalDateString(rawDate) : '';
         const timeSlot = val('timeSlot');
 
         if (!hn || !therapistId || !date || !timeSlot) {
           errorCount++;
+          return;
+        }
+
+        if (holidayDateSet.has(date)) {
+          holidaySkipCount++;
           return;
         }
 
@@ -879,6 +927,7 @@ export default function Appointments({
             อัปเดตข้อมูลเดิม: <strong>${updatedCount}</strong> รายการ<br/>
             ข้ามเนื่องจากไม่พบรหัส HN ผู้รับบริการ: <strong style="color:var(--warning)">${invalidHnCount}</strong> รายการ<br/>
             ข้ามเนื่องจากไม่พบรหัสนักบำบัด: <strong style="color:var(--warning)">${invalidTherapistCount}</strong> รายการ<br/>
+            ${holidaySkipCount > 0 ? `ข้ามเนื่องจากตรงกับวันหยุดคลินิก: <strong style="color:var(--danger)">${holidaySkipCount}</strong> รายการ<br/>` : ''}
             ข้ามเนื่องจากข้อมูลไม่ครบถ้วน: <strong style="color:var(--danger)">${errorCount}</strong> รายการ
           </div>
         `,

@@ -1173,41 +1173,72 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
   };
 
   // --- จัดการวันหยุดคลินิก (Holidays) ---
+  const getHolidayDateId = (dateStr) => {
+    const clean = String(dateStr || '').replace(/\D/g, '').slice(0, 8);
+    return parseInt(clean, 10) || 20260101;
+  };
+
   const handleAddHoliday = (e) => {
     e.preventDefault();
     if (!holidayName.trim()) return;
+    const cleanHolidayDate = parseHolidayDate(holidayDate) || holidayDate;
 
     if (editingHolidayDate) {
-      if (editingHolidayDate !== holidayDate && holidays.some(h => h.date === holidayDate)) {
+      const cleanEditingDate = parseHolidayDate(editingHolidayDate) || editingHolidayDate;
+      if (cleanEditingDate !== cleanHolidayDate && holidays.some(h => (parseHolidayDate(h.date) || h.date) === cleanHolidayDate)) {
         Swal.fire('วันที่ซ้ำ', 'มีข้อมูลวันหยุดในวันที่นี้อยู่แล้ว', 'error');
         return;
       }
-      const updated = holidays.map(h => 
-        h.date === editingHolidayDate ? { date: holidayDate, name: holidayName, type: holidayType } : h
-      ).sort((a, b) => b.date.localeCompare(a.date));
+      const updated = holidays.map(h => {
+        const hCleanDate = parseHolidayDate(h.date) || h.date;
+        if (hCleanDate === cleanEditingDate) {
+          return {
+            ...h,
+            id: h.id ?? getHolidayDateId(cleanHolidayDate),
+            date: cleanHolidayDate,
+            name: holidayName.trim(),
+            type: holidayType
+          };
+        }
+        return {
+          ...h,
+          id: h.id ?? getHolidayDateId(hCleanDate),
+          date: hCleanDate
+        };
+      }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
       setHolidays(updated);
-      logActivity(`แก้ไขข้อมูลวันหยุดประจำวันที่: ${holidayDate} เป็น "${holidayName}" (${holidayType})`);
+      logActivity(`แก้ไขข้อมูลวันหยุดประจำวันที่: ${cleanHolidayDate} เป็น "${holidayName.trim()}" (${holidayType})`);
       setEditingHolidayDate(null);
       setHolidayName('');
       setHolidayType('วันหยุดคลินิก');
       Swal.fire({ icon: 'success', title: 'แก้ไขวันหยุดสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
     } else {
-      if (holidays.some(h => h.date === holidayDate)) {
+      if (holidays.some(h => (parseHolidayDate(h.date) || h.date) === cleanHolidayDate)) {
         Swal.fire('วันที่ซ้ำ', 'มีข้อมูลวันหยุดในวันที่นี้อยู่แล้ว', 'error');
         return;
       }
 
-      const newHoliday = { date: holidayDate, name: holidayName, type: holidayType };
-      setHolidays([...holidays, newHoliday].sort((a, b) => b.date.localeCompare(a.date)));
-      logActivity(`เพิ่มวันหยุดใหม่ วันที่: ${holidayDate} ("${holidayName}" - ${holidayType})`);
+      const newHoliday = {
+        id: getHolidayDateId(cleanHolidayDate),
+        date: cleanHolidayDate,
+        name: holidayName.trim(),
+        type: holidayType
+      };
+      const normalizedExisting = holidays.map(h => {
+        const hClean = parseHolidayDate(h.date) || h.date;
+        return { ...h, id: h.id ?? getHolidayDateId(hClean), date: hClean };
+      });
+      setHolidays([...normalizedExisting, newHoliday].sort((a, b) => String(b.date).localeCompare(String(a.date))));
+      logActivity(`เพิ่มวันหยุดใหม่ วันที่: ${cleanHolidayDate} ("${holidayName.trim()}" - ${holidayType})`);
       setHolidayName('');
       Swal.fire({ icon: 'success', title: 'เพิ่มวันหยุดสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
     }
   };
 
   const handleEditHoliday = (h) => {
-    setEditingHolidayDate(h.date);
-    setHolidayDate(h.date);
+    const cleanDate = parseHolidayDate(h.date) || h.date;
+    setEditingHolidayDate(cleanDate);
+    setHolidayDate(cleanDate);
     setHolidayName(h.name);
     setHolidayType(h.type || 'วันหยุดคลินิก');
   };
@@ -1232,8 +1263,9 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
   };
 
   const handleDeleteHoliday = (date) => {
-    setHolidays(holidays.filter(h => h.date !== date));
-    logActivity(`ลบวันหยุดประจำวันที่: ${date}`);
+    const cleanTarget = parseHolidayDate(date) || date;
+    setHolidays(holidays.filter(h => (parseHolidayDate(h.date) || h.date) !== cleanTarget));
+    logActivity(`ลบวันหยุดประจำวันที่: ${cleanTarget}`);
   };
 
   // Pagination ของวันหยุด
@@ -1393,21 +1425,30 @@ function createUserFolder(parentFolderId, folderName, oldFolderName) {
       }
 
       // ทำการรวมข้อมูล (ถ้ามีวันเดิมอยู่แล้วให้อัปเดตชื่อ ถ้าเป็นวันใหม่ให้เพิ่ม)
-      const merged = [...holidays];
+      const merged = holidays.map(h => {
+        const hClean = parseHolidayDate(h.date) || h.date;
+        return { ...h, id: h.id ?? getHolidayDateId(hClean), date: hClean };
+      });
       let addedCount = 0;
       let updatedCount = 0;
       imported.forEach(imp => {
         const existingIdx = merged.findIndex(h => h.date === imp.date);
         if (existingIdx === -1) {
-          merged.push(imp);
+          merged.push({ ...imp, id: getHolidayDateId(imp.date) });
           addedCount++;
         } else {
-          merged[existingIdx] = { ...merged[existingIdx], name: imp.name, type: imp.type };
+          merged[existingIdx] = {
+            ...merged[existingIdx],
+            id: merged[existingIdx].id ?? getHolidayDateId(imp.date),
+            date: imp.date,
+            name: imp.name,
+            type: imp.type
+          };
           updatedCount++;
         }
       });
 
-      const sortedHolidays = merged.sort((a, b) => b.date.localeCompare(a.date));
+      const sortedHolidays = merged.sort((a, b) => String(b.date).localeCompare(String(a.date)));
       setHolidays(sortedHolidays);
       logActivity(`นำเข้าข้อมูลวันหยุดจากไฟล์ CSV: เพิ่มใหม่ ${addedCount} รายการ, อัปเดต ${updatedCount} รายการ`);
       Swal.fire({
